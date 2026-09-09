@@ -537,8 +537,7 @@ msgid "• URLs in your content are updated automatically"
 msgstr "• URL:er i ditt innehåll uppdateras automatiskt"
 
 #: packages/admin/src/components/SetupWizard.tsx:225
-#: packages/admin/src/components/SetupWizard.tsx:277
-#: packages/admin/src/components/SetupWizard.tsx:332
+#: packages/admin/src/components/SetupWizard.tsx:278
 #: packages/admin/src/components/WordPressImport.tsx:1617
 msgid "← Back"
 msgstr "← Tillbaka"
@@ -685,7 +684,7 @@ msgstr "Acceptera och installera"
 msgid "Accept & Update"
 msgstr "Acceptera och uppdatera"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:240
+#: packages/admin/src/components/InviteAcceptPage.tsx:239
 msgid "Accept Invite"
 msgstr "Acceptera inbjudan"
 
@@ -703,15 +702,15 @@ msgstr "Åtkomst nekad"
 msgid "Access your media library"
 msgstr "Få åtkomst till mediebiblioteket"
 
-#: packages/admin/src/components/SetupWizard.tsx:354
+#: packages/admin/src/components/SetupWizard.tsx:347
 msgid "Account"
 msgstr "Konto"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:154
+#: packages/admin/src/components/InviteAcceptPage.tsx:153
 msgid "Account already exists"
 msgstr "Kontot finns redan"
 
-#: packages/admin/src/components/SignupPage.tsx:277
+#: packages/admin/src/components/SignupPage.tsx:278
 msgid "Account exists"
 msgstr "Kontot finns"
 
@@ -1059,7 +1058,7 @@ msgstr "Tillåtna domäner"
 msgid "Allowed types"
 msgstr "Tillåtna typer"
 
-#: packages/admin/src/components/SignupPage.tsx:454
+#: packages/admin/src/components/SignupPage.tsx:455
 msgid "Already have an account?"
 msgstr "Har du redan ett konto?"
 
@@ -1097,6 +1096,10 @@ msgstr "Alt-text angiven"
 #: packages/admin/src/components/WordPressImport.tsx:1411
 msgid "Alternatively, you can export from WordPress (Tools → Export) and upload the file."
 msgstr "Alternativt kan du exportera från WordPress (Verktyg → Exportera) och ladda upp filen."
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:236
+msgid "An encrypted digital key you unlock using your fingerprint, face, PIN, or device password."
+msgstr ""
 
 #: packages/admin/src/components/DialogError.tsx:14
 #: packages/admin/src/components/MarketplaceBrowse.tsx:135
@@ -1157,7 +1160,7 @@ msgstr "Ett fel uppstod"
 msgid "An unexpected error occurred."
 msgstr "Ett oväntat fel uppstod."
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:251
+#: packages/admin/src/components/InviteAcceptPage.tsx:250
 msgid "An unknown error occurred"
 msgstr "Ett okänt fel uppstod"
 
@@ -1212,6 +1215,10 @@ msgstr "Använd länk"
 #: packages/admin/src/components/comments/CommentInbox.tsx:481
 msgid "Approve"
 msgstr "Godkänn"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:646
+msgid "Approve with that device's face, fingerprint, PIN, or passcode."
+msgstr ""
 
 #: packages/admin/src/components/comments/CommentDetail.tsx:195
 msgid "approved"
@@ -1282,7 +1289,7 @@ msgstr "Ljud"
 
 #. placeholder {0}: error.message
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:278
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:279
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:438
 msgid "Authentication error: {0}"
 msgstr "Autentiseringsfel: {0}"
 
@@ -1399,6 +1406,10 @@ msgstr "Tillgängliga widgetar"
 msgid "Avatar"
 msgstr "Avatar"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:628
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:665
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:702
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:748
 #: packages/admin/src/components/editor/BlockMenu.tsx:266
 #: packages/admin/src/components/MediaDetailPanel.tsx:1793
 #: packages/admin/src/components/MediaLibrary.tsx:811
@@ -1416,11 +1427,11 @@ msgstr "Tillbaka till listan {collectionLabel}"
 msgid "Back to Content Types"
 msgstr "Tillbaka till innehållstyper"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:172
+#: packages/admin/src/components/InviteAcceptPage.tsx:171
 #: packages/admin/src/components/LoginPage.tsx:118
 #: packages/admin/src/components/LoginPage.tsx:154
 #: packages/admin/src/components/LoginPage.tsx:313
-#: packages/admin/src/components/SignupPage.tsx:297
+#: packages/admin/src/components/SignupPage.tsx:298
 msgid "Back to login"
 msgstr "Tillbaka till inloggning"
 
@@ -1780,7 +1791,7 @@ msgstr ""
 
 #: packages/admin/src/components/LoginPage.tsx:102
 #: packages/admin/src/components/SignupPage.tsx:148
-#: packages/admin/src/components/SignupPage.tsx:417
+#: packages/admin/src/components/SignupPage.tsx:418
 msgid "Check your email"
 msgstr "Kontrollera din e-post"
 
@@ -1796,6 +1807,14 @@ msgstr "Kontrollerar autentisering …"
 #: packages/admin/src/routes/byline-schema.tsx:362
 msgid "Checking how many stored values reference \"{0}\"…"
 msgstr "Kontrollerar hur många lagrade värden som refererar till \"{0}\"…"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:493
+msgid "Checking this device for passkey support..."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:577
+msgid "Choose a credential manager on this device, another device, or a security key."
+msgstr ""
 
 #: packages/admin/src/components/ContentList.tsx:1045
 #: packages/admin/src/components/ContentList.tsx:1051
@@ -1819,6 +1838,10 @@ msgstr ""
 msgid "Choose an image from the library or upload a new one."
 msgstr ""
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:567
+msgid "Choose another option"
+msgstr ""
+
 #: packages/admin/src/components/BylineCreditsEditor.tsx:662
 #: packages/admin/src/components/BylineCreditsEditor.tsx:677
 msgid "Choose bylines"
@@ -1828,12 +1851,12 @@ msgstr ""
 msgid "Choose files to upload"
 msgstr ""
 
-#: packages/admin/src/components/SetupWizard.tsx:288
-msgid "Choose how to sign in"
-msgstr "Välj hur du vill logga in"
-
 #: packages/admin/src/components/MediaDetailPanel.tsx:1824
 msgid "Choose replacement image"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:187
+msgid "Choose Touch ID or another available credential manager, then confirm with your fingerprint or Mac password."
 msgstr ""
 
 #: packages/admin/src/components/PublishingDateTimeEditor.tsx:472
@@ -1842,6 +1865,10 @@ msgstr ""
 
 #: packages/admin/src/components/PublishingDateTimeEditor.tsx:475
 msgid "Choose when this draft becomes public."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:180
+msgid "Choose Windows Hello or another available credential manager, then confirm with your PIN, fingerprint, or face."
 msgstr ""
 
 #: packages/admin/src/components/Settings.tsx:134
@@ -2044,7 +2071,7 @@ msgstr "Kommentarer från inloggade CMS-användare godkänns automatiskt"
 msgid "Complete"
 msgstr ""
 
-#: packages/admin/src/components/SignupPage.tsx:418
+#: packages/admin/src/components/SignupPage.tsx:419
 msgid "Complete signup"
 msgstr "Slutför registrering"
 
@@ -2059,6 +2086,18 @@ msgstr "Konfigurera fält"
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:416
 msgid "Confirm"
 msgstr "Bekräfta"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:208
+msgid "Confirm using the secure prompt from your device or credential manager."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:194
+msgid "Confirm with Face ID, Touch ID, or your device passcode."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:201
+msgid "Confirm with your fingerprint, face, or PIN."
+msgstr ""
 
 #: packages/admin/src/components/WordPressImport.tsx:719
 #: packages/admin/src/components/WordPressImport.tsx:1072
@@ -2169,6 +2208,7 @@ msgstr "Innehållet hoppades över eftersom det redan finns"
 msgid "Content Write"
 msgstr "Skriva innehåll"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:274
 #: packages/admin/src/components/SignupPage.tsx:109
 msgid "Continue"
 msgstr "Fortsätt"
@@ -2184,6 +2224,14 @@ msgstr "Fortsätt import"
 
 #: packages/admin/src/components/PortableTextEditor.tsx:4345
 msgid "Continue numbering"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:673
+msgid "Continue with another device"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:710
+msgid "Continue with security key"
 msgstr ""
 
 #: packages/admin/src/components/users/roleDefinitions.ts:24
@@ -2358,12 +2406,7 @@ msgstr "Skapa en numrerad lista"
 msgid "Create a reusable public profile, then add it to this post."
 msgstr ""
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:84
-#: packages/admin/src/components/SignupPage.tsx:236
-msgid "Create Account"
-msgstr "Skapa konto"
-
-#: packages/admin/src/components/SignupPage.tsx:416
+#: packages/admin/src/components/SignupPage.tsx:417
 msgid "Create an account"
 msgstr "Skapa ett konto"
 
@@ -2405,9 +2448,9 @@ msgstr "Skapa ny token"
 msgid "Create one in WordPress: Users → Profile → Application Passwords"
 msgstr "Skapa ett i WordPress: Användare → Profil → Applikationslösenord"
 
-#: packages/admin/src/components/SetupWizard.tsx:298
-msgid "Create Passkey"
-msgstr "Skapa passkey"
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:741
+msgid "Create passkey"
+msgstr ""
 
 #: packages/admin/src/components/Settings.tsx:102
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:196
@@ -2456,7 +2499,7 @@ msgstr "Skapa token"
 msgid "Create Widget Area"
 msgstr "Skapa widgetområde"
 
-#: packages/admin/src/components/SetupWizard.tsx:560
+#: packages/admin/src/components/SetupWizard.tsx:553
 msgid "Create your account"
 msgstr "Skapa ditt konto"
 
@@ -2475,11 +2518,6 @@ msgstr "Skapa din första"
 #: packages/admin/src/components/Sections.tsx:267
 msgid "Create your first reusable content section to get started."
 msgstr "Skapa din första återanvändbara innehållssektion för att komma igång."
-
-#: packages/admin/src/components/InviteAcceptPage.tsx:75
-#: packages/admin/src/components/SignupPage.tsx:227
-msgid "Create your passkey"
-msgstr "Skapa din passkey"
 
 #: packages/admin/src/lib/api/marketplace.ts:280
 #: packages/admin/src/lib/api/marketplace.ts:289
@@ -3292,7 +3330,7 @@ msgstr "t.ex. import, blogg"
 msgid "e.g., CI/CD Pipeline"
 msgstr "t.ex. CI/CD-pipeline"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:325
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:765
 msgid "e.g., MacBook Pro, iPhone"
 msgstr "t.ex. MacBook Pro, iPhone"
 
@@ -3438,9 +3476,9 @@ msgstr ""
 msgid "em1.…"
 msgstr "em1.…"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:62
+#: packages/admin/src/components/InviteAcceptPage.tsx:63
 #: packages/admin/src/components/Settings.tsx:110
-#: packages/admin/src/components/SignupPage.tsx:213
+#: packages/admin/src/components/SignupPage.tsx:215
 #: packages/admin/src/components/users/UserDetail.tsx:154
 msgid "Email"
 msgstr "E-post"
@@ -3481,7 +3519,7 @@ msgstr "E-postinställningar"
 msgid "Email verified"
 msgstr "E-post verifierad"
 
-#: packages/admin/src/components/SignupPage.tsx:206
+#: packages/admin/src/components/SignupPage.tsx:207
 msgid "Email verified!"
 msgstr "E-post verifierad!"
 
@@ -3508,6 +3546,10 @@ msgstr "Tillägget EmDash Exporter upptäcktes! Du kan importera direkt."
 
 #: packages/admin/src/components/settings/MediaUsageSettings.tsx:487
 msgid "EmDash is scanning existing content."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:744
+msgid "EmDash never receives your PIN, password, or biometric information."
 msgstr ""
 
 #: packages/admin/src/components/settings/MediaUsageSettings.tsx:575
@@ -3624,7 +3666,7 @@ msgstr "Ange URL:en till din WordPress-webbplats"
 #: packages/admin/src/components/MenuEditor.tsx:155
 #: packages/admin/src/components/MenuEditor.tsx:193
 #: packages/admin/src/components/MenuEditor.tsx:233
-#: packages/admin/src/components/SetupWizard.tsx:539
+#: packages/admin/src/components/SetupWizard.tsx:532
 #: packages/admin/src/components/TaxonomyManager.tsx:947
 #: packages/admin/src/components/Widgets.tsx:769
 #: packages/admin/src/router.tsx:2736
@@ -3738,7 +3780,7 @@ msgstr "Det gick inte att kommunicera med tillägget"
 msgid "Failed to confirm upload"
 msgstr "Det gick inte att bekräfta uppladdningen"
 
-#: packages/admin/src/components/SetupWizard.tsx:493
+#: packages/admin/src/components/SetupWizard.tsx:486
 msgid "Failed to create admin"
 msgstr "Det gick inte att skapa administratören"
 
@@ -3990,7 +4032,7 @@ msgstr "Det gick inte att hämta sektioner"
 msgid "Failed to fetch settings"
 msgstr "Det gick inte att hämta inställningar"
 
-#: packages/admin/src/components/SetupWizard.tsx:446
+#: packages/admin/src/components/SetupWizard.tsx:439
 msgid "Failed to fetch setup status"
 msgstr "Det gick inte att hämta konfigurationsstatus"
 
@@ -4018,7 +4060,7 @@ msgstr "Det gick inte att skapa förhandsgranskningens URL"
 msgid "Failed to get authentication options"
 msgstr "Det gick inte att hämta autentiseringsalternativ"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:181
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:336
 msgid "Failed to get registration options"
 msgstr "Det gick inte att hämta registreringsalternativ"
 
@@ -4096,7 +4138,7 @@ msgstr "Det gick inte att läsa in tillägg. Registeraggregatorn kan vara otillg
 msgid "Failed to load revisions"
 msgstr "Det gick inte att läsa in revisioner"
 
-#: packages/admin/src/components/SetupWizard.tsx:541
+#: packages/admin/src/components/SetupWizard.tsx:534
 msgid "Failed to load setup"
 msgstr "Det gick inte att läsa in konfigurationen"
 
@@ -4232,7 +4274,7 @@ msgstr "Det gick inte att skicka återställningslänk"
 msgid "Failed to send test email"
 msgstr "Det gick inte att skicka testmejlet"
 
-#: packages/admin/src/components/SignupPage.tsx:366
+#: packages/admin/src/components/SignupPage.tsx:367
 msgid "Failed to send verification email"
 msgstr "Det gick inte att skicka bekräftelsemejlet"
 
@@ -4323,7 +4365,7 @@ msgstr "Det gick inte att verifiera autentiseringen"
 msgid "Failed to verify plugin"
 msgstr ""
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:254
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:412
 msgid "Failed to verify registration"
 msgstr "Det gick inte att verifiera registreringen"
 
@@ -4622,7 +4664,7 @@ msgstr "Kom igång"
 msgid "GitHub"
 msgstr "GitHub"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:329
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:769
 msgid "Give this passkey a name to help you identify it later."
 msgstr "Ge denna passkey ett namn så att du känner igen den senare."
 
@@ -4793,6 +4835,10 @@ msgstr "https://dinwebbplats.com"
 
 #: packages/admin/src/components/settings/MediaUsageSettings.tsx:604
 msgid "I’ve completed these steps and understand tracking can’t be turned off."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:554
+msgid "I've set it up — check again"
 msgstr ""
 
 #: packages/admin/src/components/MarketplaceBrowse.tsx:243
@@ -4971,6 +5017,10 @@ msgstr "Importerar menyer och webbplatsinställningar …"
 msgid "In trash"
 msgstr ""
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:536
+msgid "In Windows Settings, open Accounts, then Sign-in options, and set up a PIN. Fingerprint and face recognition are optional."
+msgstr ""
+
 #: packages/admin/src/components/BylineFilter.tsx:187
 #: packages/admin/src/components/BylineFilter.tsx:193
 msgid "Include inferred bylines"
@@ -5072,6 +5122,10 @@ msgstr ""
 msgid "Insert Link"
 msgstr "Infoga länk"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:691
+msgid "Insert or tap your security key when the browser asks."
+msgstr ""
+
 #: packages/admin/src/components/PortableTextEditor.tsx:1733
 msgid "Insert raw HTML"
 msgstr "Infoga rå HTML"
@@ -5130,7 +5184,7 @@ msgstr "Installerar …"
 msgid "Integer"
 msgstr "Heltal"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:152
+#: packages/admin/src/components/InviteAcceptPage.tsx:151
 msgid "Invalid invite link"
 msgstr "Ogiltig inbjudningslänk"
 
@@ -5138,15 +5192,15 @@ msgstr "Ogiltig inbjudningslänk"
 msgid "Invalid JSON"
 msgstr "Ogiltig JSON"
 
-#: packages/admin/src/components/SignupPage.tsx:275
+#: packages/admin/src/components/SignupPage.tsx:276
 msgid "Invalid link"
 msgstr "Ogiltig länk"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:241
+#: packages/admin/src/components/InviteAcceptPage.tsx:240
 msgid "Invite Error"
 msgstr "Inbjudningsfel"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:150
+#: packages/admin/src/components/InviteAcceptPage.tsx:149
 msgid "Invite expired"
 msgstr "Inbjudan har gått ut"
 
@@ -5169,6 +5223,10 @@ msgstr ""
 
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:517
 msgid "Invoke only this plugin's enabled MCP tools"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:507
+msgid "It is stored by the authenticator or credential manager you selected in the secure system prompt."
 msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:3883
@@ -5198,8 +5256,9 @@ msgstr "Objekt uppdaterat"
 msgid "Its listing has not been approved for display. Check back later."
 msgstr ""
 
+#: packages/admin/src/components/InviteAcceptPage.tsx:70
 #: packages/admin/src/components/SetupWizard.tsx:213
-#: packages/admin/src/components/SignupPage.tsx:221
+#: packages/admin/src/components/SignupPage.tsx:222
 msgid "Jane Doe"
 msgstr "Anna Andersson"
 
@@ -5375,7 +5434,7 @@ msgstr "Ljus"
 msgid "Limit"
 msgstr "Gräns"
 
-#: packages/admin/src/components/SignupPage.tsx:273
+#: packages/admin/src/components/SignupPage.tsx:274
 msgid "Link expired"
 msgstr "Länken har gått ut"
 
@@ -5521,7 +5580,7 @@ msgstr "Läser in sektioner …"
 msgid "Loading settings..."
 msgstr "Läser in inställningar …"
 
-#: packages/admin/src/components/SetupWizard.tsx:528
+#: packages/admin/src/components/SetupWizard.tsx:521
 msgid "Loading setup..."
 msgstr "Läser in konfiguration …"
 
@@ -6249,6 +6308,16 @@ msgstr "Nästa sida"
 msgid "Next screenshot"
 msgstr "Nästa skärmbild"
 
+#. placeholder {0}: platformCopy.name
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:726
+msgid "Next, {0} will open"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:652
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:689
+msgid "Next, the browser's passkey window will open"
+msgstr ""
+
 #: packages/admin/src/components/ContentList.tsx:1406
 #: packages/admin/src/components/users/UserDetail.tsx:236
 #: packages/admin/src/routes/byline-schema.tsx:422
@@ -6290,6 +6359,10 @@ msgstr "Inga API-token ännu. Skapa en för att komma igång."
 #: packages/admin/src/components/comments/CommentInbox.tsx:539
 msgid "No approved comments yet."
 msgstr "Inga godkända kommentarer ännu."
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:585
+msgid "No built-in passkey authenticator found"
+msgstr ""
 
 #: packages/admin/src/components/BylineFilter.tsx:101
 msgid "No byline"
@@ -6396,7 +6469,7 @@ msgstr ""
 msgid "No installable releases"
 msgstr "Inga installerbara versioner"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:193
+#: packages/admin/src/components/InviteAcceptPage.tsx:192
 msgid "No invite token provided"
 msgstr "Ingen inbjudningstoken angiven"
 
@@ -6575,6 +6648,10 @@ msgstr "Inga användare ännu."
 msgid "No widget areas yet. Create one to get started."
 msgstr "Inga widgetområden ännu. Skapa ett för att komma igång."
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:584
+msgid "No Windows Hello authenticator found"
+msgstr ""
+
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:226
 msgid "None"
 msgstr "Ingen"
@@ -6645,7 +6722,7 @@ msgstr "Endast gemener, siffror och bindestreck"
 msgid "Only the listed MIME types will be accepted for this field."
 msgstr "Endast de listade MIME-typerna accepteras för detta fält."
 
-#: packages/admin/src/components/SignupPage.tsx:419
+#: packages/admin/src/components/SignupPage.tsx:420
 msgid "Oops!"
 msgstr "Hoppsan!"
 
@@ -6671,6 +6748,16 @@ msgstr "Öppna i ny flik"
 
 #: packages/admin/src/components/MediaLibrary.tsx:889
 msgid "Open setup"
+msgstr ""
+
+#: packages/admin/src/components/InviteAcceptPage.tsx:83
+#: packages/admin/src/components/SetupWizard.tsx:294
+#: packages/admin/src/components/SignupPage.tsx:237
+msgid "Open the dashboard"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:545
+msgid "Open Windows settings"
 msgstr ""
 
 #: packages/admin/src/components/WordPressImport.tsx:1550
@@ -6729,9 +6816,9 @@ msgstr "Eller klicka för att bläddra. Accepterar .xml-filer exporterade från 
 msgid "or connect by URL"
 msgstr "eller anslut via URL"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:97
+#: packages/admin/src/components/InviteAcceptPage.tsx:96
 #: packages/admin/src/components/LoginPage.tsx:263
-#: packages/admin/src/components/SetupWizard.tsx:310
+#: packages/admin/src/components/SetupWizard.tsx:307
 msgid "Or continue with"
 msgstr "Eller fortsätt med"
 
@@ -6828,16 +6915,20 @@ msgstr "Godkänd"
 msgid "Passkey added successfully"
 msgstr "Passkey har lagts till"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:505
+msgid "Passkey created"
+msgstr ""
+
 #: packages/admin/src/components/settings/PasskeyItem.tsx:123
 #: packages/admin/src/components/settings/PasskeyItem.tsx:124
 msgid "Passkey name"
 msgstr "Passkey-namn"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:321
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:761
 msgid "Passkey Name (optional)"
 msgstr "Passkey-namn (valfritt)"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:344
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:784
 msgid "Passkey registered successfully!"
 msgstr "Passkey har registrerats!"
 
@@ -6863,13 +6954,8 @@ msgstr "Passkeys ({0})"
 msgid "Passkeys are a secure, passwordless way to sign in to your account. You can register multiple passkeys for different devices."
 msgstr "Passkeys är ett säkert, lösenordsfritt sätt att logga in på ditt konto. Du kan registrera flera passkeys för olika enheter."
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:77
-#: packages/admin/src/components/SignupPage.tsx:229
-msgid "Passkeys are a secure, passwordless way to sign in using your device's biometrics, PIN, or security key."
-msgstr "Passkeys är ett säkert, lösenordsfritt sätt att logga in med hjälp av enhetens biometri, PIN-kod eller säkerhetsnyckel."
-
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:302
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:301
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:475
 msgid "Passkeys Not Available Here"
 msgstr "Passkeys är inte tillgängliga här"
 
@@ -6951,10 +7037,6 @@ msgstr "Behörigheter"
 msgid "PHP"
 msgstr "PHP"
 
-#: packages/admin/src/components/SetupWizard.tsx:290
-msgid "Pick any method to create your admin account."
-msgstr "Välj en valfri metod för att skapa ditt administratörskonto."
-
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:143
 msgid "Picked up {label}."
 msgstr ""
@@ -6968,7 +7050,7 @@ msgstr "Platshållartext"
 msgid "Plain text"
 msgstr "Vanlig text"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:166
+#: packages/admin/src/components/InviteAcceptPage.tsx:165
 msgid "Please ask your administrator to send a new invite."
 msgstr "Be din administratör att skicka en ny inbjudan."
 
@@ -7126,7 +7208,7 @@ msgstr "Inlägg per sida"
 msgid "Pre-release"
 msgstr "Förhandsversion"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:171
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:326
 msgid "Preparing registration..."
 msgstr "Förbereder registrering …"
 
@@ -7400,7 +7482,7 @@ msgstr "Uppdatera sidan eller försök igen."
 msgid "Register"
 msgstr "Registrera"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:147
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:273
 #: packages/admin/src/components/settings/SecuritySettings.tsx:182
 msgid "Register Passkey"
 msgstr "Registrera passkey"
@@ -7409,11 +7491,11 @@ msgstr "Registrera passkey"
 msgid "Registered user"
 msgstr "Registrerad användare"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:260
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:419
 msgid "Registration failed"
 msgstr "Registreringen misslyckades"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:267
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:426
 msgid "Registration was cancelled or timed out. Please try again."
 msgstr "Registreringen avbröts eller tog för lång tid. Försök igen."
 
@@ -7651,7 +7733,7 @@ msgstr "Svara till:"
 msgid "Repository"
 msgstr "Kodarkiv"
 
-#: packages/admin/src/components/SignupPage.tsx:289
+#: packages/admin/src/components/SignupPage.tsx:290
 msgid "Request a new link"
 msgstr "Begär en ny länk"
 
@@ -8048,6 +8130,10 @@ msgstr "SBOM"
 msgid "SBOM · {0}"
 msgstr "SBOM · {0}"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:645
+msgid "Scan it with a nearby phone or tablet."
+msgstr ""
+
 #: packages/admin/src/components/PublishingDateTimeEditor.tsx:476
 msgid "Schedule"
 msgstr "Schemalägg"
@@ -8313,7 +8399,7 @@ msgstr "Sektionstitel"
 msgid "Sections"
 msgstr "Sektioner"
 
-#: packages/admin/src/components/SetupWizard.tsx:561
+#: packages/admin/src/components/SetupWizard.tsx:554
 msgid "Secure your account"
 msgstr "Säkra ditt konto"
 
@@ -8351,7 +8437,7 @@ msgid "Security contacts"
 msgstr "Säkerhetskontakter"
 
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:271
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:276
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:435
 msgid "Security error. Make sure you're on a secure connection."
 msgstr "Säkerhetsfel. Kontrollera att du använder en säker anslutning."
 
@@ -8592,7 +8678,12 @@ msgstr "Ändra till utkast"
 msgid "Set up media usage tracking"
 msgstr ""
 
-#: packages/admin/src/components/SetupWizard.tsx:559
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:534
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:602
+msgid "Set up Windows Hello"
+msgstr ""
+
+#: packages/admin/src/components/SetupWizard.tsx:552
 msgid "Set up your site"
 msgstr "Konfigurera din webbplats"
 
@@ -8634,7 +8725,7 @@ msgstr "Inställningarna sparades"
 msgid "Setup couldn’t continue. Try again."
 msgstr ""
 
-#: packages/admin/src/components/SetupWizard.tsx:468
+#: packages/admin/src/components/SetupWizard.tsx:461
 msgid "Setup failed"
 msgstr "Konfigurationen misslyckades"
 
@@ -8695,16 +8786,16 @@ msgstr ""
 msgid "Shown when hovering over the image."
 msgstr "Visas när du hovrar över bilden."
 
-#: packages/admin/src/components/SignupPage.tsx:456
+#: packages/admin/src/components/SignupPage.tsx:457
 msgid "Sign in"
 msgstr "Logga in"
 
-#: packages/admin/src/components/SetupWizard.tsx:355
+#: packages/admin/src/components/SetupWizard.tsx:348
 msgid "Sign In"
 msgstr "Logga in"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:162
-#: packages/admin/src/components/SignupPage.tsx:285
+#: packages/admin/src/components/InviteAcceptPage.tsx:161
+#: packages/admin/src/components/SignupPage.tsx:286
 msgid "Sign in instead"
 msgstr "Logga in istället"
 
@@ -8715,7 +8806,7 @@ msgstr "Logga in på din webbplats"
 #. placeholder {0}: authProviderList.find((p) => p.id === activeProvider)?.label ?? activeProvider
 #. placeholder {0}: provider.label
 #: packages/admin/src/components/LoginPage.tsx:233
-#: packages/admin/src/components/SetupWizard.tsx:264
+#: packages/admin/src/components/SetupWizard.tsx:265
 msgid "Sign in with {0}"
 msgstr "Logga in med {0}"
 
@@ -8746,7 +8837,7 @@ msgid "Single line text input"
 msgstr "Enradig textinmatning"
 
 #: packages/admin/src/components/Settings.tsx:48
-#: packages/admin/src/components/SetupWizard.tsx:353
+#: packages/admin/src/components/SetupWizard.tsx:346
 msgid "Site"
 msgstr "Webbplats"
 
@@ -8763,7 +8854,7 @@ msgstr "webbplatsidentitet tillämpad (titel, slogan, logotyp)"
 msgid "Site identity, logo, favicon, and reading preferences"
 msgstr "Webbplatsidentitet, logotyp, favicon och läsinställningar"
 
-#: packages/admin/src/components/SetupWizard.tsx:351
+#: packages/admin/src/components/SetupWizard.tsx:344
 #: packages/admin/src/components/WordPressImport.tsx:1169
 msgid "Site Settings"
 msgstr "Webbplatsinställningar"
@@ -8871,8 +8962,8 @@ msgstr ""
 msgid "Some content types cannot be imported"
 msgstr "Vissa innehållstyper kan inte importeras"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:155
-#: packages/admin/src/components/SignupPage.tsx:278
+#: packages/admin/src/components/InviteAcceptPage.tsx:154
+#: packages/admin/src/components/SignupPage.tsx:279
 msgid "Something went wrong"
 msgstr "Något gick fel"
 
@@ -9108,6 +9199,22 @@ msgstr "test@example.com"
 msgid "Text formatting"
 msgstr "Textformatering"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:200
+msgid "the Android passkey prompt"
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:654
+msgid "The browser controls the exact prompt and may offer another compatible method."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:644
+msgid "The browser will usually show a QR code."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:639
+msgid "The credential manager on the phone or tablet you choose saves it. EmDash does not receive the passkey."
+msgstr ""
+
 #: packages/admin/src/components/MediaDetailPanel.tsx:822
 msgid "The cropped image could not be created."
 msgstr ""
@@ -9141,6 +9248,10 @@ msgstr ""
 msgid "The link will expire in 15 minutes."
 msgstr "Länken går ut om 15 minuter."
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:186
+msgid "the macOS passkey prompt"
+msgstr ""
+
 #: packages/admin/src/components/MarketplaceBrowse.tsx:179
 msgid "The marketplace is empty. Check back later for new plugins."
 msgstr "Marknadsplatsen är tom. Kom tillbaka senare för nya tillägg."
@@ -9156,6 +9267,10 @@ msgstr "Namnet på din webbplats, används i sidhuvudet och metadata"
 #: packages/admin/src/router.tsx:2753
 msgid "The page you're looking for doesn't exist."
 msgstr "Sidan du letar efter finns inte."
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:684
+msgid "The passkey is saved on your physical security key and can be used on compatible devices."
+msgstr ""
 
 #: packages/admin/src/components/PluginFieldErrorBoundary.tsx:37
 msgid "The plugin field widget failed to render."
@@ -9184,6 +9299,10 @@ msgstr ""
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:153
 msgid "The theme marketplace is empty. Check back later."
 msgstr "Temamarknadsplatsen är tom. Kom tillbaka senare."
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:179
+msgid "the Windows passkey prompt"
+msgstr ""
 
 #: packages/admin/src/components/Sections.tsx:45
 msgid "Theme"
@@ -9300,7 +9419,7 @@ msgstr ""
 msgid "This media item no longer exists."
 msgstr ""
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:270
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:429
 msgid "This passkey is already registered on this device."
 msgstr "Denna passkey är redan registrerad på den här enheten."
 
@@ -9950,8 +10069,16 @@ msgstr ""
 msgid "Use [param] or [...rest] in paths for pattern matching."
 msgstr "Använd [param] eller [...rest] i sökvägar för mönstermatchning."
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:623
+msgid "Use a security key"
+msgstr ""
+
 #: packages/admin/src/components/MediaPickerModal.tsx:639
 msgid "Use a URL ending in a recognized image extension, such as .jpg or .png."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:613
+msgid "Use another device"
 msgstr ""
 
 #: packages/admin/src/components/ContentList.tsx:1064
@@ -10053,16 +10180,16 @@ msgstr "Validering"
 msgid "Verify the plugin before installing it"
 msgstr ""
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:228
+#: packages/admin/src/components/InviteAcceptPage.tsx:227
 msgid "Verifying your invite..."
 msgstr "Verifierar din inbjudan …"
 
-#: packages/admin/src/components/SignupPage.tsx:403
+#: packages/admin/src/components/SignupPage.tsx:404
 msgid "Verifying your link..."
 msgstr "Verifierar din länk …"
 
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:212
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:216
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:372
 #: packages/admin/src/components/RegistryPluginDetail.tsx:619
 msgid "Verifying..."
 msgstr "Verifierar …"
@@ -10143,13 +10270,17 @@ msgid "Wait for updates already in progress to finish."
 msgstr ""
 
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:181
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:185
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:340
 msgid "Waiting for passkey..."
 msgstr "Väntar på passkey …"
 
 #: packages/admin/src/components/MarketplaceBrowse.tsx:335
 msgid "Warn"
 msgstr "Varning"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:588
+msgid "We checked before opening the browser's passkey prompt so you can choose what happens next."
+msgstr ""
 
 #. placeholder {0}: result.url
 #: packages/admin/src/components/WordPressImport.tsx:1282
@@ -10177,7 +10308,7 @@ msgid "Web address"
 msgstr "Webbadress"
 
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:160
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:164
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:319
 msgid "WebAuthn is not supported in this browser"
 msgstr "WebAuthn stöds inte i denna webbläsare"
 
@@ -10198,9 +10329,17 @@ msgstr "Välkommen till EmDash, {firstName}!"
 msgid "Welcome to EmDash!"
 msgstr "Välkommen till EmDash!"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:642
+msgid "What happens next?"
+msgstr ""
+
 #: packages/admin/src/components/WordPressImport.tsx:2107
 msgid "What happens when you import:"
 msgstr "Vad som händer när du importerar:"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:234
+msgid "What is a passkey?"
+msgstr ""
 
 #: packages/admin/src/components/WordPressImport.tsx:1890
 msgid "What will happen when you import"
@@ -10221,6 +10360,10 @@ msgstr "När posten senast ändrades"
 #: packages/admin/src/components/ContentTypeEditor.tsx:137
 msgid "When the entry was published"
 msgstr "När posten publicerades"
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:246
+msgid "Where is it saved?"
+msgstr ""
 
 #: packages/admin/src/components/TaxonomyManager.tsx:848
 msgid "Which content types can use this taxonomy"
@@ -10320,6 +10463,18 @@ msgstr ""
 msgid "Will create"
 msgstr "Kommer att skapa"
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:558
+msgid "Windows Hello still isn't available to this browser. You can try another device or a security key instead."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:181
+msgid "Windows will show which credential manager will save it before creating it."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:224
+msgid "With a passkey, you don’t need to remember complex passwords"
+msgstr ""
+
 #: packages/admin/src/components/settings/EmailSettings.tsx:148
 msgid "Without an email provider, invite links must be shared manually."
 msgstr "Utan en e-postleverantör måste inbjudningslänkar delas manuellt."
@@ -10391,6 +10546,10 @@ msgstr "Du kan fortfarande redigera de fasta fälten ovan. Att spara påverkar i
 msgid "You can view and contribute to the site."
 msgstr "Du kan visa och bidra till webbplatsen."
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:511
+msgid "You can view, rename, or add more passkeys later in Security settings."
+msgstr ""
+
 #: packages/admin/src/components/users/UserDetail.tsx:175
 msgid "You cannot change your own role"
 msgstr "Du kan inte ändra din egen roll"
@@ -10430,11 +10589,11 @@ msgid "You won't be able to use this passkey to sign in anymore. This action can
 msgstr "Du kommer inte längre kunna använda denna passkey för att logga in. Åtgärden kan inte ångras."
 
 #. placeholder {0}: inviteData.roleName
-#: packages/admin/src/components/InviteAcceptPage.tsx:55
+#: packages/admin/src/components/InviteAcceptPage.tsx:56
 msgid "You'll be joining as <0>{0}</0>"
 msgstr "Du kommer att gå med som <0>{0}</0>"
 
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:361
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:801
 msgid "You'll be prompted to use your device's biometric authentication, security key, or PIN."
 msgstr "Du kommer att uppmanas att använda enhetens biometriska autentisering, säkerhetsnyckel eller PIN-kod."
 
@@ -10446,11 +10605,11 @@ msgstr "Du kommer att omdirigeras till WordPress för att auktorisera anslutning
 msgid "You'll be signing up as <0>{roleName}</0>"
 msgstr ""
 
-#: packages/admin/src/components/SetupWizard.tsx:564
+#: packages/admin/src/components/SetupWizard.tsx:557
 msgid "You're signed in via Cloudflare Access"
 msgstr "Du är inloggad via Cloudflare Access"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:53
+#: packages/admin/src/components/InviteAcceptPage.tsx:54
 msgid "You've been invited!"
 msgstr "Du har blivit inbjuden!"
 
@@ -10468,14 +10627,32 @@ msgid "Your account has been created successfully."
 msgstr "Ditt konto har skapats."
 
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:308
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:307
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:481
 msgid "Your browser doesn't support passkeys. Please use a modern browser like Chrome, Safari, Firefox, or Edge."
 msgstr "Din webbläsare stöder inte passkeys. Använd en modern webbläsare som Chrome, Safari, Firefox eller Edge."
 
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:202
+msgid "Your credential manager, such as Google Password Manager, saves it and may sync it to your other devices."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:188
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:195
+msgid "Your credential manager, such as iCloud Keychain, saves it and may sync it to your other devices."
+msgstr ""
+
 #: packages/admin/src/components/auth/PasskeyLogin.tsx:268
-#: packages/admin/src/components/auth/PasskeyRegistration.tsx:273
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:432
 msgid "Your device doesn't support the required security features."
 msgstr "Din enhet stöder inte de nödvändiga säkerhetsfunktionerna."
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:209
+msgid "Your device's credential manager saves it and will show you where before creating it."
+msgstr ""
+
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:193
+#: packages/admin/src/components/auth/PasskeyRegistration.tsx:207
+msgid "your device's passkey prompt"
+msgstr ""
 
 #: packages/admin/src/components/SetupWizard.tsx:197
 msgid "Your Email"
@@ -10506,8 +10683,8 @@ msgstr "Ditt mediebibliotek är tomt"
 msgid "Your Name"
 msgstr "Ditt namn"
 
-#: packages/admin/src/components/InviteAcceptPage.tsx:65
-#: packages/admin/src/components/SignupPage.tsx:217
+#: packages/admin/src/components/InviteAcceptPage.tsx:66
+#: packages/admin/src/components/SignupPage.tsx:218
 msgid "Your name (optional)"
 msgstr "Ditt namn (valfritt)"
 
