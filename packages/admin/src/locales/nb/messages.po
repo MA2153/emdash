@@ -86,7 +86,7 @@ msgid "{0, plural, one {# comment imported} other {# comments imported}}"
 msgstr ""
 
 #. placeholder {0}: result.affected
-#: packages/admin/src/router.tsx:1986
+#: packages/admin/src/router.tsx:2009
 msgid "{0, plural, one {# comment updated} other {# comments updated}}"
 msgstr "{0, plural, one {# kommentar oppdatert} other {# kommentarer oppdatert}}"
 
@@ -657,7 +657,7 @@ msgstr ""
 msgid "A publication time has not been selected"
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:668
+#: packages/admin/src/components/ContentEditor.tsx:680
 msgid "A publishing action is already in progress"
 msgstr ""
 
@@ -694,7 +694,7 @@ msgstr "Godta invitasjon"
 msgid "Access denied"
 msgstr "Tilgang nektet"
 
-#: packages/admin/src/router.tsx:2006
+#: packages/admin/src/router.tsx:2029
 msgid "Access Denied"
 msgstr "Tilgang nektet"
 
@@ -1142,10 +1142,10 @@ msgstr "Alternativt kan du eksportere fra WordPress (Verktøy → Eksporter) og 
 #: packages/admin/src/router.tsx:1277
 #: packages/admin/src/router.tsx:1308
 #: packages/admin/src/router.tsx:1328
-#: packages/admin/src/router.tsx:1951
-#: packages/admin/src/router.tsx:1967
-#: packages/admin/src/router.tsx:1992
-#: packages/admin/src/router.tsx:2498
+#: packages/admin/src/router.tsx:1974
+#: packages/admin/src/router.tsx:1990
+#: packages/admin/src/router.tsx:2015
+#: packages/admin/src/router.tsx:2521
 #: packages/admin/src/routes/byline-schema.tsx:103
 #: packages/admin/src/routes/byline-schema.tsx:123
 #: packages/admin/src/routes/byline-schema.tsx:139
@@ -1408,7 +1408,7 @@ msgstr ""
 msgid "Back"
 msgstr "Tilbake"
 
-#: packages/admin/src/components/ContentEditor.tsx:882
+#: packages/admin/src/components/ContentEditor.tsx:896
 msgid "Back to {collectionLabel} list"
 msgstr "Tilbake til {collectionLabel}-listen"
 
@@ -1968,7 +1968,7 @@ msgstr ""
 msgid "Close panel"
 msgstr "Lukk panel"
 
-#: packages/admin/src/components/ContentEditor.tsx:1394
+#: packages/admin/src/components/ContentEditor.tsx:1408
 msgid "Close settings"
 msgstr ""
 
@@ -3105,7 +3105,7 @@ msgstr ""
 msgid "Displayed below the image as a visible caption."
 msgstr "Vises under bildet som en synlig bildetekst."
 
-#: packages/admin/src/components/ContentEditor.tsx:950
+#: packages/admin/src/components/ContentEditor.tsx:964
 msgid "Distraction-free mode (⌘⇧\\)"
 msgstr "Distraksjonsfri modus (⌘⇧\\)"
 
@@ -3323,7 +3323,7 @@ msgstr "Rediger {0}"
 msgid "Edit {0} field"
 msgstr "Rediger feltet {0}"
 
-#: packages/admin/src/components/ContentEditor.tsx:889
+#: packages/admin/src/components/ContentEditor.tsx:903
 msgid "Edit {itemLabel}"
 msgstr ""
 
@@ -3572,7 +3572,7 @@ msgstr ""
 msgid "Enter a URL (https://…) or a relative path (/…)"
 msgstr "Skriv inn en URL (https://…) eller en relativ sti (/…)"
 
-#: packages/admin/src/components/ContentEditor.tsx:1803
+#: packages/admin/src/components/ContentEditor.tsx:1817
 msgid "Enter a valid URL (e.g. https://example.com)"
 msgstr "Skriv inn en gyldig URL (f.eks. https://example.com)"
 
@@ -3580,7 +3580,7 @@ msgstr "Skriv inn en gyldig URL (f.eks. https://example.com)"
 msgid "Enter credentials manually"
 msgstr "Skriv inn legitimasjon manuelt"
 
-#: packages/admin/src/components/ContentEditor.tsx:949
+#: packages/admin/src/components/ContentEditor.tsx:963
 msgid "Enter distraction-free mode"
 msgstr "Gå inn i distraksjonsfri modus"
 
@@ -3592,7 +3592,7 @@ msgstr "Skriv inn e-post"
 msgid "Enter HTML..."
 msgstr "Skriv inn HTML..."
 
-#: packages/admin/src/components/ContentEditor.tsx:1575
+#: packages/admin/src/components/ContentEditor.tsx:1589
 msgid "Enter markdown content..."
 msgstr "Skriv inn markdown-innhold..."
 
@@ -3627,7 +3627,7 @@ msgstr "Skriv inn URL-en til WordPress-nettstedet ditt"
 #: packages/admin/src/components/SetupWizard.tsx:539
 #: packages/admin/src/components/TaxonomyManager.tsx:947
 #: packages/admin/src/components/Widgets.tsx:769
-#: packages/admin/src/router.tsx:2713
+#: packages/admin/src/router.tsx:2736
 msgid "Error"
 msgstr "Feil"
 
@@ -3676,7 +3676,7 @@ msgstr ""
 msgid "Exists"
 msgstr "Finnes"
 
-#: packages/admin/src/components/ContentEditor.tsx:1015
+#: packages/admin/src/components/ContentEditor.tsx:1029
 msgid "Exit distraction-free mode"
 msgstr "Avslutt distraksjonsfri modus"
 
@@ -3804,7 +3804,7 @@ msgid "Failed to delete collection"
 msgstr "Kunne ikke slette samling"
 
 #: packages/admin/src/lib/api/comments.ts:111
-#: packages/admin/src/router.tsx:1966
+#: packages/admin/src/router.tsx:1989
 msgid "Failed to delete comment"
 msgstr "Kunne ikke slette kommentar"
 
@@ -4002,7 +4002,7 @@ msgstr "Kunne ikke hente termer"
 #: packages/admin/src/lib/api/users.ts:88
 #: packages/admin/src/lib/api/users.ts:93
 #: packages/admin/src/router.tsx:947
-#: packages/admin/src/router.tsx:1897
+#: packages/admin/src/router.tsx:1920
 msgid "Failed to fetch user"
 msgstr "Kunne ikke hente bruker"
 
@@ -4113,7 +4113,7 @@ msgstr "Kunne ikke laste inn brukere: {0}"
 msgid "Failed to load widget"
 msgstr "Kunne ikke laste inn modul"
 
-#: packages/admin/src/router.tsx:1991
+#: packages/admin/src/router.tsx:2014
 msgid "Failed to perform bulk action"
 msgstr "Kunne ikke utføre masseoperasjon"
 
@@ -4195,7 +4195,7 @@ msgstr "Kunne ikke skrive om URL-er"
 
 #: packages/admin/src/router.tsx:735
 #: packages/admin/src/router.tsx:1063
-#: packages/admin/src/router.tsx:2497
+#: packages/admin/src/router.tsx:2520
 msgid "Failed to save"
 msgstr "Kunne ikke lagre"
 
@@ -4299,7 +4299,7 @@ msgstr ""
 msgid "Failed to update settings"
 msgstr ""
 
-#: packages/admin/src/router.tsx:1950
+#: packages/admin/src/router.tsx:1973
 msgid "Failed to update status"
 msgstr "Kunne ikke oppdatere status"
 
@@ -4476,7 +4476,11 @@ msgstr ""
 msgid "First-time commenters only"
 msgstr "Kun førstegangskommentatorer"
 
-#: packages/admin/src/components/ContentEditor.tsx:671
+#: packages/admin/src/components/ContentEditor.tsx:728
+msgid "Fix invalid fields before changing the publication date"
+msgstr ""
+
+#: packages/admin/src/components/ContentEditor.tsx:684
 msgid "Fix invalid fields before changing the schedule"
 msgstr ""
 
@@ -4502,7 +4506,7 @@ msgstr ""
 msgid "Folder name must be between 1 and 200 characters"
 msgstr ""
 
-#: packages/admin/src/router.tsx:1620
+#: packages/admin/src/router.tsx:1643
 msgid "Folder no longer exists"
 msgstr ""
 
@@ -4627,7 +4631,7 @@ msgid "Go"
 msgstr ""
 
 #: packages/admin/src/components/WordPressImport.tsx:2434
-#: packages/admin/src/router.tsx:2733
+#: packages/admin/src/router.tsx:2756
 msgid "Go to Dashboard"
 msgstr "Gå til dashbordet"
 
@@ -5130,7 +5134,7 @@ msgstr "Heltall"
 msgid "Invalid invite link"
 msgstr "Ugyldig invitasjonslenke"
 
-#: packages/admin/src/components/ContentEditor.tsx:1872
+#: packages/admin/src/components/ContentEditor.tsx:1886
 msgid "Invalid JSON"
 msgstr "Ugyldig JSON"
 
@@ -5412,8 +5416,8 @@ msgstr "Listevisning"
 msgid "Live version"
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:923
-#: packages/admin/src/components/ContentEditor.tsx:973
+#: packages/admin/src/components/ContentEditor.tsx:937
+#: packages/admin/src/components/ContentEditor.tsx:987
 #: packages/admin/src/components/ContentSettingsPanel.tsx:660
 msgid "Live View"
 msgstr "Live-visning"
@@ -5442,7 +5446,7 @@ msgstr "Last inn mer"
 msgid "Load more folders"
 msgstr ""
 
-#: packages/admin/src/router.tsx:2688
+#: packages/admin/src/router.tsx:2711
 msgid "Loading"
 msgstr ""
 
@@ -5458,8 +5462,8 @@ msgstr "Laster samlinger..."
 msgid "Loading comments..."
 msgstr "Laster kommentarer..."
 
-#: packages/admin/src/router.tsx:2690
-#: packages/admin/src/router.tsx:2702
+#: packages/admin/src/router.tsx:2713
+#: packages/admin/src/router.tsx:2725
 msgid "Loading configuration..."
 msgstr "Laster konfigurasjon..."
 
@@ -6164,7 +6168,7 @@ msgstr "NY"
 msgid "New {0}"
 msgstr "Ny {0}"
 
-#: packages/admin/src/components/ContentEditor.tsx:889
+#: packages/admin/src/components/ContentEditor.tsx:903
 msgid "New {itemLabel}"
 msgstr ""
 
@@ -6779,7 +6783,7 @@ msgstr "Eierskap"
 msgid "Package"
 msgstr "Pakke"
 
-#: packages/admin/src/router.tsx:2728
+#: packages/admin/src/router.tsx:2751
 msgid "Page Not Found"
 msgstr "Fant ikke siden"
 
@@ -7431,7 +7435,7 @@ msgstr ""
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:84
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:115
-#: packages/admin/src/components/ContentEditor.tsx:2032
+#: packages/admin/src/components/ContentEditor.tsx:2046
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:471
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:309
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:731
@@ -7467,7 +7471,7 @@ msgstr ""
 msgid "Remove {entry}"
 msgstr "Fjern {entry}"
 
-#: packages/admin/src/components/ContentEditor.tsx:2030
+#: packages/admin/src/components/ContentEditor.tsx:2044
 msgid "Remove {label}"
 msgstr "Fjern {label}"
 
@@ -7580,8 +7584,8 @@ msgstr "Repeater"
 msgid "Repeating group of fields"
 msgstr "Gjentakende gruppe med felt"
 
-#: packages/admin/src/components/ContentEditor.tsx:2022
-#: packages/admin/src/components/ContentEditor.tsx:2059
+#: packages/admin/src/components/ContentEditor.tsx:2036
+#: packages/admin/src/components/ContentEditor.tsx:2073
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:447
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:504
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:250
@@ -7594,7 +7598,7 @@ msgstr "Gjentakende gruppe med felt"
 msgid "Replace"
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:2058
+#: packages/admin/src/components/ContentEditor.tsx:2072
 #: packages/admin/src/components/ImageFieldRenderer.tsx:571
 msgid "Replace {label}"
 msgstr ""
@@ -7734,7 +7738,7 @@ msgstr ""
 msgid "Resize crop from top-right corner. Use the Arrow keys to resize."
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:1216
+#: packages/admin/src/components/ContentEditor.tsx:1230
 msgid "Resize settings panel"
 msgstr ""
 
@@ -7785,7 +7789,7 @@ msgstr "Gjenoppretter …"
 #: packages/admin/src/components/PluginFieldErrorBoundary.tsx:44
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:122
 #: packages/admin/src/lib/content-editor-panels.tsx:201
-#: packages/admin/src/router.tsx:2716
+#: packages/admin/src/router.tsx:2739
 #: packages/admin/src/routes/byline-schema.tsx:280
 msgid "Retry"
 msgstr "Prøv igjen"
@@ -7969,7 +7973,7 @@ msgstr "Lagre (Enter)"
 msgid "Save alt text"
 msgstr "Lagre alt-tekst"
 
-#: packages/admin/src/components/ContentEditor.tsx:1037
+#: packages/admin/src/components/ContentEditor.tsx:1051
 msgid "Save anyway"
 msgstr ""
 
@@ -8372,8 +8376,8 @@ msgid "Select"
 msgstr "Velg"
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:140
-#: packages/admin/src/components/ContentEditor.tsx:2042
-#: packages/admin/src/components/ContentEditor.tsx:2058
+#: packages/admin/src/components/ContentEditor.tsx:2056
+#: packages/admin/src/components/ContentEditor.tsx:2072
 #: packages/admin/src/components/ImageFieldRenderer.tsx:572
 msgid "Select {label}"
 msgstr "Velg {label}"
@@ -8431,7 +8435,7 @@ msgstr ""
 msgid "Select Favicon"
 msgstr "Velg favicon"
 
-#: packages/admin/src/components/ContentEditor.tsx:2046
+#: packages/admin/src/components/ContentEditor.tsx:2060
 #: packages/admin/src/components/MediaPickerModal.tsx:228
 msgid "Select file"
 msgstr "Velg fil"
@@ -8602,8 +8606,8 @@ msgid "Setting up..."
 msgstr "Setter opp …"
 
 #: packages/admin/src/components/AdminCommandPalette.tsx:234
-#: packages/admin/src/components/ContentEditor.tsx:1084
-#: packages/admin/src/components/ContentEditor.tsx:1380
+#: packages/admin/src/components/ContentEditor.tsx:1098
+#: packages/admin/src/components/ContentEditor.tsx:1394
 #: packages/admin/src/components/ContentTypeEditor.tsx:382
 #: packages/admin/src/components/Header.tsx:101
 #: packages/admin/src/components/PluginManager.tsx:491
@@ -8929,7 +8933,7 @@ msgstr ""
 msgid "Start Import"
 msgstr "Start import"
 
-#: packages/admin/src/components/ContentEditor.tsx:1549
+#: packages/admin/src/components/ContentEditor.tsx:1563
 #: packages/admin/src/components/PortableTextEditor.tsx:2831
 #: packages/admin/src/components/PortableTextEditor.tsx:2832
 msgid "Start writing, or type '/' for commands"
@@ -9149,7 +9153,7 @@ msgstr "Menyen er slettet."
 msgid "The name of your site, used in the header and metadata"
 msgstr "Navnet på nettstedet ditt, brukt i toppteksten og metadataene"
 
-#: packages/admin/src/router.tsx:2730
+#: packages/admin/src/router.tsx:2753
 msgid "The page you're looking for doesn't exist."
 msgstr "Siden du leter etter, finnes ikke."
 
@@ -9233,7 +9237,7 @@ msgstr ""
 msgid "This doesn't look like a valid migration key. Generate a new one in the plugin and paste the full string starting with \"em1.\"."
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:1033
+#: packages/admin/src/components/ContentEditor.tsx:1047
 msgid "This entry changed somewhere else after you opened it."
 msgstr ""
 
@@ -9250,7 +9254,7 @@ msgstr ""
 msgid "This field does not accept {mimeType} files."
 msgstr ""
 
-#: packages/admin/src/components/ContentEditor.tsx:2062
+#: packages/admin/src/components/ContentEditor.tsx:2076
 #: packages/admin/src/components/ImageFieldRenderer.tsx:591
 msgid "This field is required"
 msgstr "Dette feltet er påkrevd"
@@ -9726,7 +9730,7 @@ msgstr ""
 msgid "Untitled"
 msgstr "Uten tittel"
 
-#: packages/admin/src/components/ContentEditor.tsx:1964
+#: packages/admin/src/components/ContentEditor.tsx:1978
 msgid "Untitled file"
 msgstr "Fil uten navn"
 
@@ -9978,7 +9982,7 @@ msgstr "Brukes som reserve-Open Graph-bilde når en side mangler bilde. Anbefalt
 msgid "Used as the identifier. Lowercase letters, numbers, and underscores only."
 msgstr "Brukes som identifikator. Kun små bokstaver, tall og understreker."
 
-#: packages/admin/src/components/ContentEditor.tsx:1652
+#: packages/admin/src/components/ContentEditor.tsx:1666
 msgid "Used as the main visual for this post on listing pages and at the top of the post"
 msgstr "Brukes som hovedbildet for dette innlegget på listesider og øverst i innlegget"
 
@@ -10202,7 +10206,7 @@ msgstr "Hva skjer når du importerer:"
 msgid "What will happen when you import"
 msgstr "Hva som skjer når du importerer"
 
-#: packages/admin/src/components/ContentEditor.tsx:1034
+#: packages/admin/src/components/ContentEditor.tsx:1048
 msgid "What you typed is still here. Saving replaces the newer version."
 msgstr ""
 
@@ -10412,7 +10416,7 @@ msgstr "Du trenger administratortillatelser for å administrere byline-skjema."
 msgid "You need Admin permissions to manage media usage tracking."
 msgstr ""
 
-#: packages/admin/src/router.tsx:2007
+#: packages/admin/src/router.tsx:2030
 msgid "You need Editor permissions to moderate comments."
 msgstr "Du trenger redaktørtillatelser for å moderere kommentarer."
 
