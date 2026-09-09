@@ -797,7 +797,7 @@ msgstr ""
 msgid "Add Custom Link"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:447
+#: packages/admin/src/components/ImageFieldRenderer.tsx:451
 msgid "Add dark mode variant"
 msgstr ""
 
@@ -1714,7 +1714,7 @@ msgstr ""
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:76
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:107
 #: packages/admin/src/components/FieldEditor.tsx:438
-#: packages/admin/src/components/SeoImageField.tsx:57
+#: packages/admin/src/components/SeoImageField.tsx:58
 msgid "Change"
 msgstr ""
 
@@ -2617,7 +2617,7 @@ msgid "Dark"
 msgstr ""
 
 #: packages/admin/src/components/FieldEditor.tsx:688
-#: packages/admin/src/components/ImageFieldRenderer.tsx:391
+#: packages/admin/src/components/ImageFieldRenderer.tsx:395
 msgid "Dark mode variant"
 msgstr ""
 
@@ -3248,8 +3248,20 @@ msgstr ""
 msgid "Drag widgets into an area to add them"
 msgstr ""
 
+#: packages/admin/src/components/media/ImageDropTarget.tsx:134
+msgid "Drop an image here or <0>browse</0>"
+msgstr ""
+
+#: packages/admin/src/components/media/ImageDropTarget.tsx:118
+msgid "Drop an image here or browse for {label}"
+msgstr ""
+
 #: packages/admin/src/components/MediaLibrary.tsx:791
 msgid "Drop files to upload"
+msgstr ""
+
+#: packages/admin/src/components/media/ImageDropTarget.tsx:48
+msgid "Drop one image at a time."
 msgstr ""
 
 #: packages/admin/src/components/Widgets.tsx:700
@@ -3321,9 +3333,9 @@ msgstr ""
 
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:460
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:260
-#: packages/admin/src/components/ImageFieldRenderer.tsx:298
-#: packages/admin/src/components/ImageFieldRenderer.tsx:354
-#: packages/admin/src/components/ImageFieldRenderer.tsx:422
+#: packages/admin/src/components/ImageFieldRenderer.tsx:302
+#: packages/admin/src/components/ImageFieldRenderer.tsx:358
+#: packages/admin/src/components/ImageFieldRenderer.tsx:426
 #: packages/admin/src/components/MediaPickerModal.tsx:1584
 msgid "Edit asset"
 msgstr ""
@@ -3332,7 +3344,7 @@ msgstr ""
 msgid "Edit byline field"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:420
+#: packages/admin/src/components/ImageFieldRenderer.tsx:424
 msgid "Edit dark mode asset"
 msgstr ""
 
@@ -4805,8 +4817,8 @@ msgstr "Irudia"
 msgid "Image {0}"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:317
-#: packages/admin/src/components/ImageFieldRenderer.tsx:331
+#: packages/admin/src/components/ImageFieldRenderer.tsx:321
+#: packages/admin/src/components/ImageFieldRenderer.tsx:335
 msgid "Image actions"
 msgstr ""
 
@@ -4815,8 +4827,8 @@ msgid "Image from media library"
 msgstr ""
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:67
-#: packages/admin/src/components/ImageFieldRenderer.tsx:463
-#: packages/admin/src/components/ImageFieldRenderer.tsx:515
+#: packages/admin/src/components/ImageFieldRenderer.tsx:467
+#: packages/admin/src/components/ImageFieldRenderer.tsx:519
 msgid "Image not found"
 msgstr ""
 
@@ -4834,8 +4846,12 @@ msgstr ""
 msgid "Image Settings"
 msgstr ""
 
-#: packages/admin/src/components/SeoImageField.tsx:43
+#: packages/admin/src/components/SeoImageField.tsx:44
 msgid "Image shown when this page is shared on social media"
+msgstr ""
+
+#: packages/admin/src/components/media/ImageDropTarget.tsx:72
+msgid "Image upload failed. Try again."
 msgstr ""
 
 #: packages/admin/src/components/MediaPickerModal.tsx:1110
@@ -5944,7 +5960,7 @@ msgstr ""
 msgid "More actions for {0}"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:500
+#: packages/admin/src/components/ImageFieldRenderer.tsx:504
 msgid "More information about {label}"
 msgstr ""
 
@@ -6597,7 +6613,8 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
-#: packages/admin/src/components/SeoImageField.tsx:46
+#: packages/admin/src/components/SeoImageField.tsx:47
+#: packages/admin/src/components/SeoImageField.tsx:75
 msgid "OG Image"
 msgstr ""
 
@@ -6607,6 +6624,10 @@ msgstr ""
 
 #: packages/admin/src/components/SignupPage.tsx:114
 msgid "Only email addresses from allowed domains can sign up."
+msgstr ""
+
+#: packages/admin/src/components/media/ImageDropTarget.tsx:53
+msgid "Only image files can be dropped here."
 msgstr ""
 
 #: packages/admin/src/components/MenuList.tsx:162
@@ -7408,9 +7429,9 @@ msgstr ""
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:471
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:309
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:731
-#: packages/admin/src/components/ImageFieldRenderer.tsx:310
-#: packages/admin/src/components/ImageFieldRenderer.tsx:363
-#: packages/admin/src/components/ImageFieldRenderer.tsx:434
+#: packages/admin/src/components/ImageFieldRenderer.tsx:314
+#: packages/admin/src/components/ImageFieldRenderer.tsx:367
+#: packages/admin/src/components/ImageFieldRenderer.tsx:438
 #: packages/admin/src/components/media/MediaBrowserItems.tsx:221
 #: packages/admin/src/components/PortableTextEditor.tsx:4479
 #: packages/admin/src/components/settings/GeneralSettings.tsx:229
@@ -7448,7 +7469,7 @@ msgstr ""
 msgid "Remove assignment"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:432
+#: packages/admin/src/components/ImageFieldRenderer.tsx:436
 msgid "Remove dark mode variant"
 msgstr ""
 
@@ -7465,8 +7486,8 @@ msgid "Remove from post"
 msgstr ""
 
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:528
-#: packages/admin/src/components/ImageFieldRenderer.tsx:308
-#: packages/admin/src/components/SeoImageField.tsx:65
+#: packages/admin/src/components/ImageFieldRenderer.tsx:312
+#: packages/admin/src/components/SeoImageField.tsx:66
 msgid "Remove image"
 msgstr ""
 
@@ -7559,24 +7580,24 @@ msgstr ""
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:504
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:250
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:324
-#: packages/admin/src/components/ImageFieldRenderer.tsx:284
-#: packages/admin/src/components/ImageFieldRenderer.tsx:344
-#: packages/admin/src/components/ImageFieldRenderer.tsx:407
-#: packages/admin/src/components/ImageFieldRenderer.tsx:565
-#: packages/admin/src/components/ImageFieldRenderer.tsx:568
+#: packages/admin/src/components/ImageFieldRenderer.tsx:288
+#: packages/admin/src/components/ImageFieldRenderer.tsx:348
+#: packages/admin/src/components/ImageFieldRenderer.tsx:411
+#: packages/admin/src/components/ImageFieldRenderer.tsx:577
+#: packages/admin/src/components/ImageFieldRenderer.tsx:580
 msgid "Replace"
 msgstr ""
 
 #: packages/admin/src/components/ContentEditor.tsx:2058
-#: packages/admin/src/components/ImageFieldRenderer.tsx:559
+#: packages/admin/src/components/ImageFieldRenderer.tsx:571
 msgid "Replace {label}"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:405
+#: packages/admin/src/components/ImageFieldRenderer.tsx:409
 msgid "Replace dark mode image"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:556
+#: packages/admin/src/components/ImageFieldRenderer.tsx:568
 msgid "Replace dark mode variant for {label}"
 msgstr ""
 
@@ -8347,7 +8368,7 @@ msgstr ""
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:140
 #: packages/admin/src/components/ContentEditor.tsx:2042
 #: packages/admin/src/components/ContentEditor.tsx:2058
-#: packages/admin/src/components/ImageFieldRenderer.tsx:560
+#: packages/admin/src/components/ImageFieldRenderer.tsx:572
 msgid "Select {label}"
 msgstr ""
 
@@ -8388,7 +8409,7 @@ msgstr ""
 msgid "Select Content"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:557
+#: packages/admin/src/components/ImageFieldRenderer.tsx:569
 msgid "Select dark mode variant for {label}"
 msgstr ""
 
@@ -8413,7 +8434,7 @@ msgstr ""
 msgid "Select gallery images"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:540
+#: packages/admin/src/components/ImageFieldRenderer.tsx:552
 #: packages/admin/src/components/MediaPickerModal.tsx:228
 #: packages/admin/src/components/PortableTextEditor.tsx:3690
 msgid "Select image"
@@ -8435,8 +8456,7 @@ msgstr ""
 msgid "Select media"
 msgstr ""
 
-#: packages/admin/src/components/SeoImageField.tsx:80
-#: packages/admin/src/components/SeoImageField.tsx:89
+#: packages/admin/src/components/SeoImageField.tsx:85
 msgid "Select OG image"
 msgstr ""
 
@@ -8454,8 +8474,8 @@ msgstr ""
 msgid "Selected {selectedItemTitle}"
 msgstr ""
 
-#: packages/admin/src/components/ImageFieldRenderer.tsx:245
-#: packages/admin/src/components/ImageFieldRenderer.tsx:260
+#: packages/admin/src/components/ImageFieldRenderer.tsx:249
+#: packages/admin/src/components/ImageFieldRenderer.tsx:264
 msgid "Selected image"
 msgstr ""
 
@@ -9215,12 +9235,17 @@ msgstr ""
 msgid "This field contains unsupported Portable Text marks: <0>{markList}</0>. Remove them through the API before editing or saving this content."
 msgstr ""
 
+#. placeholder {0}: file.type
+#: packages/admin/src/components/media/ImageDropTarget.tsx:57
+msgid "This field does not accept {0} files."
+msgstr ""
+
 #: packages/admin/src/components/MediaPickerModal.tsx:643
 msgid "This field does not accept {mimeType} files."
 msgstr ""
 
 #: packages/admin/src/components/ContentEditor.tsx:2062
-#: packages/admin/src/components/ImageFieldRenderer.tsx:579
+#: packages/admin/src/components/ImageFieldRenderer.tsx:591
 msgid "This field is required"
 msgstr ""
 
@@ -9842,6 +9867,11 @@ msgstr ""
 msgid "Uploading"
 msgstr ""
 
+#: packages/admin/src/components/media/ImageDropTarget.tsx:132
+#: packages/admin/src/components/media/ImageDropTarget.tsx:145
+msgid "Uploading image…"
+msgstr ""
+
 #: packages/admin/src/components/BylineFieldEditor.tsx:54
 #: packages/admin/src/components/FieldEditor.tsx:266
 #: packages/admin/src/components/FieldEditor.tsx:625
@@ -10218,7 +10248,7 @@ msgstr ""
 msgid "Why is this important for search visibility?"
 msgstr ""
 
-#: packages/admin/src/components/SeoImageField.tsx:44
+#: packages/admin/src/components/SeoImageField.tsx:45
 msgid "Why is this important for social sharing?"
 msgstr ""
 
