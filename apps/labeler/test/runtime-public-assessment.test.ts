@@ -80,10 +80,11 @@ const env = {
 	LABELER_SERVICE_URL: BASE_URL,
 	LABEL_SIGNING_PRIVATE_KEY: PRIVATE_KEY,
 	LABEL_SIGNING_PUBLIC_KEY: PUBLIC_MULTIKEY,
-	LABELER_POLICY_VERSION: "listing-metadata-v1",
+	LABELER_POLICY_VERSION: "listing-metadata-v2",
 	LABELER_PARSER_VERSION: "canonical-listing-input-v1",
 	LABELER_TEXT_MODEL_ID: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-	LABELER_IMAGE_MODEL_ID: "@cf/qwen/qwen3.8-27b",
+	LABELER_TEXT_VERIFIER_MODEL_ID: "@cf/zai-org/glm-5.3-flash",
+	LABELER_IMAGE_MODEL_ID: "@cf/zai-org/glm-5.3-flash",
 } satisfies Parameters<typeof handlePublicAssessmentXrpc>[1];
 
 beforeAll(() => {
@@ -444,6 +445,7 @@ describe("public assessment XRPC", () => {
 				getPolicyNsid: NSID.labelerGetPolicy,
 			},
 			models: [
+				expect.objectContaining({ modelVersion: "provider-catalog-id" }),
 				expect.objectContaining({ modelVersion: "provider-catalog-id" }),
 				expect.objectContaining({ modelVersion: "provider-catalog-id" }),
 			],
