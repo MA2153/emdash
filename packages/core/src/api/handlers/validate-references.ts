@@ -7,7 +7,8 @@ import type { ApiResult } from "../types.js";
 interface ReferenceFieldConstraints {
 	slug: string;
 	relation: string;
-	multiple: boolean;
+	/** How many entries this side of the relation may hold. `null` is unlimited. */
+	maxSelected: number | null;
 	required: boolean;
 }
 
@@ -32,6 +33,15 @@ export function referenceFieldConstraints(
 			.where("_emdash_fields.type", "=", "reference")
 			.execute();
 
+		// Cardinality lives on the relation, not the field: with both ends of a
+		// relation bindable, two fields carrying their own limits could disagree
+		// about one edge set. The field contributes only which end it views.
+		const relations = await db
+			.selectFrom("_emdash_relations")
+			.select(["slug", "max_children_per_parent", "max_parents_per_child"])
+			.execute();
+		const limits = new Map(relations.map((r) => [r.slug, r]));
+
 		const constraints = new Map<string, ReferenceFieldConstraints>();
 		for (const field of fields) {
 			if (!field.validation) continue;
@@ -44,10 +54,16 @@ export function referenceFieldConstraints(
 			}
 			if (!isRecord(parsed) || typeof parsed.relation !== "string") continue;
 
+			const relation = limits.get(parsed.relation);
+			const maxSelected =
+				parsed.relationSide === "child"
+					? (relation?.max_parents_per_child ?? null)
+					: (relation?.max_children_per_parent ?? null);
+
 			constraints.set(parsed.relation, {
 				slug: field.slug,
 				relation: parsed.relation,
-				multiple: parsed.multiple === true,
+				maxSelected,
 				required: field.required === 1,
 			});
 		}
@@ -59,9 +75,12 @@ export function validateReferenceSelection(
 	constraints: ReferenceFieldConstraints,
 	childIds: string[],
 ): ApiResult<true> {
-	if (!constraints.multiple && childIds.length > 1) {
+	const max = constraints.maxSelected;
+	if (max !== null && childIds.length > max) {
 		return validationError(
-			`Field '${constraints.slug}' accepts a single reference, received ${childIds.length}.`,
+			max === 1
+				? `Field '${constraints.slug}' accepts a single reference, received ${childIds.length}.`
+				: `Field '${constraints.slug}' accepts at most ${max} references, received ${childIds.length}.`,
 		);
 	}
 	if (constraints.required && childIds.length === 0) {

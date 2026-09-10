@@ -86,17 +86,34 @@ export async function handleRelationCreate(
 	}
 }
 
+/**
+ * A relation plus what deleting it would take with it: the reference fields
+ * that view it, and how many links it holds. Both delete dialogs enumerate
+ * these before the user confirms.
+ */
+export interface RelationWithUsage extends Relation {
+	boundFields: BoundField[];
+	linkCount: number;
+}
+
 export async function handleRelationGet(
 	db: Kysely<Database>,
 	id: string,
-): Promise<ApiResult<{ relation: Relation }>> {
+): Promise<ApiResult<{ relation: RelationWithUsage }>> {
 	try {
 		const repo = new RelationRepository(db);
 		const relation = await repo.findById(id);
 		if (!relation) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Relation not found" } };
 		}
-		return { success: true, data: { relation } };
+		const [boundFields, edgeCounts] = await Promise.all([
+			fieldsBoundToRelation(db, relation.slug),
+			repo.countEdgesByRelation(),
+		]);
+		return {
+			success: true,
+			data: { relation: { ...relation, boundFields, linkCount: edgeCounts.get(relation.id) ?? 0 } },
+		};
 	} catch {
 		return {
 			success: false,
@@ -114,13 +131,24 @@ export async function handleRelationGet(
 export async function handleRelationList(
 	db: Kysely<Database>,
 	opts: { collection?: string } = {},
-): Promise<ApiResult<{ relations: Relation[] }>> {
+): Promise<ApiResult<{ relations: RelationWithUsage[] }>> {
 	try {
 		const repo = new RelationRepository(db);
-		const relations = opts.collection
-			? await repo.findForCollection(opts.collection)
-			: await repo.list();
-		return { success: true, data: { relations } };
+		const [relations, boundByRelation, edgeCounts] = await Promise.all([
+			opts.collection ? repo.findForCollection(opts.collection) : repo.list(),
+			fieldsBoundByRelation(db),
+			repo.countEdgesByRelation(),
+		]);
+		return {
+			success: true,
+			data: {
+				relations: relations.map((relation) => ({
+					...relation,
+					boundFields: boundByRelation.get(relation.slug) ?? [],
+					linkCount: edgeCounts.get(relation.id) ?? 0,
+				})),
+			},
+		};
 	} catch {
 		return {
 			success: false,
@@ -149,18 +177,26 @@ export async function handleRelationUpdate(
 	}
 }
 
+/** A reference field that views a relation, and which end it views it from. */
+export interface BoundField {
+	collectionSlug: string;
+	fieldSlug: string;
+	side: "parent" | "child";
+}
+
 /**
- * Every reference field bound to `relationSlug`, across all collections and
- * both ends of the relation.
+ * Every reference field on the site, grouped by the slug of the relation it
+ * binds.
  *
  * Filtered in JS rather than through `json_extract`: `_emdash_fields` holds one
  * row per field on the whole site, and the reference-typed subset of that is
- * small enough that a scan beats a dialect-specific JSON path.
+ * small enough that a scan beats a dialect-specific JSON path. Grouping the
+ * whole set in one pass also keeps the relations list to a single scan instead
+ * of one per row.
  */
-export async function fieldsBoundToRelation(
+export async function fieldsBoundByRelation(
 	db: Kysely<Database>,
-	relationSlug: string,
-): Promise<Array<{ collectionSlug: string; fieldSlug: string; side: "parent" | "child" }>> {
+): Promise<Map<string, BoundField[]>> {
 	const rows = await db
 		.selectFrom("_emdash_fields")
 		.innerJoin("_emdash_collections", "_emdash_collections.id", "_emdash_fields.collection_id")
@@ -172,7 +208,7 @@ export async function fieldsBoundToRelation(
 		.where("_emdash_fields.type", "=", "reference")
 		.execute();
 
-	const bound: Array<{ collectionSlug: string; fieldSlug: string; side: "parent" | "child" }> = [];
+	const byRelation = new Map<string, BoundField[]>();
 	for (const row of rows) {
 		if (!row.validation) continue;
 		let parsed: unknown;
@@ -181,14 +217,25 @@ export async function fieldsBoundToRelation(
 		} catch {
 			continue;
 		}
-		if (!isRecord(parsed) || parsed.relation !== relationSlug) continue;
-		bound.push({
+		if (!isRecord(parsed) || typeof parsed.relation !== "string") continue;
+		const bound: BoundField = {
 			collectionSlug: row.collectionSlug,
 			fieldSlug: row.fieldSlug,
 			side: parsed.relationSide === "child" ? "child" : "parent",
-		});
+		};
+		const list = byRelation.get(parsed.relation);
+		if (list) list.push(bound);
+		else byRelation.set(parsed.relation, [bound]);
 	}
-	return bound;
+	return byRelation;
+}
+
+/** Every reference field bound to one relation, across both of its ends. */
+export async function fieldsBoundToRelation(
+	db: Kysely<Database>,
+	relationSlug: string,
+): Promise<BoundField[]> {
+	return (await fieldsBoundByRelation(db)).get(relationSlug) ?? [];
 }
 
 /**

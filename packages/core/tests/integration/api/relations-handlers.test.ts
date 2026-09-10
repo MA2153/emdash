@@ -9,11 +9,13 @@ import {
 	handleRelationUpdate,
 	handleRelationDelete,
 } from "../../../src/api/handlers/relations.js";
+import { handleSchemaCollectionDelete } from "../../../src/api/handlers/schema.js";
 import { PATCH as patchRelation } from "../../../src/astro/routes/api/relations/[id]/index.js";
 import {
 	GET as listRelations,
 	POST as createRelation,
 } from "../../../src/astro/routes/api/relations/index.js";
+import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import { setI18nConfig } from "../../../src/i18n/config.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
 import {
@@ -54,7 +56,13 @@ describeEachDialect("relations definition handlers", (dialect) => {
 		const fetched = await handleRelationGet(ctx.db, created.data.relation.id);
 		expect(fetched.success).toBe(true);
 		if (!fetched.success) return;
-		expect(fetched.data.relation).toEqual(created.data.relation);
+		// The read carries what deleting it would take; a fresh relation has
+		// nothing bound and no links.
+		expect(fetched.data.relation).toEqual({
+			...created.data.relation,
+			boundFields: [],
+			linkCount: 0,
+		});
 	});
 
 	it("get returns NOT_FOUND for an unknown id", async () => {
@@ -141,7 +149,7 @@ describeEachDialect("relations definition handlers", (dialect) => {
 			slug: "manager",
 			label: "Manager",
 			type: "reference",
-			validation: { relation: "manages", side: "parent", targetCollection: "post" },
+			validation: { relation: "manages", relationSide: "parent", targetCollection: "post" },
 		});
 
 		const del = await handleRelationDelete(ctx.db, created.data.relation.id);
@@ -157,6 +165,71 @@ describeEachDialect("relations definition handlers", (dialect) => {
 			.where("slug", "=", "manager")
 			.execute();
 		expect(fields).toHaveLength(0);
+	});
+
+	it("reports the fields and links a delete would take", async () => {
+		const created = await handleRelationCreate(ctx.db, { ...baseInput });
+		if (!created.success) return;
+		const relation = created.data.relation;
+
+		await new SchemaRegistry(ctx.db).createField("post", {
+			slug: "manager",
+			label: "Manager",
+			type: "reference",
+			validation: { relation: "manages", relationSide: "child", targetCollection: "post" },
+		});
+		await new RelationRepository(ctx.db).addReference(relation.id, "parent-a", "child-b");
+
+		const fetched = await handleRelationGet(ctx.db, relation.id);
+		expect(fetched.success).toBe(true);
+		if (!fetched.success) return;
+		expect(fetched.data.relation.linkCount).toBe(1);
+		expect(fetched.data.relation.boundFields).toEqual([
+			{ collectionSlug: "post", fieldSlug: "manager", side: "child" },
+		]);
+
+		// The list carries the same figures, so the relations page can show them
+		// per row without a read each.
+		const listed = await handleRelationList(ctx.db);
+		expect(listed.success).toBe(true);
+		if (!listed.success) return;
+		expect(listed.data.relations.find((r) => r.slug === "manages")).toMatchObject({
+			linkCount: 1,
+			boundFields: [{ collectionSlug: "post", fieldSlug: "manager", side: "child" }],
+		});
+	});
+
+	it("deleting a collection takes its relations and the fields on the other end", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "author", label: "Authors", labelSingular: "Author" });
+
+		const created = await handleRelationCreate(ctx.db, {
+			slug: "post_author",
+			parentCollection: "post",
+			childCollection: "author",
+			parentLabel: "Posts",
+			childLabel: "Author",
+		});
+		if (!created.success) return;
+		await new RelationRepository(ctx.db).addReference(created.data.relation.id, "pg", "cg");
+
+		// The field lives on `post`, but the collection being deleted is `author`
+		// — the far end. It has to go too, or it addresses a collection that no
+		// longer exists.
+		await registry.createField("post", {
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			validation: { relation: "post_author", relationSide: "parent", targetCollection: "author" },
+		});
+
+		const deleted = await handleSchemaCollectionDelete(ctx.db, "author", { force: true });
+		expect(deleted.success, JSON.stringify(deleted)).toBe(true);
+
+		expect(await new RelationRepository(ctx.db).findBySlug("post_author")).toBeNull();
+		expect(await registry.getField("post", "author")).toBeNull();
+		const edges = await ctx.db.selectFrom("_emdash_content_references").selectAll().execute();
+		expect(edges).toHaveLength(0);
 	});
 });
 

@@ -48,12 +48,15 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 
 		const relationRepo = new RelationRepository(ctx.db);
+		// Cardinality is the relation's, not the field's — a post has one featured
+		// page whichever end you bind.
 		const requiredSingle = await relationRepo.create({
 			slug: "posts_featured_page",
 			parentCollection: "posts",
 			childCollection: "pages",
 			parentLabel: "Posts",
 			childLabel: "Featured page",
+			maxChildrenPerParent: 1,
 		});
 		const optionalMultiple = await relationRepo.create({
 			slug: "posts_related_pages",
@@ -70,8 +73,8 @@ describeEachDialect("reference field constraints", (dialect) => {
 			required: true,
 			validation: {
 				relation: requiredSingle.slug,
+				relationSide: "parent",
 				targetCollection: "pages",
-				multiple: false,
 			},
 		});
 		await registry.createField("posts", {
@@ -80,8 +83,8 @@ describeEachDialect("reference field constraints", (dialect) => {
 			type: "reference",
 			validation: {
 				relation: optionalMultiple.slug,
+				relationSide: "parent",
 				targetCollection: "pages",
-				multiple: true,
 			},
 		});
 
@@ -260,6 +263,27 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		expect(result.success).toBe(false);
 		if (!result.success) expect(result.error.code).toBe("VALIDATION_ERROR");
+	});
+
+	it("enforces a relation's limit rather than a per-field flag", async () => {
+		// The limit is the relation's, so raising it lets an existing field hold
+		// more without touching the field row.
+		const { relationRepo, requiredSingle } = await setupConstrainedFields();
+		const [first, second] = [await createPage("One"), await createPage("Two")];
+
+		const rejected = await handleContentCreate(ctx.db, "posts", {
+			data: { title: "Post" },
+			references: { [requiredSingle.slug]: [first.id, second.id] },
+		});
+		expect(rejected.success).toBe(false);
+
+		await relationRepo.update(requiredSingle.id, { maxChildrenPerParent: null });
+
+		const accepted = await handleContentCreate(ctx.db, "posts", {
+			data: { title: "Post" },
+			references: { [requiredSingle.slug]: [first.id, second.id] },
+		});
+		expect(accepted.success, JSON.stringify(accepted)).toBe(true);
 	});
 
 	it("leaves a relation without a backing reference field unconstrained", async () => {

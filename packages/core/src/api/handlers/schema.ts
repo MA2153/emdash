@@ -46,6 +46,8 @@ export async function createFieldRelation(
 	fieldSlug: string,
 	fieldLabel: string,
 	targetCollection: string,
+	/** How many entries the new field may hold. `null` is unlimited. */
+	maxChildrenPerParent: number | null = null,
 ): Promise<Relation> {
 	const registry = new SchemaRegistry(trx);
 	const relations = new RelationRepository(trx);
@@ -74,6 +76,7 @@ export async function createFieldRelation(
 				parentLabel: parent.label,
 				parentLabelSingular: parent.labelSingular ?? null,
 				childLabel: fieldLabel,
+				maxChildrenPerParent,
 			});
 		} catch (error) {
 			const isLastAttempt = attempt === RELATION_NAME_MAX_ATTEMPTS - 1;
@@ -271,6 +274,20 @@ export async function handleSchemaCollectionDelete(
 ): Promise<ApiResult<{ success: boolean }>> {
 	try {
 		const registry = new SchemaRegistry(db);
+
+		// A relation with this collection on either end cannot outlive it: its
+		// edges point at content that is about to be dropped, and the reference
+		// fields viewing it — including ones on the *other* collection — would be
+		// left addressing a collection that no longer exists. The admin lists both
+		// before confirming. Relations go first, so an interrupted delete leaves a
+		// collection with fewer relations rather than a dropped table with
+		// relations still pointing at it.
+		const relations = new RelationRepository(db);
+		for (const relation of await relations.findForCollection(slug)) {
+			const removed = await handleRelationDelete(db, relation.id);
+			if (!removed.success) return removed;
+		}
+
 		await registry.deleteCollection(slug, options);
 
 		return {
@@ -398,12 +415,15 @@ export async function handleSchemaFieldCreate(
 			// back together — a field without its relation (or vice versa) is
 			// an inconsistent reference field.
 			const item = await withTransaction(db, async (trx) => {
+				// A single-reference field is a one-to-many relation: the limit is the
+				// relation's, so binding its other end later sees the same rule.
 				const relation = await createFieldRelation(
 					trx,
 					collectionSlug,
 					input.slug,
 					input.label,
 					targetCollection,
+					input.validation?.multiple ? null : 1,
 				);
 				const registry = new SchemaRegistry(trx);
 				return registry.createField(collectionSlug, {

@@ -197,6 +197,7 @@ export async function applySeed(
 			parent_label: string;
 			parent_label_singular: string | null;
 			child_label: string;
+			max_children_per_parent: number | null;
 		}> = [];
 
 		for (const collection of seed.collections) {
@@ -277,6 +278,7 @@ export async function applySeed(
 						parent_label: collection.label,
 						parent_label_singular: collection.labelSingular ?? null,
 						child_label: field.label,
+						max_children_per_parent: fieldValidation?.multiple ? null : 1,
 					});
 					fieldValidation = {
 						...fieldValidation,
@@ -1206,6 +1208,7 @@ async function upsertSeedField(
 				field.slug,
 				field.label,
 				targetCollection,
+				field.validation?.multiple ? null : 1,
 			);
 			const registry = new SchemaRegistry(trx);
 			await registry.createField(collectionSlug, {

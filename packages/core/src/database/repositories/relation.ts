@@ -553,6 +553,23 @@ export class RelationRepository {
 	}
 
 	/**
+	 * Total edges per relation, for every relation at once. Relations with no
+	 * edges are absent from the map.
+	 *
+	 * One grouped scan rather than a count per relation: the delete dialogs name
+	 * how many links go with a relation, and the relations list shows the same
+	 * number on every row.
+	 */
+	async countEdgesByRelation(): Promise<Map<string, number>> {
+		const rows = await this.db
+			.selectFrom("_emdash_content_references")
+			.select(["relation_id", (eb) => eb.fn.count("id").as("count")])
+			.groupBy("relation_id")
+			.execute();
+		return new Map(rows.map((row) => [row.relation_id, Number(row.count ?? 0)]));
+	}
+
+	/**
 	 * Batch child-counts for many parents under a relation. Chunks at
 	 * SQL_BATCH_SIZE for D1's bind-parameter limit. Returns parent_group → count
 	 * (parents with no children are absent from the map). Mirrors

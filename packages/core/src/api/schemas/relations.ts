@@ -73,12 +73,27 @@ export const relationDefSchema = z
 	})
 	.meta({ id: "RelationDef" });
 
+/** A relation plus what deleting it would take: the fields that view it and
+ * how many links it holds. */
+export const relationWithUsageSchema = relationDefSchema
+	.extend({
+		boundFields: z.array(
+			z.object({
+				collectionSlug: z.string(),
+				fieldSlug: z.string(),
+				side: z.enum(["parent", "child"]),
+			}),
+		),
+		linkCount: z.number().int(),
+	})
+	.meta({ id: "RelationWithUsage" });
+
 export const relationListResponseSchema = z
-	.object({ relations: z.array(relationDefSchema) })
+	.object({ relations: z.array(relationWithUsageSchema) })
 	.meta({ id: "RelationListResponse" });
 
 export const relationResponseSchema = z
-	.object({ relation: relationDefSchema })
+	.object({ relation: relationWithUsageSchema })
 	.meta({ id: "RelationResponse" });
 
 export const entryRefSchema = z
