@@ -332,14 +332,17 @@ export interface EmDashHandlers {
 	// Trash handlers
 	handleContentListTrashed: (
 		collection: string,
-		params?: { cursor?: string; limit?: number },
+		params?: { cursor?: string; limit?: number; locale?: string },
 	) => Promise<HandlerResponse>;
 
 	handleContentRestore: (collection: string, id: string) => Promise<HandlerResponse>;
 
 	handleContentPermanentDelete: (collection: string, id: string) => Promise<HandlerResponse>;
 
-	handleContentCountTrashed: (collection: string) => Promise<HandlerResponse>;
+	handleContentCountTrashed: (
+		collection: string,
+		params?: { locale?: string },
+	) => Promise<HandlerResponse>;
 
 	handleContentGetIncludingTrashed: (collection: string, id: string) => Promise<HandlerResponse>;
 
@@ -353,10 +356,14 @@ export interface EmDashHandlers {
 	handleContentPublish: (
 		collection: string,
 		id: string,
-		options?: { publishedAt?: string; requireScheduledDue?: boolean },
+		options?: { publishedAt?: string; requireScheduledDue?: boolean; _rev?: string },
 	) => Promise<HandlerResponse>;
 
-	handleContentUnpublish: (collection: string, id: string) => Promise<HandlerResponse>;
+	handleContentUnpublish: (
+		collection: string,
+		id: string,
+		options?: { _rev?: string },
+	) => Promise<HandlerResponse>;
 
 	handleContentSchedule: (
 		collection: string,
@@ -368,7 +375,11 @@ export interface EmDashHandlers {
 
 	handleContentCountScheduled: (collection: string) => Promise<HandlerResponse>;
 
-	handleContentDiscardDraft: (collection: string, id: string) => Promise<HandlerResponse>;
+	handleContentDiscardDraft: (
+		collection: string,
+		id: string,
+		options?: { _rev?: string },
+	) => Promise<HandlerResponse>;
 
 	handleContentCompare: (collection: string, id: string) => Promise<HandlerResponse>;
 
@@ -396,6 +407,7 @@ export interface EmDashHandlers {
 		blurhash?: string;
 		dominantColor?: string;
 		authorId?: string;
+		folderId?: string | null;
 	}) => Promise<HandlerResponse>;
 
 	handleMediaUpdate: (
@@ -409,6 +421,12 @@ export interface EmDashHandlers {
 			focalX?: number | null;
 			focalY?: number | null;
 		},
+	) => Promise<HandlerResponse>;
+
+	handleMediaReplaceMetadata?: (
+		id: string,
+		expectedStorageKey: string,
+		input: { size: number; width: number; height: number; contentHash: string },
 	) => Promise<HandlerResponse>;
 
 	handleMediaDelete: (id: string) => Promise<HandlerResponse>;

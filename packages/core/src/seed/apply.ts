@@ -221,6 +221,7 @@ export async function applySeed(
 						hidden: collection.hidden,
 						sortOrder: collection.sortOrder,
 						commentsEnabled: collection.commentsEnabled,
+						editLocking: collection.editLocking,
 					});
 					result.collections.updated++;
 
@@ -310,6 +311,7 @@ export async function applySeed(
 					hidden: collection.hidden,
 					sortOrder: collection.sortOrder,
 					commentsEnabled: collection.commentsEnabled,
+					editLocking: collection.editLocking,
 				},
 				fields,
 			);

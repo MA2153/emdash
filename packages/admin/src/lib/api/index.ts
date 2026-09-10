@@ -9,6 +9,7 @@ export {
 	API_BASE,
 	ApiResponseError,
 	apiFetch,
+	isTerminalRequestError,
 	parseApiResponse,
 	throwResponseError,
 	type FindManyResult,
@@ -85,6 +86,7 @@ export {
 	renameMediaFolder,
 	deleteMediaFolder,
 	uploadMedia,
+	replaceMediaImage,
 	deleteMedia,
 	updateMedia,
 	fetchMediaProviders,
@@ -425,3 +427,12 @@ export {
 	fetchReferenceChildren,
 	fetchReferenceParents,
 } from "./relations.js";
+
+// Entry edit locks
+export {
+	type EntryLockHolder,
+	type EntryLockStatus,
+	acquireEntryLock,
+	releaseEntryLock,
+	entryLockRefusal,
+} from "./entry-lock.js";
