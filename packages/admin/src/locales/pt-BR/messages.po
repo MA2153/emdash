@@ -1851,10 +1851,6 @@ msgstr "Escolher créditos"
 msgid "Choose files to upload"
 msgstr "Escolher arquivos para enviar"
 
-#: packages/admin/src/components/SetupWizard.tsx:288
-msgid "Choose how to sign in"
-msgstr "Escolha como entrar"
-
 #: packages/admin/src/components/MediaDetailPanel.tsx:1824
 msgid "Choose replacement image"
 msgstr "Escolher imagem de substituição"
@@ -3467,7 +3463,10 @@ msgid ""
 "Editor\n"
 "Reporter\n"
 "Photographer"
-msgstr "Editor\nRepórter\nFotógrafo"
+msgstr ""
+"Editor\n"
+"Repórter\n"
+"Fotógrafo"
 
 #: packages/admin/src/components/FieldEditor.tsx:691
 msgid "Editors can select a second image that the site shows in dark mode."
@@ -6770,7 +6769,10 @@ msgid ""
 "Option 1\n"
 "Option 2\n"
 "Option 3"
-msgstr "Opção 1\nOpção 2\nOpção 3"
+msgstr ""
+"Opção 1\n"
+"Opção 2\n"
+"Opção 3"
 
 #: packages/admin/src/components/editor/GalleryDetailPanel.tsx:492
 #: packages/admin/src/components/editor/ImageDetailPanel.tsx:482
