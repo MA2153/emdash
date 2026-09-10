@@ -11,24 +11,24 @@ EmDash supports 16 field types for defining content schemas. Each type maps to a
 
 The following table lists every field type and its SQLite column:
 
-| Type           | SQLite Column | Description                |
-| -------------- | ------------- | -------------------------- |
-| `string`       | TEXT          | Short text input           |
-| `text`         | TEXT          | Multi-line text            |
-| `url`          | TEXT          | URL value                  |
-| `number`       | REAL          | Decimal number             |
-| `integer`      | INTEGER       | Whole number               |
-| `boolean`      | INTEGER       | True/false                 |
-| `datetime`     | TEXT          | Date and time              |
-| `select`       | TEXT          | Single choice from options |
-| `multiSelect`  | JSON          | Multiple choices           |
-| `portableText` | JSON          | Rich text content          |
-| `image`        | TEXT          | Image reference            |
-| `file`         | TEXT          | File reference             |
-| `reference`    | TEXT          | Reference to another entry |
-| `json`         | JSON          | Arbitrary JSON data        |
-| `slug`         | TEXT          | URL-safe identifier        |
-| `repeater`     | JSON          | Repeating group of fields  |
+| Type           | SQLite Column | Description                            |
+| -------------- | ------------- | -------------------------------------- |
+| `string`       | TEXT          | Short text input                       |
+| `text`         | TEXT          | Multi-line text                        |
+| `url`          | TEXT          | URL value                              |
+| `number`       | REAL          | Decimal number                         |
+| `integer`      | INTEGER       | Whole number                           |
+| `boolean`      | INTEGER       | True/false                             |
+| `datetime`     | TEXT          | Date and time                          |
+| `select`       | TEXT          | Single choice from options             |
+| `multiSelect`  | JSON          | Multiple choices                       |
+| `portableText` | JSON          | Rich text content                      |
+| `image`        | TEXT          | Image reference                        |
+| `file`         | TEXT          | File reference                         |
+| `reference`    | none          | Links to entries in another collection |
+| `json`         | JSON          | Arbitrary JSON data                    |
+| `slug`         | TEXT          | URL-safe identifier                    |
+| `repeater`     | JSON          | Repeating group of fields              |
 
 ## Text Types
 
@@ -350,7 +350,7 @@ canonical lookup APIs when you need fresh metadata or a provider-specific URL.
 
 ### `reference`
 
-Reference to another content entry.
+Links an entry to entries in another collection.
 
 ```ts
 {
@@ -358,28 +358,49 @@ Reference to another content entry.
   label: "Author",
   type: "reference",
   required: true,
-  options: {
-    collection: "authors",
+  validation: {
+    targetCollection: "authors",
+    multiple: false,
   },
 }
 ```
 
-**Widget options:**
+**Validation:**
 
-- `collection` — Target collection slug (required)
-- `allowMultiple` — Allow multiple references (default: false)
+- `targetCollection` — Slug of the collection this field links to (required)
+- `multiple` — Allow more than one linked entry (default: false)
 
-A single reference is stored as the target entry ID:
+A reference field adds no column to the collection table. Its links live in
+`_emdash_content_references`, keyed by each entry's translation group, so a selection is shared
+across an entry's translations rather than set per locale. Content reads return the linked entries
+under `references` instead of in `data`.
+
+Creating the field also creates the relation behind it: a schema object naming the two collections it
+joins, with a label for each side and the limit on how many entries each side may link.
+`targetCollection` is fixed once that relation exists — change it by deleting the field and adding a
+new one.
+
+#### Fields with no target collection
+
+A reference field can exist without a target: one created before EmDash modelled relations named its
+target in `options.collection`, which the admin had no way to set, and a seed can leave it out. Such
+a field keeps a `TEXT` column and behaves like a plain string holding one entry ID:
 
 ```json
 "01HXK5MZSN..."
 ```
 
-Multiple references are stored as an array of entry IDs:
+Or, for a field whose `options.allowMultiple` was set, a JSON array of entry IDs:
 
 ```json
 ["01HXK5MZSN...", "01HXK6NATS..."]
 ```
+
+Its value saves, loads, and validates like any other string, and the field can be indexed and used
+as a content-list filter. To turn it into a picker, open it under Content Types and choose a
+referenced collection: EmDash creates the relation, copies the entry IDs in the column in as links,
+and clears the field's searchable and indexed flags. The column itself is left alone and stops being
+written.
 
 ## Flexible Types
 

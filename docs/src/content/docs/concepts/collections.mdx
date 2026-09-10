@@ -190,15 +190,16 @@ EmDash supports 16 field types that map to SQLite column types.
     ```
   </TabItem>
   <TabItem label="reference">
-    Reference to another collection's entry. Stores entry ID as `TEXT`.
+    Links to entries in another collection. Adds no column: the links live in
+    `_emdash_content_references` and reads return them under `references`.
     
     ```ts
     {
       slug: "author",
       type: "reference",
       label: "Author",
-      options: {
-        collection: "authors"
+      validation: {
+        targetCollection: "authors"
       }
     }
     ```
@@ -291,12 +292,15 @@ The following reference field links to multiple products:
   slug: "relatedProducts",
   type: "reference",
   label: "Related Products",
-  options: {
-    collection: "products",
-    allowMultiple: true
+  validation: {
+    targetCollection: "products",
+    multiple: true
   }
 }
 ```
+
+See [`reference`](/reference/field-types/#reference) for where a reference field's links are stored
+and how a field with no target collection behaves.
 
 ## Querying collections
 

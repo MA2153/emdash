@@ -65,7 +65,7 @@ Collections define content types. Each collection becomes a database table (`ec_
 | `boolean`      | INTEGER     | `boolean`                             | Stored as 0/1                |
 | `datetime`     | TEXT        | `Date`                                | ISO 8601 string in DB        |
 | `image`        | TEXT        | `{ id, src?, alt?, width?, height? }` | **Object, not a string**     |
-| `reference`    | TEXT        | `string` (ID)                         | Reference to another entry   |
+| `reference`    | none        | Links under `references`              | No column; see below         |
 | `portableText` | JSON        | `PortableTextBlock[]`                 | Rich text as structured JSON |
 | `json`         | JSON        | `any`                                 | Arbitrary JSON data          |
 
@@ -380,11 +380,29 @@ For external images without downloading:
 
 ### Reference fields in seed content
 
-Use `$ref:id` format to reference other entries:
+Declare the field with the collection it links to:
+
+```json
+{
+	"slug": "author",
+	"label": "Author",
+	"type": "reference",
+	"validation": { "targetCollection": "authors", "multiple": false }
+}
+```
+
+Such a field stores no column. Its links live in `_emdash_content_references`, keyed by each entry's
+translation group, and content reads return the linked entries under `references`.
+
+In content, use `$ref:id` to name another seeded entry:
 
 ```json
 "author": "$ref:byline-editorial"
 ```
+
+A reference field declared without `targetCollection` keeps a TEXT column instead and holds the
+resolved entry ID as a plain string, which is how reference fields behaved before EmDash modelled
+relations.
 
 ### Portable Text in seed content
 
