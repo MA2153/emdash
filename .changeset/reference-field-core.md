@@ -10,6 +10,20 @@ A reference field stores no column of its own once it is bound to a relation; it
 
 A bound reference field cannot be marked as indexed, because it has no column to index. Large reference replacements are split into D1-safe writes while preserving selection order.
 
+#### Upgrading a site with existing reference fields
+
+Migration 077 binds each reference field that named its target collection — in `options.collection`, as the `reference()` field helper and the documented seed shape do — to a new relation, and copies the entry ids in its column in as links. Those fields become working pickers on upgrade with their existing selections intact.
+
+A reference field is left alone, and keeps behaving exactly as it did, when:
+
+- it names no target collection, or names one that no longer exists. A reference field created in the admin before this release has no target, since the admin had nowhere to record one.
+- it is marked searchable or indexed. Both mean the site queries that column through an index, and binding the field stops the column being written.
+- the relation slug it would take, `{collection}_{field}`, is already in use.
+
+To bind one of those fields yourself, open it under Content Types and choose a referenced collection. EmDash creates the relation, copies the column's ids in as links, and clears the field's searchable and indexed flags — after which `fields` filters and site search no longer cover it.
+
+The column is left in place and stops being written. On a site that predates pickers it was a free-text box that could hold anything an editor typed, and only the ids that resolved to an entry became links, so nothing is deleted. Generated types no longer declare the key for a bound field, but a content read still reports the frozen column value in `data` beside the live `references`.
+
 Relations are now first-class schema objects rather than a hidden detail of each reference field. A relation joins two collections under a slug that is unique across the site, and a reference field records which end of that relation it sits on — so the same relation can back a field on either side. A relation carries a label and an optional singular form for each role, plus an optional limit on how many entries each side may hold.
 
 Migration 076 restructures `_emdash_relations` to match: the per-locale rows collapse into one row per relation, keyed by a new unique `slug`, and `_emdash_content_references.relation_group` becomes `relation_id`. Relation ids are preserved, so existing reference edges stay valid. Relations are no longer localized — like collections and fields, their labels are single-valued. Where per-locale rows existed, the lowest locale code's labels win.

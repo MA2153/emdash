@@ -188,6 +188,7 @@ describe("Database Migrations (Integration)", () => {
 			"074_content_deleted_scheduled_index",
 			"075_entry_edit_locks",
 			"076_relations_structural",
+			"077_reference_field_relations",
 		];
 
 		await db.deleteFrom("_emdash_migrations").where("name", "in", trailing).execute();

@@ -4,6 +4,7 @@
 
 import type { Kysely } from "kysely";
 
+import { backfillReferenceEdges } from "../../database/reference-backfill.js";
 import { RelationRepository, type Relation } from "../../database/repositories/relation.js";
 import { withTransaction } from "../../database/transaction.js";
 import type { Database } from "../../database/types.js";
@@ -89,6 +90,59 @@ export async function createFieldRelation(
 function invalidateFieldCaches(collectionSlug: string): void {
 	invalidateCollectionCache(collectionSlug);
 	invalidateSchemaCache(collectionSlug);
+}
+
+/**
+ * Bind a reference field that has no relation to one, and copy the selection its
+ * column holds in as edges.
+ *
+ * The column is left in place but stops being written, so the field also stops
+ * being `indexed` and `searchable`: an index over a frozen column would answer
+ * content-list filters and searches from values that no longer change. Clearing
+ * both here drops the field index and re-syncs FTS through `updateField`.
+ */
+async function bindReferenceField(
+	db: Kysely<Database>,
+	collectionSlug: string,
+	existing: Field,
+	input: UpdateFieldInput,
+	targetCollection: string,
+): Promise<Field> {
+	const label = input.label ?? existing.label;
+	const maxChildren = input.validation?.multiple ? null : 1;
+
+	return withTransaction(db, async (trx) => {
+		const relation = await createFieldRelation(
+			trx,
+			collectionSlug,
+			existing.slug,
+			label,
+			targetCollection,
+			maxChildren,
+		);
+		const registry = new SchemaRegistry(trx);
+		const updated = await registry.updateField(collectionSlug, existing.slug, {
+			...input,
+			indexed: false,
+			searchable: false,
+			validation: {
+				...input.validation,
+				relation: relation.slug,
+				relationSide: "parent",
+				targetCollection,
+			},
+		});
+
+		await backfillReferenceEdges(trx, {
+			parentCollection: collectionSlug,
+			childCollection: targetCollection,
+			fieldSlug: existing.slug,
+			relationId: relation.id,
+			maxChildren,
+		});
+
+		return updated;
+	});
 }
 
 export interface CollectionListResponse {
@@ -553,6 +607,17 @@ export async function handleSchemaFieldUpdate(
 				success: true,
 				data: { item },
 			};
+		}
+
+		// Giving an unbound reference field a target collection binds it: a field
+		// created before relations existed, or one whose target could not be
+		// resolved on upgrade, becomes a picker here rather than needing to be
+		// deleted and recreated.
+		const bindTarget = existing?.type === "reference" ? input.validation?.targetCollection : null;
+		if (existing && bindTarget) {
+			const item = await bindReferenceField(db, collectionSlug, existing, input, bindTarget);
+			invalidateCollectionCache(collectionSlug);
+			return { success: true, data: { item } };
 		}
 
 		const registry = new SchemaRegistry(db);

@@ -388,6 +388,65 @@ describe("FieldEditor", () => {
 		});
 	});
 
+	describe("reference field that predates relations", () => {
+		const legacyField = makeField({
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			required: false,
+			searchable: false,
+			options: { collection: "authors" },
+		});
+
+		const boundField = makeField({
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			required: false,
+			searchable: false,
+			validation: { relation: "posts_author", targetCollection: "authors" },
+		});
+
+		it("shows the collection its options named, so it can be confirmed", async () => {
+			const screen = await render(<FieldEditor {...defaultProps} field={legacyField} />);
+
+			await expect
+				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
+				.toBeEnabled();
+			await expect
+				.element(screen.getByText(/Saving a collection here turns this field into an entry picker/))
+				.toBeInTheDocument();
+		});
+
+		it("keeps a bound field's collection immutable", async () => {
+			const screen = await render(<FieldEditor {...defaultProps} field={boundField} />);
+
+			await expect
+				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
+				.toBeDisabled();
+			await expect
+				.element(screen.getByText("The referenced collection cannot be changed after creation"))
+				.toBeInTheDocument();
+		});
+
+		it("sends the collection on save so the server can bind the field", async () => {
+			const onSave = vi.fn();
+			const screen = await render(
+				<FieldEditor {...defaultProps} field={legacyField} onSave={onSave} />,
+			);
+
+			const button = screen.getByRole("button", { name: "Update Field" });
+			await expect.element(button).toBeEnabled();
+			button.element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					validation: expect.objectContaining({ targetCollection: "authors" }),
+				}),
+			);
+		});
+	});
+
 	describe("config step (file field)", () => {
 		const fileField = makeField({
 			slug: "attachment",

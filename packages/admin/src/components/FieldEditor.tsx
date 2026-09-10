@@ -133,7 +133,12 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 			minItems: (field.validation as Record<string, unknown>)?.minItems?.toString() ?? "",
 			maxItems: (field.validation as Record<string, unknown>)?.maxItems?.toString() ?? "",
 			allowedMimeTypes: field.validation?.allowedMimeTypes ?? [],
-			targetCollection: field.validation?.targetCollection ?? "",
+			// A reference field created before relations existed named its target in
+			// `options.collection`. Showing it here is what lets the editor confirm
+			// it and turn the field into a picker.
+			targetCollection:
+				field.validation?.targetCollection ??
+				(typeof field.options?.collection === "string" ? field.options.collection : ""),
 			allowMultiple: field.validation?.multiple ?? true,
 			darkVariant: field.options?.darkVariant === true,
 		};
@@ -189,6 +194,10 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 	const { targetCollection, allowMultiple } = formState;
 	const setField = <K extends keyof FieldFormState>(key: K, value: FieldFormState[K]) =>
 		setFormState((prev) => ({ ...prev, [key]: value }));
+
+	// Only a reference field already bound to a relation has an immutable target;
+	// one that predates relations is still waiting for its first.
+	const isBoundReference = typeof field?.validation?.relation === "string";
 
 	// Build field types inside the component so t`` works
 	const FIELD_TYPES: FieldTypeConfig[] = [
@@ -593,12 +602,17 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 									}}
 									items={collections.map((c) => ({ label: c.label, value: c.slug }))}
 									placeholder={t`Select a collection`}
-									disabled={!!field}
+									disabled={isBoundReference}
 									error={refError ? t`Referenced collection is required` : undefined}
 								/>
-								{field && (
+								{isBoundReference && (
 									<p className="text-xs text-kumo-subtle">
 										{t`The referenced collection cannot be changed after creation`}
+									</p>
+								)}
+								{field && !isBoundReference && (
+									<p className="text-xs text-kumo-subtle">
+										{t`Saving a collection here turns this field into an entry picker. Its stored entry IDs move to the relationship, and the field can no longer be searched or filtered on.`}
 									</p>
 								)}
 								<Switch
