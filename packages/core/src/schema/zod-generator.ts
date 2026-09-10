@@ -2,7 +2,7 @@ import { z, type ZodType } from "zod";
 
 import { hashString } from "../utils/hash.js";
 import {
-	STORAGELESS_FIELD_TYPES,
+	isStoragelessField,
 	type CollectionWithFields,
 	type Field,
 	type FieldType,
@@ -24,7 +24,7 @@ export function generateZodSchema(
 	const shape: Record<string, ZodType> = {};
 
 	for (const field of collection.fields) {
-		if (STORAGELESS_FIELD_TYPES.has(field.type)) continue;
+		if (isStoragelessField(field)) continue;
 		shape[field.slug] = generateFieldSchema(field);
 	}
 
@@ -345,6 +345,10 @@ export function generateTypeScript(
 	lines.push(`  status: string;`);
 
 	for (const field of collection.fields) {
+		// A storage-less field holds no value in `data`; a reference field bound to
+		// a relation resolves through `references` instead. One that predates
+		// relations still owns its column, so it stays an entry id string.
+		if (isStoragelessField(field)) continue;
 		const tsType = fieldTypeToTypeScript(field);
 		const optional = field.required ? "" : "?";
 		lines.push(`  ${field.slug}${optional}: ${tsType};`);

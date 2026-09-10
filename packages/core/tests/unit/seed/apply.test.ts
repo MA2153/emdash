@@ -1245,6 +1245,48 @@ describe("applySeed", () => {
 			expect(edges.items.map((e) => e.childGroup)).toEqual([first!.translationGroup]);
 		});
 
+		it("writes $ref: to the column for a reference field that names no target collection", async () => {
+			// The shape a seed had before relations existed: the target sits in
+			// `options.collection`, so apply forms no relation and the resolved entry
+			// id is a plain column value.
+			const seed: SeedFile = {
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [
+							{ slug: "title", label: "Title", type: "string" },
+							{
+								slug: "related_post",
+								label: "Related Post",
+								type: "reference",
+								options: { collection: "posts" },
+							},
+						],
+					},
+				],
+				content: {
+					posts: [
+						{ id: "post-1", slug: "first", data: { title: "First" } },
+						{
+							id: "post-2",
+							slug: "second",
+							data: { title: "Second", related_post: "$ref:post-1" },
+						},
+					],
+				},
+			};
+
+			await applySeed(db, seed, { includeContent: true });
+
+			const contentRepo = new ContentRepository(db);
+			const first = await contentRepo.findBySlug("posts", "first");
+			const second = await contentRepo.findBySlug("posts", "second");
+			expect(second?.data.related_post).toBe(first!.id);
+			expect(await new RelationRepository(db).findBySlug("posts_related_post")).toBeNull();
+		});
+
 		it("should assign taxonomy terms to content", async () => {
 			const registry = new SchemaRegistry(db);
 			await registry.createCollection({ slug: "posts", label: "Posts" });

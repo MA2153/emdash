@@ -6,9 +6,9 @@ Adds reference fields that store relationships between entries. Selections are w
 
 Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
 
-Reference fields are storage-less: new fields do not add a column to the collection table. Seed files continue to use `$ref:` values. Existing reference columns remain in place for compatibility, but EmDash no longer writes to them.
+A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.
 
-Storage-less reference fields can no longer be marked as indexed, and large reference replacements are split into D1-safe writes while preserving selection order.
+A bound reference field cannot be marked as indexed, because it has no column to index. Large reference replacements are split into D1-safe writes while preserving selection order.
 
 Relations are now first-class schema objects rather than a hidden detail of each reference field. A relation joins two collections under a slug that is unique across the site, and a reference field records which end of that relation it sits on — so the same relation can back a field on either side. A relation carries a label and an optional singular form for each role, plus an optional limit on how many entries each side may hold.
 

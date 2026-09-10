@@ -6,7 +6,8 @@ import { SchemaRegistry } from "../../src/schema/registry.js";
 import {
 	STORAGELESS_FIELD_TYPES,
 	FIELD_TYPE_TO_COLUMN,
-	isIndexableFieldType,
+	isStoragelessField,
+	isStoragelessFieldRow,
 } from "../../src/schema/types.js";
 import {
 	describeEachDialect,
@@ -60,8 +61,20 @@ describe("storage-less field types", () => {
 		expect(FIELD_TYPE_TO_COLUMN.reference).toBe("TEXT");
 	});
 
-	it("does not expose storage-less references as indexable scalar fields", () => {
-		expect(isIndexableFieldType("reference")).toBe(false);
+	it("treats a reference field as storage-less only once it is bound to a relation", () => {
+		const field = { type: "reference" };
+		expect(isStoragelessField(field)).toBe(false);
+		expect(isStoragelessField({ ...field, validation: {} })).toBe(false);
+		expect(isStoragelessField({ ...field, validation: { relation: "posts_author" } })).toBe(true);
+		expect(isStoragelessField({ type: "string", validation: { relation: "x" } })).toBe(false);
+	});
+
+	it("reads a raw field row's unparsed validation, treating malformed JSON as unbound", () => {
+		expect(isStoragelessFieldRow({ type: "reference", validation: null })).toBe(false);
+		expect(isStoragelessFieldRow({ type: "reference", validation: "{oops" })).toBe(false);
+		expect(
+			isStoragelessFieldRow({ type: "reference", validation: '{"relation":"posts_author"}' }),
+		).toBe(true);
 	});
 });
 
@@ -171,8 +184,30 @@ describeEachDialect("reference field is storage-less in the registry", (dialect)
 	it("rejects changing a field to or from reference", async () => {
 		const registry = new SchemaRegistry(ctx.db);
 		await registry.createField("posts", { slug: "title2", label: "Title2", type: "string" });
+		// Nothing migrates a column of entry ids into a picker, so the target type
+		// is refused whether or not the result would be storage-less.
 		await expect(
 			registry.updateField("posts", "title2", { type: "reference" }),
+		).rejects.toMatchObject({ code: "FIELD_TYPE_CHANGE_REQUIRES_MIGRATION" });
+		await expect(
+			registry.updateField("posts", "title2", {
+				type: "reference",
+				validation: { relation: "posts_title2" },
+			}),
+		).rejects.toMatchObject({ code: "FIELD_TYPE_COLUMN_CHANGE" });
+	});
+
+	it("rejects turning a bound reference field back into a column-backed type", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createField("posts", {
+			slug: "related",
+			label: "Related",
+			type: "reference",
+			validation: { relation: "grp_x", targetCollection: "posts", multiple: true },
+		});
+
+		await expect(
+			registry.updateField("posts", "related", { type: "string" }),
 		).rejects.toMatchObject({ code: "FIELD_TYPE_COLUMN_CHANGE" });
 	});
 });

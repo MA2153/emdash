@@ -1140,15 +1140,15 @@ async function applyContentBylines(
 /**
  * Create or update a field from a seed.
  *
- * Reference fields are storage-less (migration 043): they persist no column,
- * their edges live in `_emdash_content_references`, and each is backed by a
- * relation definition. Seeds create fields through the registry (not the schema
- * handler that owns the relation lifecycle), so this mirrors the handler — it
- * creates the relation on first insert (field + relation in one transaction)
- * and preserves the server-assigned `validation.relation`/`targetCollection` on
- * re-apply, since a seed's field validation omits them and would otherwise
- * orphan the relation. A reference field with no `targetCollection` cannot form
- * a relation, so it is created as an inert storage-less field.
+ * A reference field bound to a relation is storage-less: it persists no column
+ * and its edges live in `_emdash_content_references`. Seeds create fields
+ * through the registry (not the schema handler that owns the relation
+ * lifecycle), so this mirrors the handler — it creates the relation on first
+ * insert (field + relation in one transaction) and preserves the
+ * server-assigned `validation.relation`/`targetCollection` on re-apply, since a
+ * seed's field validation omits them and would otherwise orphan the relation. A
+ * reference field with no `targetCollection` cannot form a relation, so it is
+ * created column-backed, holding a plain entry id.
  */
 async function upsertSeedField(
 	db: Kysely<Database>,
@@ -1229,12 +1229,12 @@ async function upsertSeedField(
 
 /**
  * Split resolved content `data` into the plain column data and the reference
- * edge writes. Reference fields are storage-less, so a reference key left in
- * `data` would hit the column writer (and `syncDataColumns` on publish) and
- * throw "no such column". Their `$ref:`-resolved value — a child entry id or an
- * array of them — is captured as an edge write instead, keyed by the field's
- * relation group. A reference field with no relation drops its value (nothing
- * can store it), matching the content handler's defensive strip.
+ * edge writes. A reference field bound to a relation is storage-less, so its key
+ * left in `data` would hit the column writer (and `syncDataColumns` on publish)
+ * and throw "no such column". Its `$ref:`-resolved value — a child entry id or
+ * an array of them — is captured as an edge write instead, keyed by the field's
+ * relation. A reference field with no relation still owns its column, so its
+ * resolved id is written there like any other string.
  */
 async function splitReferenceFields(
 	db: Kysely<Database>,
@@ -1260,7 +1260,10 @@ async function splitReferenceFields(
 			continue;
 		}
 		const relationGroup = field.validation?.relation;
-		if (!relationGroup) continue; // inert reference field — nothing to store
+		if (!relationGroup) {
+			columnData[key] = value;
+			continue;
+		}
 		const childIds = (Array.isArray(value) ? value : [value]).filter(
 			(v): v is string => typeof v === "string" && v.length > 0,
 		);

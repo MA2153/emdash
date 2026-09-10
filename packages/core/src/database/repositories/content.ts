@@ -3,7 +3,7 @@ import { ulid } from "ulidx";
 
 import type { ContentFieldFilterValue, ContentFieldFilters } from "../../content-list-query.js";
 import { invalidateCollectionCache } from "../../object-cache/index.js";
-import { isIndexableFieldType, type FieldType } from "../../schema/types.js";
+import { isIndexableFieldType, isStoragelessFieldRow, type FieldType } from "../../schema/types.js";
 import { buildFtsPrefixMatch, buildSlugGlobPrefix } from "../../search/match.js";
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
 import { isMissingTableError } from "../../utils/db-errors.js";
@@ -2425,9 +2425,16 @@ export class ContentRepository {
 			.where("collection.slug", "=", type)
 			.where("field.slug", "in", fields)
 			.where("field.indexed", "=", 1)
-			.select(["field.slug", "field.type"])
+			.select(["field.slug", "field.type", "field.validation"])
 			.execute();
-		const metadata = new Map(rows.map((row) => [row.slug, row.type as FieldType]));
+		// `indexed` alone is not enough: a storage-less field has no column to
+		// filter on. A reference field bound to a relation after it was indexed can
+		// still carry the flag, and its column no longer receives writes.
+		const metadata = new Map(
+			rows
+				.filter((row) => !isStoragelessFieldRow(row))
+				.map((row) => [row.slug, row.type as FieldType]),
+		);
 
 		if (metadata.size === 0 && !(await this.collectionExists(type))) return [];
 

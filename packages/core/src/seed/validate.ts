@@ -191,6 +191,17 @@ export function validateSeed(data: unknown): ValidationResult {
 							errors.push(`${fieldPrefix}.type: unsupported field type "${field.type}"`);
 						} else if (field.indexed === true && !isIndexableFieldType(field.type)) {
 							errors.push(`${fieldPrefix}.indexed: type "${field.type}" cannot be indexed`);
+						} else if (
+							field.indexed === true &&
+							field.type === "reference" &&
+							typeof field.validation?.targetCollection === "string"
+						) {
+							// A targetCollection makes this field storage-less on apply: its
+							// selection becomes relation edges, leaving no column to index.
+							// Without one it stays a plain entry-id column, which can be.
+							errors.push(
+								`${fieldPrefix}.indexed: a reference field with a targetCollection stores no column to index`,
+							);
 						}
 					}
 				}

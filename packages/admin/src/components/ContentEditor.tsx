@@ -2042,16 +2042,20 @@ function FieldRenderer({
 					? field.validation.targetCollection
 					: undefined;
 			const multiple = field.validation?.multiple !== false;
+			// A reference field created before relations existed keeps its own column
+			// holding one entry id, so it stays the text input it has always been
+			// until an admin gives it a target collection.
 			if (!relationGroup || !targetCollection) {
 				return (
-					<div>
-						<span className={cn("text-sm font-medium leading-none text-kumo-default", labelClass)}>
-							{label}
-						</span>
-						<p className="mt-2 text-sm text-kumo-subtle">
-							{t`This reference field isn't fully configured.`}
-						</p>
-					</div>
+					<Input
+						label={label}
+						id={id}
+						value={typeof value === "string" ? value : ""}
+						onChange={(e) => handleChange(e.target.value)}
+						required={field.required}
+						dir="auto"
+						description={t`Holds an entry ID. Set a target collection under Content Types to pick entries instead.`}
+					/>
 				);
 			}
 			return (

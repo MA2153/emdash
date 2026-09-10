@@ -172,7 +172,26 @@ describe("validateSeed", () => {
 			expect(result.errors[0]).toContain('unsupported field type "invalid"');
 		});
 
-		it.each(["portableText", "reference"] as const)("should reject indexed %s fields", (type) => {
+		it("should reject indexed portableText fields", () => {
+			const result = validateSeed({
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [{ slug: "content", label: "Content", type: "portableText", indexed: true }],
+					},
+				],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors).toContain(
+				'collections[0].fields[0].indexed: type "portableText" cannot be indexed',
+			);
+		});
+
+		it("should reject an indexed reference field that names a target collection", () => {
+			// The target makes the field storage-less on apply, leaving no column.
 			const result = validateSeed({
 				version: "1",
 				collections: [
@@ -181,10 +200,11 @@ describe("validateSeed", () => {
 						label: "Posts",
 						fields: [
 							{
-								slug: "content",
-								label: "Content",
-								type,
+								slug: "author",
+								label: "Author",
+								type: "reference",
 								indexed: true,
+								validation: { targetCollection: "authors" },
 							},
 						],
 					},
@@ -193,8 +213,33 @@ describe("validateSeed", () => {
 
 			expect(result.valid).toBe(false);
 			expect(result.errors).toContain(
-				`collections[0].fields[0].indexed: type "${type}" cannot be indexed`,
+				"collections[0].fields[0].indexed: a reference field with a targetCollection stores no column to index",
 			);
+		});
+
+		it("should accept an indexed reference field with no target collection", () => {
+			// The shape a seed had before relations existed: a plain entry-id column,
+			// which a content-list filter can be served from.
+			const result = validateSeed({
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [
+							{
+								slug: "author",
+								label: "Author",
+								type: "reference",
+								indexed: true,
+								options: { collection: "authors" },
+							},
+						],
+					},
+				],
+			});
+
+			expect(result.valid).toBe(true);
 		});
 
 		it("should reject non-boolean indexed values", () => {

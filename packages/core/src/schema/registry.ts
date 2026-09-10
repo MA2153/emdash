@@ -51,11 +51,12 @@ import {
 	type UpdateFieldInput,
 	type CollectionWithFields,
 	type FieldType,
+	type FieldValidation,
 	FIELD_TYPE_TO_COLUMN,
 	isIndexableFieldType,
+	isStoragelessField,
 	RESERVED_FIELD_SLUGS,
 	RESERVED_COLLECTION_SLUGS,
-	STORAGELESS_FIELD_TYPES,
 } from "./types.js";
 
 // Regex patterns for schema registry
@@ -120,10 +121,21 @@ const UNORDERED_COLLECTION_RANK = 2147483647;
  */
 const collectionOrder = sql<number>`coalesce(sort_order, ${sql.lit(UNORDERED_COLLECTION_RANK)})`;
 
-function assertIndexableField(type: FieldType, indexed: boolean | undefined, slug: string): void {
-	if (indexed && !isIndexableFieldType(type)) {
+function assertIndexableField(
+	field: { type: FieldType; validation?: FieldValidation | null },
+	indexed: boolean | undefined,
+	slug: string,
+): void {
+	if (!indexed) return;
+	if (!isIndexableFieldType(field.type)) {
 		throw new SchemaError(
-			`Field "${slug}" cannot be indexed because type "${type}" is not a scalar query type`,
+			`Field "${slug}" cannot be indexed because type "${field.type}" is not a scalar query type`,
+			"FIELD_NOT_INDEXABLE",
+		);
+	}
+	if (isStoragelessField(field)) {
+		throw new SchemaError(
+			`Field "${slug}" cannot be indexed because it stores no column to index`,
 			"FIELD_NOT_INDEXABLE",
 		);
 	}
@@ -543,7 +555,7 @@ export class SchemaRegistry {
 		const fieldSlugs = new Set<string>();
 		for (const field of fields) {
 			this.validateSlug(field.slug, "field");
-			assertIndexableField(field.type, field.indexed, field.slug);
+			assertIndexableField(field, field.indexed, field.slug);
 			if (RESERVED_FIELD_SLUGS.includes(field.slug)) {
 				throw new SchemaError(`Field slug "${field.slug}" is reserved`, "RESERVED_SLUG");
 			}
@@ -948,7 +960,7 @@ export class SchemaRegistry {
 
 		const id = ulid();
 		const columnType = FIELD_TYPE_TO_COLUMN[input.type];
-		assertIndexableField(input.type, input.indexed, input.slug);
+		assertIndexableField(input, input.indexed, input.slug);
 
 		// Get max sort order
 		const maxSort = await this.db
@@ -992,10 +1004,9 @@ export class SchemaRegistry {
 				schemaMutated = true;
 
 				// Add column to content table — pass trx to stay on the same connection.
-				// Storage-less field types (e.g. reference) persist no column; their
-				// values live in a side table (see STORAGELESS_FIELD_TYPES). Insert the
-				// field row only.
-				if (!STORAGELESS_FIELD_TYPES.has(input.type)) {
+				// A storage-less field persists no column; its values live in a side
+				// table (see `isStoragelessField`). Insert the field row only.
+				if (!isStoragelessField(input)) {
 					await this.addColumn(
 						collectionSlug,
 						input.slug,
@@ -1094,12 +1105,20 @@ export class SchemaRegistry {
 				const field = this.mapFieldRow(fieldRow);
 				const updates: Updateable<FieldTable> = {};
 				let nextType = field.type;
+				const nextValidation = input.validation !== undefined ? input.validation : field.validation;
 
 				if (input.type !== undefined && input.type !== field.type) {
-					// A change into or out of a storage-less type is never a no-op column
-					// change: string -> reference both map to TEXT and would slip past the
-					// affinity check below, yet one has a column and the other does not.
-					if (STORAGELESS_FIELD_TYPES.has(input.type) || STORAGELESS_FIELD_TYPES.has(field.type)) {
+					// A change into or out of storage-less is never a no-op column change:
+					// string -> reference both map to TEXT and would slip past the affinity
+					// check below, yet one has a column and the other does not. An unwired
+					// reference field is column-backed, so its refusal comes from the
+					// text-alias check instead.
+					const storagelessBefore = isStoragelessField(field);
+					const storagelessAfter = isStoragelessField({
+						type: input.type,
+						validation: nextValidation,
+					});
+					if (storagelessBefore !== storagelessAfter) {
 						throw new SchemaError(
 							`Cannot change field "${fieldSlug}" in collection "${collectionSlug}" between ` +
 								`storage-less and column-backed types ("${field.type}" -> "${input.type}").`,
@@ -1178,7 +1197,11 @@ export class SchemaRegistry {
 				if (input.options !== undefined) updates.options = JSON.stringify(input.options);
 				if (input.sortOrder !== undefined) updates.sort_order = input.sortOrder;
 
-				assertIndexableField(nextType, input.indexed ?? field.indexed, fieldSlug);
+				assertIndexableField(
+					{ type: nextType, validation: nextValidation },
+					input.indexed ?? field.indexed,
+					fieldSlug,
+				);
 				if (Object.keys(updates).length === 0) return field;
 
 				activeCoverageInvalidated = await invalidateContentMediaUsageSchemaChange(
@@ -1502,7 +1525,7 @@ export class SchemaRegistry {
 		if (options.ifNotExists) table = table.ifNotExists();
 
 		for (const field of fields) {
-			if (STORAGELESS_FIELD_TYPES.has(field.type)) continue;
+			if (isStoragelessField(field)) continue;
 
 			const columnName = this.getColumnName(field.slug);
 			const columnType = COLUMN_TYPE_TO_DATA_TYPE[FIELD_TYPE_TO_COLUMN[field.type]];

@@ -2445,6 +2445,46 @@ describe("ContentEditor", () => {
 		});
 	});
 
+	describe("reference field that predates relations", () => {
+		// No relation means the field still owns a column holding one entry id, so
+		// it keeps the text input it had before reference pickers existed.
+		const legacyFields: Record<string, FieldDescriptor> = {
+			title: { kind: "string", label: "Title" },
+			author: { kind: "reference", label: "Author", options: { collection: "authors" } },
+		};
+
+		it("edits its stored entry id in a text input", async () => {
+			const onSave = vi.fn();
+			const screen = await renderEditor({
+				isNew: false,
+				item: makeItem({ data: { title: "Hello", author: "author-entry-id" } }),
+				fields: legacyFields,
+				onSave,
+			});
+
+			const input = screen.getByLabelText("Author");
+			await expect.element(input).toHaveValue("author-entry-id");
+
+			await userEvent.fill(input, "another-entry-id");
+			await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+			expect(onSave).toHaveBeenCalled();
+			expect(onSave.mock.calls[0]?.[0]?.data).toMatchObject({ author: "another-entry-id" });
+		});
+
+		it("points at the schema editor instead of claiming it is misconfigured", async () => {
+			const screen = await renderEditor({
+				isNew: false,
+				item: makeItem({ data: { title: "Hello", author: "author-entry-id" } }),
+				fields: legacyFields,
+			});
+
+			await expect
+				.element(screen.getByText(/Set a target collection under Content Types/))
+				.toBeInTheDocument();
+		});
+	});
+
 	describe("edit lock read-only mode", () => {
 		it("does not accept edits while another editor holds the entry", async () => {
 			const screen = await renderEditor({

@@ -992,4 +992,53 @@ describe("Zod Generator", () => {
 			expect(ts).toContain(`specs: { "name": string }[];`);
 		});
 	});
+
+	describe("reference fields", () => {
+		/** A `posts` collection with one reference field carrying `validation`. */
+		function makeReferenceCollection(validation: Field["validation"]): CollectionWithFields {
+			return {
+				id: "c1",
+				slug: "posts",
+				label: "Posts",
+				supports: [],
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				fields: [
+					{
+						id: "f1",
+						collectionId: "c1",
+						slug: "author",
+						label: "Author",
+						type: "reference",
+						columnType: "TEXT",
+						required: false,
+						unique: false,
+						sortOrder: 0,
+						createdAt: new Date().toISOString(),
+						validation,
+					},
+				],
+			};
+		}
+
+		const WIRED = { relation: "posts_author", relationSide: "parent", targetCollection: "authors" };
+
+		it("validates a field with no relation as the entry id string it stores", () => {
+			const schema = generateZodSchema(makeReferenceCollection(undefined));
+
+			expect(schema.parse({ author: "entry-id" })).toEqual({ author: "entry-id" });
+			expect(() => schema.parse({ author: 42 })).toThrow();
+		});
+
+		it("leaves a field bound to a relation out of the data schema", () => {
+			const schema = generateZodSchema(makeReferenceCollection(WIRED));
+
+			expect(Object.keys(schema.shape)).not.toContain("author");
+		});
+
+		it("types a field with no relation as a string and omits a bound one", () => {
+			expect(generateTypeScript(makeReferenceCollection(undefined))).toContain("author?: string;");
+			expect(generateTypeScript(makeReferenceCollection(WIRED))).not.toContain("author");
+		});
+	});
 });

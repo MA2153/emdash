@@ -42,7 +42,7 @@ import type { Database } from "../../database/types.js";
 import { validateIdentifier } from "../../database/validate.js";
 import { getI18nConfig, isI18nEnabled, resolveConfiguredLocale } from "../../i18n/config.js";
 import { invalidateRedirectCache } from "../../redirects/cache.js";
-import { STORAGELESS_FIELD_TYPES } from "../../schema/types.js";
+import { isStoragelessFieldRow } from "../../schema/types.js";
 import { FTSManager } from "../../search/fts-manager.js";
 import { invalidateTermCache } from "../../taxonomies/index.js";
 import { isMissingColumnError, isMissingTableError } from "../../utils/db-errors.js";
@@ -479,10 +479,13 @@ async function resolveSearchColumns(db: Kysely<Database>, collection: string): P
 }
 
 /**
- * Remove storage-less field keys (e.g. reference) from a content `data` payload
- * before it reaches the column writer, which would otherwise throw "no such
- * column". Defensive for direct API users; the admin sends references in the
- * dedicated `references` key, not in `data`.
+ * Remove storage-less field keys (e.g. a reference field bound to a relation)
+ * from a content `data` payload before it reaches the column writer, which would
+ * otherwise throw "no such column". Defensive for direct API users; the admin
+ * sends references in the dedicated `references` key, not in `data`.
+ *
+ * A reference field with no relation still owns its column, so its value passes
+ * through untouched.
  */
 async function stripStoragelessDataKeys(
 	db: Kysely<Database>,
@@ -497,12 +500,10 @@ async function stripStoragelessDataKeys(
 	if (!collectionRow) return data;
 	const fields = await db
 		.selectFrom("_emdash_fields")
-		.select(["slug", "type"])
+		.select(["slug", "type", "validation"])
 		.where("collection_id", "=", collectionRow.id)
 		.execute();
-	const storageless = new Set(
-		fields.filter((f) => STORAGELESS_FIELD_TYPES.has(f.type)).map((f) => f.slug),
-	);
+	const storageless = new Set(fields.filter(isStoragelessFieldRow).map((f) => f.slug));
 	if (storageless.size === 0) return data;
 	const cleaned: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(data)) {
