@@ -57,7 +57,7 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -76,15 +76,15 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 				ctx.db,
 				"posts",
 				parent.data.item.id,
-				relation.translationGroup,
+				relation.slug,
 				[childA.data.item.id, childB.data.item.id],
 			);
 			expect(result.success).toBe(true);
 			if (result.success) {
-				expect(result.data.relationGroup).toBe(relation.translationGroup);
+				expect(result.data.relationId).toBe(relation.id);
 
 				const page = await relationRepo.getChildrenPage(
-					result.data.relationGroup,
+					result.data.relationId,
 					result.data.entryGroup,
 				);
 				expect(page.items.map((i) => i.childGroup).toSorted()).toEqual(
@@ -94,20 +94,13 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 
 			// A child id outside the relation's child collection fails NOT_FOUND —
 			// and must not partially overwrite the set above.
-			const bad = await setReferenceChildren(
-				ctx.db,
-				"posts",
-				parent.data.item.id,
-				relation.translationGroup,
-				["nope"],
-			);
+			const bad = await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+				"nope",
+			]);
 			expect(bad.success).toBe(false);
 			if (!bad.success) expect(bad.error.code).toBe("NOT_FOUND");
 
-			const pageAfterBad = await relationRepo.getChildrenPage(
-				relation.translationGroup,
-				parent.data.item.id,
-			);
+			const pageAfterBad = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
 			expect(pageAfterBad.items.map((i) => i.childGroup).toSorted()).toEqual(
 				[childA.data.item.id, childB.data.item.id].toSorted(),
 			);
@@ -129,7 +122,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -145,7 +138,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 			const res = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
 				references: {
-					[relation.translationGroup]: [childA.data.item.id, childB.data.item.id],
+					[relation.slug]: [childA.data.item.id, childB.data.item.id],
 				},
 			});
 			expect(res.success).toBe(true);
@@ -153,7 +146,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 
 			// Read back through the same edge read the REST endpoint uses —
 			// order must match the input array (sort_order is positional).
-			const page = await relationRepo.getChildrenPage(relation.translationGroup, res.data.item.id);
+			const page = await relationRepo.getChildrenPage(relation.slug, res.data.item.id);
 			expect(page.items.map((i) => i.childGroup)).toEqual([
 				childA.data.item.id,
 				childB.data.item.id,
@@ -172,7 +165,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -184,7 +177,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 
 			const res = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: { [relation.translationGroup]: ["does-not-exist"] },
+				references: { [relation.slug]: ["does-not-exist"] },
 			});
 			expect(res.success).toBe(false);
 			if (!res.success) expect(res.error.code).toBe("NOT_FOUND");
@@ -211,7 +204,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -225,7 +218,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 				label: "Related",
 				type: "reference",
 				validation: {
-					relation: relation.translationGroup,
+					relation: relation.slug,
 					targetCollection: "posts",
 					multiple: true,
 				},
@@ -239,7 +232,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 			const parent = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
 				references: {
-					[relation.translationGroup]: [childA.data.item.id, childB.data.item.id],
+					[relation.slug]: [childA.data.item.id, childB.data.item.id],
 				},
 			});
 			expect(parent.success).toBe(true);
@@ -250,7 +243,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 			});
 			expect(got.success).toBe(true);
 			if (got.success) {
-				const refs = got.data.item.references?.[relation.translationGroup];
+				const refs = got.data.item.references?.[relation.slug];
 				expect(refs?.children.map((c) => c.id)).toEqual([childA.data.item.id, childB.data.item.id]);
 			}
 		} finally {
@@ -298,7 +291,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -309,7 +302,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 				label: "Related",
 				type: "reference",
 				validation: {
-					relation: relation.translationGroup,
+					relation: relation.slug,
 					targetCollection: "posts",
 					multiple: true,
 				},
@@ -321,7 +314,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 
 			const parent = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: { [relation.translationGroup]: [child.data.item.id] },
+				references: { [relation.slug]: [child.data.item.id] },
 			});
 			expect(parent.success).toBe(true);
 			if (!parent.success) return;
@@ -350,7 +343,7 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 
 			const relationRepo = new RelationRepository(ctx.db);
 			const relation = await relationRepo.create({
-				name: "related_posts",
+				slug: "related_posts",
 				parentCollection: "posts",
 				childCollection: "posts",
 				parentLabel: "Related posts",
@@ -363,13 +356,10 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 			expect(parent.success && childA.success && childB.success).toBe(true);
 			if (!parent.success || !childA.success || !childB.success) return;
 
-			const set = await setReferenceChildren(
-				ctx.db,
-				"posts",
-				parent.data.item.id,
-				relation.translationGroup,
-				[childA.data.item.id, childB.data.item.id],
-			);
+			const set = await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+				childA.data.item.id,
+				childB.data.item.id,
+			]);
 			expect(set.success).toBe(true);
 
 			const dup = await handleContentDuplicate(ctx.db, "posts", parent.data.item.id);
@@ -384,10 +374,7 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 			expect(dupItem?.translationGroup).not.toBe(parent.data.item.id);
 			if (!dupItem?.translationGroup) return;
 
-			const page = await relationRepo.getChildrenPage(
-				relation.translationGroup,
-				dupItem.translationGroup,
-			);
+			const page = await relationRepo.getChildrenPage(relation.slug, dupItem.translationGroup);
 			expect(page.items.map((i) => i.childGroup)).toEqual([
 				childA.data.item.id,
 				childB.data.item.id,
@@ -408,7 +395,7 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 
 		const relationRepo = new RelationRepository(db);
 		const relation = await relationRepo.create({
-			name: "related_posts",
+			slug: "related_posts",
 			parentCollection: "posts",
 			childCollection: "posts",
 			parentLabel: "Related posts",
@@ -432,24 +419,16 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			// so both its outgoing and incoming edges must go.
 			expect(
 				(
-					await setReferenceChildren(
-						ctx.db,
-						"posts",
-						parent.data.item.id,
-						relation.translationGroup,
-						[middle.data.item.id],
-					)
+					await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+						middle.data.item.id,
+					])
 				).success,
 			).toBe(true);
 			expect(
 				(
-					await setReferenceChildren(
-						ctx.db,
-						"posts",
-						middle.data.item.id,
-						relation.translationGroup,
-						[child.data.item.id],
-					)
+					await setReferenceChildren(ctx.db, "posts", middle.data.item.id, relation.slug, [
+						child.data.item.id,
+					])
 				).success,
 			).toBe(true);
 
@@ -457,15 +436,9 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			const purged = await handleContentPermanentDelete(ctx.db, "posts", middle.data.item.id);
 			expect(purged.success).toBe(true);
 
-			const outgoing = await relationRepo.getChildrenPage(
-				relation.translationGroup,
-				middle.data.item.id,
-			);
+			const outgoing = await relationRepo.getChildrenPage(relation.slug, middle.data.item.id);
 			expect(outgoing.items).toEqual([]);
-			const incoming = await relationRepo.getParentsPage(
-				relation.translationGroup,
-				middle.data.item.id,
-			);
+			const incoming = await relationRepo.getParentsPage(relation.slug, middle.data.item.id);
 			expect(incoming.items).toEqual([]);
 		} finally {
 			await teardownForDialect(ctx);
@@ -492,13 +465,9 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 
 			expect(
 				(
-					await setReferenceChildren(
-						ctx.db,
-						"posts",
-						parent.data.item.id,
-						relation.translationGroup,
-						[child.data.item.id],
-					)
+					await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+						child.data.item.id,
+					])
 				).success,
 			).toBe(true);
 
@@ -510,10 +479,7 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			const purged = await handleContentPermanentDelete(ctx.db, "posts", translation.data.item.id);
 			expect(purged.success).toBe(true);
 
-			const page = await relationRepo.getChildrenPage(
-				relation.translationGroup,
-				parent.data.item.id,
-			);
+			const page = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
 			expect(page.items.map((i) => i.childGroup)).toEqual([child.data.item.id]);
 		} finally {
 			await teardownForDialect(ctx);

@@ -47,7 +47,7 @@ function referenceInserts(): CapturedQuery[] {
 
 it("chunks large child replacements within D1's bound-parameter ceiling", async () => {
 	const relation = await repo.create({
-		name: "related_pages",
+		slug: "related_pages",
 		parentCollection: "posts",
 		childCollection: "pages",
 		parentLabel: "Post",
@@ -64,7 +64,7 @@ it("chunks large child replacements within D1's bound-parameter ceiling", async 
 		expect(insert.parameters.length).toBeLessThanOrEqual(100);
 	}
 
-	const stored = await repo.getChildren(relation.translationGroup, "parent-1");
+	const stored = await repo.getChildren(relation.slug, "parent-1");
 	expect(stored.map((edge) => edge.childGroup)).toEqual(childGroups);
 	expect(stored.map((edge) => edge.sortOrder)).toEqual(childGroups.map((_, index) => index));
 });

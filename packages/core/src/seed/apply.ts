@@ -185,18 +185,18 @@ export async function applySeed(
 	if (seed.collections) {
 		const registry = new SchemaRegistry(db);
 		const seedCollectionSlugs = new Set(seed.collections.map((collection) => collection.slug));
-		const relationNames = new Set(
-			(await db.selectFrom("_emdash_relations").select("name").execute()).map((row) => row.name),
+		const relationSlugs = new Set(
+			(await db.selectFrom("_emdash_relations").select("slug").execute()).map((row) => row.slug),
 		);
 		const externalTargetExists = new Map<string, boolean>();
 		const pendingRelations: Array<{
 			id: string;
-			name: string;
+			slug: string;
 			parent_collection: string;
 			child_collection: string;
 			parent_label: string;
+			parent_label_singular: string | null;
 			child_label: string;
-			translation_group: string;
 		}> = [];
 
 		for (const collection of seed.collections) {
@@ -268,17 +268,21 @@ export async function applySeed(
 					}
 
 					const relationId = ulid();
-					const relationName = allocateSeedRelationName(collection.slug, field.slug, relationNames);
+					const relationSlug = allocateSeedRelationName(collection.slug, field.slug, relationSlugs);
 					pendingRelations.push({
 						id: relationId,
-						name: relationName,
+						slug: relationSlug,
 						parent_collection: collection.slug,
 						child_collection: targetCollection,
-						parent_label: collection.labelSingular ?? collection.label,
+						parent_label: collection.label,
+						parent_label_singular: collection.labelSingular ?? null,
 						child_label: field.label,
-						translation_group: relationId,
 					});
-					fieldValidation = { ...fieldValidation, relation: relationId };
+					fieldValidation = {
+						...fieldValidation,
+						relation: relationSlug,
+						relationSide: "parent",
+					};
 				}
 
 				fields.push({
@@ -1206,7 +1210,11 @@ async function upsertSeedField(
 			const registry = new SchemaRegistry(trx);
 			await registry.createField(collectionSlug, {
 				...input,
-				validation: { ...field.validation, relation: relation.translationGroup },
+				validation: {
+					...field.validation,
+					relation: relation.slug,
+					relationSide: "parent" as const,
+				},
 			});
 		});
 		return;

@@ -21,9 +21,10 @@ import {
 	type CollectionWithFields,
 } from "../../schema/index.js";
 import type { ApiResult } from "../types.js";
+import { handleRelationDelete } from "./relations.js";
 
-/** Maximum attempts to allocate a unique relation name for a new reference
- * field: the base `${collection}_${field}` name, then `_2` through `_5`. */
+/** Maximum attempts to allocate a unique relation slug for a new reference
+ * field: the base `${collection}_${field}` slug, then `_2` through `_5`. */
 const RELATION_NAME_MAX_ATTEMPTS = 5;
 
 /** True for SQLite UNIQUE / Postgres unique_violation messages — mirrors the
@@ -61,16 +62,17 @@ export async function createFieldRelation(
 		);
 	}
 
-	const baseName = `${collectionSlug}_${fieldSlug}`.slice(0, 63);
+	const baseSlug = `${collectionSlug}_${fieldSlug}`.slice(0, 63);
 	for (let attempt = 0; attempt < RELATION_NAME_MAX_ATTEMPTS; attempt++) {
 		const suffix = attempt === 0 ? "" : `_${attempt + 1}`;
-		const name = attempt === 0 ? baseName : `${baseName.slice(0, 63 - suffix.length)}${suffix}`;
+		const slug = attempt === 0 ? baseSlug : `${baseSlug.slice(0, 63 - suffix.length)}${suffix}`;
 		try {
 			return await relations.create({
-				name,
+				slug,
 				parentCollection: collectionSlug,
 				childCollection: targetCollection,
-				parentLabel: parent.labelSingular ?? parent.label,
+				parentLabel: parent.label,
+				parentLabelSingular: parent.labelSingular ?? null,
 				childLabel: fieldLabel,
 			});
 		} catch (error) {
@@ -408,7 +410,8 @@ export async function handleSchemaFieldCreate(
 					...input,
 					validation: {
 						...input.validation,
-						relation: relation.translationGroup,
+						relation: relation.slug,
+						relationSide: "parent" as const,
 						targetCollection,
 					},
 				});
@@ -466,10 +469,10 @@ export async function handleSchemaFieldUpdate(
 	try {
 		const lookupRegistry = new SchemaRegistry(db);
 		const existing = await lookupRegistry.getField(collectionSlug, fieldSlug);
-		const relationGroup =
-			existing?.type === "reference" ? existing.validation?.relation : undefined;
+		const relationSlug = existing?.type === "reference" ? existing.validation?.relation : undefined;
+		const relationSide = existing?.validation?.relationSide;
 
-		if (existing && relationGroup) {
+		if (existing && relationSlug) {
 			// The relation's childCollection is immutable — a reference field's
 			// target collection can't change after the relation is wired up.
 			const nextTargetCollection = input.validation?.targetCollection;
@@ -498,6 +501,7 @@ export async function handleSchemaFieldUpdate(
 							validation: {
 								...input.validation,
 								relation: existing.validation?.relation,
+								relationSide: existing.validation?.relationSide,
 								targetCollection: existing.validation?.targetCollection,
 							},
 						}
@@ -509,11 +513,14 @@ export async function handleSchemaFieldUpdate(
 
 				if (input.label !== undefined && input.label !== existing.label) {
 					const relations = new RelationRepository(trx);
-					// Update every translation in the group so the relation's localized
-					// labels stay in sync, not just the first sibling.
-					const siblings = await relations.findTranslations(relationGroup);
-					for (const sibling of siblings) {
-						await relations.update(sibling.id, { childLabel: input.label });
+					const relation = await relations.findBySlug(relationSlug);
+					// The field's label is the role name for the side it binds, so
+					// renaming the field renames that role and leaves the other alone.
+					if (relation) {
+						await relations.update(
+							relation.id,
+							relationSide === "child" ? { parentLabel: input.label } : { childLabel: input.label },
+						);
 					}
 				}
 
@@ -561,32 +568,40 @@ export async function handleSchemaFieldUpdate(
 /**
  * Delete a field
  */
+/**
+ * Delete a field.
+ *
+ * For a reference field, `deleteRelation` also takes the relation, its edges,
+ * and the field bound to its other side. It is opt-in on the wire and checked
+ * by default in the admin's confirm dialog, which enumerates what goes first.
+ */
 export async function handleSchemaFieldDelete(
 	db: Kysely<Database>,
 	collectionSlug: string,
 	fieldSlug: string,
+	options?: { deleteRelation?: boolean },
 ): Promise<ApiResult<{ success: boolean }>> {
 	try {
 		const lookupRegistry = new SchemaRegistry(db);
 		const existing = await lookupRegistry.getField(collectionSlug, fieldSlug);
-		const relationGroup =
-			existing?.type === "reference" ? existing.validation?.relation : undefined;
+		const relationSlug = existing?.type === "reference" ? existing.validation?.relation : undefined;
 
-		if (relationGroup) {
-			// The field row and the relation def (plus its edges) it backs must
-			// go together — a reference field can't outlive its relation, and a
-			// relation left behind after its field is gone is an orphan.
-			await withTransaction(db, async (trx) => {
-				const registry = new SchemaRegistry(trx);
-				const relations = new RelationRepository(trx);
-				await registry.deleteField(collectionSlug, fieldSlug);
-				const siblings = await relations.findTranslations(relationGroup);
-				for (const sibling of siblings) await relations.delete(sibling.id);
-			});
-		} else {
-			const registry = new SchemaRegistry(db);
-			await registry.deleteField(collectionSlug, fieldSlug);
+		if (relationSlug && options?.deleteRelation) {
+			// Taking the relation takes its edges and the field bound to its other
+			// side, so route through the shared cascade rather than deleting the
+			// field here and the relation separately.
+			const relations = new RelationRepository(db);
+			const relation = await relations.findBySlug(relationSlug);
+			if (relation) {
+				const result = await handleRelationDelete(db, relation.id);
+				if (!result.success) return result;
+				invalidateFieldCaches(collectionSlug);
+				return { success: true, data: { success: true } };
+			}
 		}
+
+		const registry = new SchemaRegistry(db);
+		await registry.deleteField(collectionSlug, fieldSlug);
 
 		invalidateFieldCaches(collectionSlug);
 

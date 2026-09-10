@@ -96,7 +96,6 @@ describe("core media route injection", () => {
 
 		expect(routes).toContain("/_emdash/api/relations");
 		expect(routes).toContain("/_emdash/api/relations/[id]");
-		expect(routes).toContain("/_emdash/api/relations/[id]/translations");
 		expect(routes).toContain(
 			"/_emdash/api/content/[collection]/[id]/references/[relation]/children",
 		);

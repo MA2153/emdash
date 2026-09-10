@@ -140,9 +140,9 @@ describe("applySeed", () => {
 			await applySeed(db, seed);
 
 			const field = await new SchemaRegistry(db).getField("posts", "author");
-			const relation = await new RelationRepository(db).findByName("posts_author");
+			const relation = await new RelationRepository(db).findBySlug("posts_author");
 			expect(relation?.childCollection).toBe("authors");
-			expect(field?.validation?.relation).toBe(relation?.translationGroup);
+			expect(field?.validation?.relation).toBe(relation?.slug);
 		});
 
 		it("creates reference-heavy schemas within the D1 query budget", async () => {
@@ -1239,12 +1239,9 @@ describe("applySeed", () => {
 
 			// It is stored as an edge, keyed at the translation group on both ends.
 			const relationRepo = new RelationRepository(db);
-			const relation = await relationRepo.findByName("posts_related_post");
+			const relation = await relationRepo.findBySlug("posts_related_post");
 			expect(relation).toBeTruthy();
-			const edges = await relationRepo.getChildrenPage(
-				relation!.translationGroup,
-				second!.translationGroup!,
-			);
+			const edges = await relationRepo.getChildrenPage(relation!.id, second!.translationGroup!);
 			expect(edges.items.map((e) => e.childGroup)).toEqual([first!.translationGroup]);
 		});
 

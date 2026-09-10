@@ -166,9 +166,16 @@ export interface FieldValidation {
 	minItems?: number; // For repeater fields
 	maxItems?: number; // For repeater fields
 	allowedMimeTypes?: string[];
-	/** Reference fields: the relation's translation_group (edge endpoints resolve it). */
+	/** Reference fields: the relation's slug. */
 	relation?: string;
-	/** Reference fields: child collection slug (denormalized, immutable on the relation). */
+	/**
+	 * Reference fields: which end of the relation this collection sits on.
+	 * `parent` picks children and controls their order; `child` picks parents
+	 * and is unordered, since `sort_order` is scoped to a parent.
+	 */
+	relationSide?: "parent" | "child";
+	/** Reference fields: the collection on the *other* end (derived from the
+	 * relation and the side, denormalized here). */
 	targetCollection?: string;
 	/** Reference fields: allow selecting more than one entry (UI constraint). */
 	multiple?: boolean;

@@ -49,14 +49,14 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const relationRepo = new RelationRepository(ctx.db);
 		const requiredSingle = await relationRepo.create({
-			name: "posts_featured_page",
+			slug: "posts_featured_page",
 			parentCollection: "posts",
 			childCollection: "pages",
 			parentLabel: "Posts",
 			childLabel: "Featured page",
 		});
 		const optionalMultiple = await relationRepo.create({
-			name: "posts_related_pages",
+			slug: "posts_related_pages",
 			parentCollection: "posts",
 			childCollection: "pages",
 			parentLabel: "Posts",
@@ -69,7 +69,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			type: "reference",
 			required: true,
 			validation: {
-				relation: requiredSingle.translationGroup,
+				relation: requiredSingle.slug,
 				targetCollection: "pages",
 				multiple: false,
 			},
@@ -79,7 +79,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			label: "Related pages",
 			type: "reference",
 			validation: {
-				relation: optionalMultiple.translationGroup,
+				relation: optionalMultiple.slug,
 				targetCollection: "pages",
 				multiple: true,
 			},
@@ -114,7 +114,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const result = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 
 		expect(result.success).toBe(true);
@@ -127,7 +127,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const missingStoredField = await runtime.handleContentCreate("posts", {
 			data: {},
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 		expect(missingStoredField.success).toBe(false);
 		if (!missingStoredField.success) {
@@ -137,7 +137,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const result = await runtime.handleContentCreate("posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 
 		expect(result.success).toBe(true);
@@ -152,7 +152,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const result = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [first.id, second.id] },
+			references: { [requiredSingle.slug]: [first.id, second.id] },
 		});
 
 		expect(result.success).toBe(false);
@@ -164,12 +164,12 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
 		const result = await handleContentUpdate(ctx.db, "posts", parent.data.item.id, {
-			references: { [requiredSingle.translationGroup]: [] },
+			references: { [requiredSingle.slug]: [] },
 		});
 
 		expect(result.success).toBe(false);
@@ -181,7 +181,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -191,7 +191,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		expect(result.success).toBe(true);
 		const references = await relationRepo.getChildrenPage(
-			requiredSingle.translationGroup,
+			requiredSingle.slug,
 			parent.data.item.translationGroup ?? parent.data.item.id,
 		);
 		expect(references.items.map((item) => item.childGroup)).toEqual([child.translationGroup]);
@@ -203,7 +203,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [first.id] },
+			references: { [requiredSingle.slug]: [first.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -211,7 +211,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.translationGroup,
+			requiredSingle.slug,
 			[first.id, second.id],
 		);
 
@@ -225,7 +225,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [first.id] },
+			references: { [requiredSingle.slug]: [first.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -233,7 +233,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.translationGroup,
+			requiredSingle.slug,
 			[second.id],
 		);
 
@@ -246,7 +246,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -254,7 +254,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.translationGroup,
+			requiredSingle.slug,
 			[],
 		);
 
@@ -267,7 +267,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
 		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
 		const relation = await new RelationRepository(ctx.db).create({
-			name: "loose_related_posts",
+			slug: "loose_related_posts",
 			parentCollection: "posts",
 			childCollection: "posts",
 			parentLabel: "Posts",
@@ -282,7 +282,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			relation.translationGroup,
+			relation.slug,
 			[first.data.item.id, second.data.item.id],
 		);
 
@@ -294,7 +294,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const source = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.translationGroup]: [child.id] },
+			references: { [requiredSingle.slug]: [child.id] },
 		});
 		if (!source.success) throw new Error("Source setup failed");
 
@@ -311,7 +311,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		expect(hydrated.success).toBe(true);
 		if (!hydrated.success) return;
-		const selected = hydrated.data.item.references?.[requiredSingle.translationGroup]?.children[0];
+		const selected = hydrated.data.item.references?.[requiredSingle.slug]?.children[0];
 		expect(selected?.id).toBe(child.id);
 		expect(selected && referenceTranslationGroup(selected)).toBe(child.translationGroup);
 	});

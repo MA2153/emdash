@@ -501,11 +501,6 @@ export function injectCoreRoutes(
 		entrypoint: resolveRoute("api/relations/[id]/index.ts"),
 	});
 
-	injectRoute({
-		pattern: "/_emdash/api/relations/[id]/translations",
-		entrypoint: resolveRoute("api/relations/[id]/translations.ts"),
-	});
-
 	// Plugin management routes (under /admin to avoid conflict with plugin API routes)
 	injectRoute({
 		pattern: "/_emdash/api/admin/plugins",

@@ -15,7 +15,7 @@ import type { DialectTestContext } from "../../utils/test-db.js";
 describeEachDialect("reference field lifecycle", (dialect) => {
 	let ctx: DialectTestContext;
 
-	it("creates a relation def when a reference field is created and stores its group on the field", async () => {
+	it("creates a relation def when a reference field is created and stores its slug on the field", async () => {
 		ctx = await setupForDialect(dialect);
 		try {
 			const registry = new SchemaRegistry(ctx.db);
@@ -32,12 +32,12 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 
 			const repo = new RelationRepository(ctx.db);
 			const relations = await repo.list();
-			const rel = relations.find((r) => r.name === "posts_related");
+			const rel = relations.find((r) => r.slug === "posts_related");
 			expect(rel).toBeTruthy();
 			expect(rel?.parentCollection).toBe("posts");
 			expect(rel?.childCollection).toBe("posts");
 			if (res.success) {
-				expect(res.data.item.validation?.relation).toBe(rel?.translationGroup);
+				expect(res.data.item.validation?.relation).toBe(rel?.slug);
 				expect(res.data.item.validation?.targetCollection).toBe("posts");
 			}
 		} finally {
@@ -45,49 +45,99 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 		}
 	});
 
-	it("deletes the relation and its edges when the reference field is deleted", async () => {
+	/** A collection with one reference field, plus one edge under its relation. */
+	async function seedFieldWithEdge() {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+
+		const created = await handleSchemaFieldCreate(ctx.db, "posts", {
+			slug: "related",
+			label: "Related",
+			type: "reference",
+			validation: { targetCollection: "posts", multiple: true },
+		});
+		if (!created.success) throw new Error("field create failed");
+
+		const relRepo = new RelationRepository(ctx.db);
+		const relation = await relRepo.findBySlug("posts_related");
+		if (!relation) throw new Error("relation not created");
+		await relRepo.addReference(relation.id, "parent-group-x", "child-group-y");
+
+		return { registry, relRepo, relation };
+	}
+
+	function edgesFor(relationId: string) {
+		return ctx.db
+			.selectFrom("_emdash_content_references")
+			.selectAll()
+			.where("relation_id", "=", relationId)
+			.execute();
+	}
+
+	it("keeps the relation and its edges when a reference field is deleted on its own", async () => {
 		ctx = await setupForDialect(dialect);
 		try {
-			const registry = new SchemaRegistry(ctx.db);
-			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
-
-			const created = await handleSchemaFieldCreate(ctx.db, "posts", {
-				slug: "related",
-				label: "Related",
-				type: "reference",
-				validation: { targetCollection: "posts", multiple: true },
-			});
-			expect(created.success).toBe(true);
-			if (!created.success) return;
-			const relationGroup = created.data.item.validation?.relation;
-			expect(relationGroup).toBeTruthy();
-			if (!relationGroup) return;
-
-			// Seed an edge under the relation so we can assert it's purged too.
-			const relRepo = new RelationRepository(ctx.db);
-			await relRepo.addReference(relationGroup, "parent-group-x", "child-group-y");
-			const edgesBefore = await ctx.db
-				.selectFrom("_emdash_content_references")
-				.selectAll()
-				.where("relation_group", "=", relationGroup)
-				.execute();
-			expect(edgesBefore.length).toBe(1);
+			const { registry, relRepo, relation } = await seedFieldWithEdge();
 
 			const del = await handleSchemaFieldDelete(ctx.db, "posts", "related");
 			expect(del.success).toBe(true);
 
-			const relations = await relRepo.list();
-			expect(relations.find((r) => r.name === "posts_related")).toBeUndefined();
+			// The edges are content. Losing the field must not take them, so the
+			// relation survives with no bound field until someone deletes it.
+			expect(await relRepo.findBySlug("posts_related")).toBeTruthy();
+			expect(await edgesFor(relation.id)).toHaveLength(1);
+			expect(await registry.getField("posts", "related")).toBeNull();
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
 
-			const edgesAfter = await ctx.db
-				.selectFrom("_emdash_content_references")
-				.selectAll()
-				.where("relation_group", "=", relationGroup)
-				.execute();
-			expect(edgesAfter.length).toBe(0);
+	it("deletes the relation and its edges when deleteRelation is set", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const { registry, relRepo, relation } = await seedFieldWithEdge();
 
-			const field = await registry.getField("posts", "related");
-			expect(field).toBeNull();
+			const del = await handleSchemaFieldDelete(ctx.db, "posts", "related", {
+				deleteRelation: true,
+			});
+			expect(del.success).toBe(true);
+
+			expect(await relRepo.findBySlug("posts_related")).toBeNull();
+			expect(await edgesFor(relation.id)).toHaveLength(0);
+			expect(await registry.getField("posts", "related")).toBeNull();
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("deleteRelation takes the field bound to the relation's other side", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const { registry, relRepo } = await seedFieldWithEdge();
+			const relation = await relRepo.findBySlug("posts_related");
+			if (!relation) return;
+
+			// A second field views the same relation from the child end. Deleting
+			// either one with the relation has to take the other with it, or it
+			// would be left pointing at a relation that no longer exists.
+			await registry.createField("posts", {
+				slug: "referenced_by",
+				label: "Referenced by",
+				type: "reference",
+				validation: {
+					relation: relation.slug,
+					relationSide: "child",
+					targetCollection: "posts",
+				},
+			});
+
+			const del = await handleSchemaFieldDelete(ctx.db, "posts", "related", {
+				deleteRelation: true,
+			});
+			expect(del.success).toBe(true);
+
+			expect(await registry.getField("posts", "related")).toBeNull();
+			expect(await registry.getField("posts", "referenced_by")).toBeNull();
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -194,9 +244,9 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			});
 			expect(created.success).toBe(true);
 			if (!created.success) return;
-			const relationGroup = created.data.item.validation?.relation;
-			expect(relationGroup).toBeTruthy();
-			if (!relationGroup) return;
+			const relationSlug = created.data.item.validation?.relation;
+			expect(relationSlug).toBeTruthy();
+			if (!relationSlug) return;
 
 			const updated = await handleSchemaFieldUpdate(ctx.db, "posts", "related", {
 				label: "Related posts",
@@ -204,55 +254,7 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			expect(updated.success).toBe(true);
 
 			const relRepo = new RelationRepository(ctx.db);
-			const siblings = await relRepo.findTranslations(relationGroup);
-			expect(siblings[0]?.childLabel).toBe("Related posts");
-		} finally {
-			await teardownForDialect(ctx);
-		}
-	});
-
-	it("updates childLabel on every translation in the group, not just the first", async () => {
-		ctx = await setupForDialect(dialect);
-		try {
-			const registry = new SchemaRegistry(ctx.db);
-			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
-
-			const created = await handleSchemaFieldCreate(ctx.db, "posts", {
-				slug: "related",
-				label: "Related",
-				type: "reference",
-				validation: { targetCollection: "posts", multiple: true },
-			});
-			expect(created.success).toBe(true);
-			if (!created.success) return;
-			const relationGroup = created.data.item.validation?.relation;
-			expect(relationGroup).toBeTruthy();
-			if (!relationGroup) return;
-
-			// Add a second-locale translation of the relation def so the group has
-			// more than one sibling to keep in sync.
-			const relRepo = new RelationRepository(ctx.db);
-			const base = (await relRepo.findTranslations(relationGroup))[0];
-			expect(base).toBeTruthy();
-			if (!base) return;
-			await relRepo.create({
-				name: base.name,
-				translationOf: base.id,
-				locale: "fr",
-				parentLabel: base.parentLabel,
-				childLabel: base.childLabel,
-			});
-
-			const updated = await handleSchemaFieldUpdate(ctx.db, "posts", "related", {
-				label: "Related posts",
-			});
-			expect(updated.success).toBe(true);
-
-			const siblings = await relRepo.findTranslations(relationGroup);
-			expect(siblings.length).toBe(2);
-			for (const sibling of siblings) {
-				expect(sibling.childLabel).toBe("Related posts");
-			}
+			expect((await relRepo.findBySlug(relationSlug))?.childLabel).toBe("Related posts");
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -272,9 +274,9 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			});
 			expect(created.success).toBe(true);
 			if (!created.success) return;
-			const relationGroup = created.data.item.validation?.relation;
-			expect(relationGroup).toBeTruthy();
-			if (!relationGroup) return;
+			const relationSlug = created.data.item.validation?.relation;
+			expect(relationSlug).toBeTruthy();
+			if (!relationSlug) return;
 
 			const updated = await handleSchemaFieldUpdate(ctx.db, "posts", "related", {
 				label: "Related posts",
@@ -283,12 +285,12 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			expect(updated.success).toBe(true);
 
 			const field = await registry.getField("posts", "related");
-			expect(field?.validation?.relation).toBe(relationGroup);
+			expect(field?.validation?.relation).toBe(relationSlug);
 			expect(field?.validation?.targetCollection).toBe("posts");
 
 			const relRepo = new RelationRepository(ctx.db);
 			const relations = await relRepo.list();
-			expect(relations.find((r) => r.name === "posts_related")).toBeTruthy();
+			expect(relations.find((r) => r.slug === "posts_related")).toBeTruthy();
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -308,9 +310,9 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			});
 			expect(created.success).toBe(true);
 			if (!created.success) return;
-			const relationGroup = created.data.item.validation?.relation;
-			expect(relationGroup).toBeTruthy();
-			if (!relationGroup) return;
+			const relationSlug = created.data.item.validation?.relation;
+			expect(relationSlug).toBeTruthy();
+			if (!relationSlug) return;
 
 			const updated = await handleSchemaFieldUpdate(ctx.db, "posts", "related", {
 				validation: { multiple: false },
@@ -318,13 +320,13 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			expect(updated.success).toBe(true);
 
 			const field = await registry.getField("posts", "related");
-			expect(field?.validation?.relation).toBe(relationGroup);
+			expect(field?.validation?.relation).toBe(relationSlug);
 			expect(field?.validation?.targetCollection).toBe("posts");
 			expect(field?.validation?.multiple).toBe(false);
 
 			const relRepo = new RelationRepository(ctx.db);
 			const relations = await relRepo.list();
-			expect(relations.find((r) => r.name === "posts_related")).toBeTruthy();
+			expect(relations.find((r) => r.slug === "posts_related")).toBeTruthy();
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -359,7 +361,7 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 		}
 	});
 
-	it("leaves no orphan field row when the relation name cannot be allocated", async () => {
+	it("leaves no orphan field row when the relation slug cannot be allocated", async () => {
 		ctx = await setupForDialect(dialect);
 		try {
 			const registry = new SchemaRegistry(ctx.db);
@@ -368,16 +370,16 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 			// Occupy every name the suffix-retry loop would try (base + _2.._5)
 			// so relation allocation is forced to exhaust and fail.
 			const relRepo = new RelationRepository(ctx.db);
-			const names = [
+			const slugs = [
 				"posts_related",
 				"posts_related_2",
 				"posts_related_3",
 				"posts_related_4",
 				"posts_related_5",
 			];
-			for (const name of names) {
+			for (const slug of slugs) {
 				await relRepo.create({
-					name,
+					slug,
 					parentCollection: "posts",
 					childCollection: "posts",
 					parentLabel: "Posts",

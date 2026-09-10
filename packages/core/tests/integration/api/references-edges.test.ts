@@ -53,7 +53,7 @@ describeEachDialect("reference children handlers", (dialect) => {
 		// post (parent) -> page (child)
 		const repo = new RelationRepository(ctx.db);
 		return repo.create({
-			name: "related_pages",
+			slug: "related_pages",
 			parentCollection: "post",
 			childCollection: "page",
 			parentLabel: "Post",
@@ -251,32 +251,34 @@ describeEachDialect("reference children handlers", (dialect) => {
 		expect(result.error.code).toBe("NOT_FOUND");
 	});
 
-	it("parents resolves by translation_group but not by relation name", async () => {
-		// The backlinks sidebar keys its fetch on the relation's translation_group
-		// (like the children flow), not its `name` — the resolver only accepts an
-		// id or a group, so a name-keyed read must 404.
+	it("parents resolves a relation by id or by slug", async () => {
+		// A reference field stores the relation's slug while the edges are keyed
+		// by its id, so both have to resolve — the backlinks sidebar reaches this
+		// handler with whichever it holds.
 		const rel = await makeRelation();
 		const content = new ContentRepository(ctx.db);
 		const parent = await content.create({ type: "post", slug: "p", data: { title: "P" } });
 		const child = await content.create({ type: "page", slug: "c", data: { title: "C" } });
 		await handleReferenceChildrenSet(ctx.db, "post", parent.id, rel.id, [child.id]);
 
-		const byGroup = await handleReferenceParentsGet(
-			ctx.db,
-			"page",
-			child.id,
-			rel.translationGroup,
-			{},
-			true,
-		);
-		expect(byGroup.success).toBe(true);
-		if (!byGroup.success) return;
-		expect(byGroup.data.parents.map((p) => p.slug)).toEqual(["p"]);
+		for (const identifier of [rel.id, rel.slug]) {
+			const result = await handleReferenceParentsGet(
+				ctx.db,
+				"page",
+				child.id,
+				identifier,
+				{},
+				true,
+			);
+			expect(result.success).toBe(true);
+			if (!result.success) return;
+			expect(result.data.parents.map((p) => p.slug)).toEqual(["p"]);
+		}
 
-		const byName = await handleReferenceParentsGet(ctx.db, "page", child.id, rel.name, {}, true);
-		expect(byName.success).toBe(false);
-		if (byName.success) return;
-		expect(byName.error.code).toBe("NOT_FOUND");
+		const unknown = await handleReferenceParentsGet(ctx.db, "page", child.id, "nope", {}, true);
+		expect(unknown.success).toBe(false);
+		if (unknown.success) return;
+		expect(unknown.error.code).toBe("NOT_FOUND");
 	});
 
 	it("entry on the wrong side (child collection) is VALIDATION_ERROR", async () => {
@@ -532,7 +534,7 @@ describeEachDialect("reference reads: draft visibility", (dialect) => {
 
 	async function makeRelation() {
 		return new RelationRepository(ctx.db).create({
-			name: "related_pages",
+			slug: "related_pages",
 			parentCollection: "post",
 			childCollection: "page",
 			parentLabel: "Post",
@@ -701,7 +703,7 @@ describeEachDialect("reference children route (auth + ownership)", (dialect) => 
 	it("GET requires content:read; POST gates on parent ownership", async () => {
 		const repo = new RelationRepository(ctx.db);
 		const rel = await repo.create({
-			name: "related_pages",
+			slug: "related_pages",
 			parentCollection: "post",
 			childCollection: "page",
 			parentLabel: "Post",
@@ -756,7 +758,7 @@ describeEachDialect("reference children route (auth + ownership)", (dialect) => 
 	it("POST gates the edit permission before the existence lookup (no oracle)", async () => {
 		const repo = new RelationRepository(ctx.db);
 		const rel = await repo.create({
-			name: "related_pages",
+			slug: "related_pages",
 			parentCollection: "post",
 			childCollection: "page",
 			parentLabel: "Post",
