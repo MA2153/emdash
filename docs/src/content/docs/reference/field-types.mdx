@@ -373,7 +373,8 @@ Links an entry to entries in another collection.
 A reference field adds no column to the collection table. Its links live in
 `_emdash_content_references`, keyed by each entry's translation group, so a selection is shared
 across an entry's translations rather than set per locale. Content reads return the linked entries
-under `references` instead of in `data`.
+under `references`, keyed by field slug, instead of in `data`. In a template, ask for the field by
+name — see [Read reference fields](/guides/querying-content/#read-reference-fields).
 
 Creating the field also creates the relation behind it: a schema object naming the two collections it
 joins, with a label for each side and the limit on how many entries each side may link.
