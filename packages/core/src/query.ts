@@ -37,6 +37,7 @@ import {
 } from "./loader.js";
 import {
 	cachedQuery,
+	contentCacheNamespaces,
 	contentNamespaces,
 	invalidateSchemaObjectCache,
 } from "./object-cache/index.js";
@@ -693,23 +694,14 @@ type ContentSnapshot<S> =
 	| { ok: true; value: S }
 	| { ok: false; error?: Error; cacheHint: CacheHint };
 
-function entrySnapshot<D>(entry: ContentEntry<D>): Record<string, unknown> {
-	const data = entryData(entry);
+function dataSnapshot(data: Record<string, unknown>): Record<string, unknown> {
 	const rawCursor = Reflect.get(data, CURSOR_RAW_VALUES);
-	// Drop the `edit` function; copy enumerable data + the cursor-raw values.
-	const { edit: _edit, ...rest } = entry as ContentEntry<D> & { edit?: unknown };
-	return {
-		...rest,
-		data: { ...data, [CURSOR_RAW_FIELD]: rawCursor ?? {} },
-	};
+	return { ...data, [CURSOR_RAW_FIELD]: rawCursor ?? {} };
 }
 
-function reviveEntry<D>(raw: unknown): ContentEntry<D> {
-	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot shape produced by entrySnapshot
-	const entry = raw as Record<string, unknown>;
-	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot `data` is always a record
-	const data: Record<string, unknown> = { ...(entry.data as Record<string, unknown>) };
-	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot field written by entrySnapshot
+function reviveData(raw: Record<string, unknown>): Record<string, unknown> {
+	const data: Record<string, unknown> = { ...raw };
+	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot field written by dataSnapshot
 	const rawCursor = (data[CURSOR_RAW_FIELD] as Record<string, string> | undefined) ?? {};
 	delete data[CURSOR_RAW_FIELD];
 	Object.defineProperty(data, CURSOR_RAW_VALUES, {
@@ -718,8 +710,75 @@ function reviveEntry<D>(raw: unknown): ContentEntry<D> {
 		configurable: false,
 		writable: false,
 	});
+	return data;
+}
+
+function entrySnapshot<D>(entry: ContentEntry<D>): Record<string, unknown> {
+	// Drop the `edit` function; copy enumerable data + the cursor-raw values.
+	const { edit: _edit, references, ...rest } = entry as ContentEntry<D> & { edit?: unknown };
+	return {
+		...rest,
+		data: dataSnapshot(entryData(entry)),
+		...(references ? { references: referencesSnapshot(references) } : {}),
+	};
+}
+
+function referencesSnapshot(references: ReferencePages): Record<string, unknown> {
+	const snapshot: Record<string, unknown> = {};
+	for (const [field, page] of Object.entries(references)) {
+		snapshot[field] = {
+			entries: page.entries.map((child) => ({
+				id: child.id,
+				data: dataSnapshot(entryData(child)),
+			})),
+			...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+		};
+	}
+	return snapshot;
+}
+
+/**
+ * Rebuild the reference pages a snapshot carried.
+ *
+ * Every child comes back with a no-op `edit` proxy and no revision metadata,
+ * which is lossless: the object cache is bypassed for edit-mode and preview
+ * requests, so a snapshot is only ever written — and read back — by a render
+ * that had neither to begin with.
+ */
+function reviveReferences(raw: unknown): ReferencePages | undefined {
+	if (!isRecord(raw)) return undefined;
+	const references: ReferencePages = {};
+	for (const [field, page] of Object.entries(raw)) {
+		// eslint-disable-next-line typescript/no-unsafe-type-assertion -- page shape produced by referencesSnapshot
+		const snapshot = page as { entries: Record<string, unknown>[]; nextCursor?: string };
+		references[field] = {
+			entries: snapshot.entries.map((child) => ({
+				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot ids are always strings
+				id: child.id as string,
+				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot `data` is always a record
+				data: reviveData(child.data as Record<string, unknown>),
+				edit: createNoop(),
+			})),
+			...(snapshot.nextCursor === undefined ? {} : { nextCursor: snapshot.nextCursor }),
+		};
+	}
+	return references;
+}
+
+function reviveEntry<D>(raw: unknown): ContentEntry<D> {
+	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot shape produced by entrySnapshot
+	const entry = raw as Record<string, unknown>;
+	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- snapshot `data` is always a record
+	const data = reviveData(entry.data as Record<string, unknown>);
+	const references = reviveReferences(entry.references);
+	const revived = {
+		...entry,
+		data,
+		...(references ? { references } : {}),
+		edit: createNoop(),
+	};
 	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- rebuilt to the ContentEntry shape with a no-op edit proxy
-	return { ...entry, data, edit: createNoop() } as ContentEntry<D>;
+	return revived as ContentEntry<D>;
 }
 
 /** Resolve the effective locale used by content reads, for the L2 cache key. */
@@ -844,18 +903,12 @@ export async function getEmDashEntry<T extends string, D = InferCollectionData<T
 	id: string,
 	options?: { locale?: string; references?: ReferenceSelection },
 ): Promise<EntryResult<D>> {
-	const result = await resolveEmDashEntry<T, D>(type, id, options);
-	// Resolved outside the entry's cached snapshot: the snapshot is keyed by the
-	// entry alone and invalidated by writes to its own collection, so a cached
-	// selection would survive a change to the entries it points at.
-	if (options?.references && result.entry) {
-		await attachReferences(type, result, options.references);
-	}
-	return result;
+	return resolveEmDashEntry<T, D>(type, id, options);
 }
 
 /**
- * Attach one page of each selected reference field to a resolved entry.
+ * Attach one page of each selected reference field to a resolved entry, and
+ * report the cache hint its children contribute.
  *
  * An entry with no translation group predates i18n and has no links; there is
  * nothing to resolve, and `references` stays absent rather than becoming an
@@ -863,36 +916,95 @@ export async function getEmDashEntry<T extends string, D = InferCollectionData<T
  */
 async function attachReferences<D>(
 	type: string,
-	result: EntryResult<D>,
-	selection: ReferenceSelection,
-): Promise<void> {
-	const entry = result.entry;
-	if (!entry) return;
+	entry: ContentEntry<D>,
+	options: {
+		selection: ReferenceSelection;
+		/**
+		 * Whether this render may see drafts. It decides both whether a pending
+		 * selection replaces the published one and whether an unpublished target
+		 * resolves at all — a preview token that did not match served this entry
+		 * as public, and its children have to stay just as invisible.
+		 */
+		serveDrafts: boolean;
+		/** Read before `stripRevisionMetadata` removes it from a public render's data. */
+		draftRevisionId?: string;
+	},
+): Promise<CacheHint> {
 	const data = entryData(entry);
 	const entryGroup = dataStr(data, "translationGroup");
-	if (!entryGroup) return;
+	if (!entryGroup) return {};
 
 	const { resolveReferencePages } = await import("./references/resolve.js");
 	const pages = await resolveReferencePages({
 		collection: type,
 		entryGroup,
 		locale: dataStr(data, "locale") || null,
-		draftRevisionId: dataStr(data, "draftRevisionId") || undefined,
-		// The entry's own draft visibility decides its children's: a preview
-		// token that did not match served this entry as public, and its pending
-		// selection must stay just as invisible as its pending data.
-		serveDrafts: result.isPreview,
-		selection,
+		draftRevisionId: options.draftRevisionId,
+		serveDrafts: options.serveDrafts,
+		selection: options.selection,
 	});
 
 	const references: ReferencePages = {};
+	const tags: string[] = [];
+	let lastModified: Date | undefined;
 	for (const [field, page] of Object.entries(pages)) {
+		for (const child of page.entries) {
+			tags.push(...child.cacheHint.tags);
+			const modified = child.cacheHint.lastModified;
+			if (modified && (!lastModified || modified > lastModified)) lastModified = modified;
+		}
 		references[field] = {
 			entries: page.entries.map((child) => wrapReferencedEntry(page.collection, child)),
 			...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
 		};
 	}
 	entry.references = references;
+	return { tags, ...(lastModified ? { lastModified } : {}) };
+}
+
+/**
+ * Fold the children's cache hint into the entry's own.
+ *
+ * A render that shows a referenced entry has read that row, so the route's tags
+ * have to name it and its `Last-Modified` has to move when it changes. Without
+ * this the route cache's `invalidate({ tags: [collection, id] })` on a child
+ * write would never reach the pages that render the child.
+ */
+function mergeCacheHints(base: CacheHint, extra: CacheHint): CacheHint {
+	if (!extra.tags?.length && !extra.lastModified) return base;
+	const tags = [...new Set([...(base.tags ?? []), ...(extra.tags ?? [])])];
+	const newest =
+		base.lastModified && extra.lastModified
+			? base.lastModified > extra.lastModified
+				? base.lastModified
+				: extra.lastModified
+			: (base.lastModified ?? extra.lastModified);
+	return {
+		...(tags.length > 0 ? { tags } : {}),
+		...(newest ? { lastModified: newest } : {}),
+	};
+}
+
+/**
+ * The object-cache namespaces a selection's targets live in.
+ *
+ * Without them a cached parent snapshot would outlive a write to the entries it
+ * points at. Byline and taxonomy namespaces are deliberately absent: referenced
+ * entries are loaded without either hydration. The targets are sorted so two
+ * callers that name the same fields in a different order share one snapshot.
+ */
+async function referenceTargetNamespaces(
+	collection: string,
+	selection: ReferenceSelection,
+): Promise<string[]> {
+	const { getReferenceFieldMap } = await import("./references/field-map.js");
+	const fieldMap = await getReferenceFieldMap(collection);
+	const targets = new Set<string>();
+	for (const slug of Object.keys(selection)) {
+		const binding = fieldMap.get(slug);
+		if (binding) targets.add(binding.targetCollection);
+	}
+	return [...targets].toSorted().flatMap((target) => [...contentCacheNamespaces(target)]);
 }
 
 /**
@@ -921,7 +1033,7 @@ function wrapReferencedEntry<D = Record<string, unknown>>(
 async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 	type: T,
 	id: string,
-	options?: { locale?: string },
+	options?: { locale?: string; references?: ReferenceSelection },
 ): Promise<EntryResult<D>> {
 	// Dynamic import to avoid build-time issues
 	const { getLiveEntry } = await import("astro:content");
@@ -936,6 +1048,7 @@ async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 
 	// Resolve locale: explicit option > ALS context > undefined (no filter)
 	const requestedLocale = options?.locale ?? ctx?.locale;
+	const references = options?.references;
 
 	/** Wrap a raw Astro entry with edit proxy, tagging editable fields if needed */
 	function wrapEntry(raw: ContentEntry<D>): ContentEntry<D> {
@@ -959,26 +1072,39 @@ async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 	const localeChain =
 		requestedLocale && isI18nEnabled() ? getFallbackChain(requestedLocale) : [requestedLocale];
 
-	/** Return a successful EntryResult with bylines and taxonomy terms hydrated */
+	/** Return a successful EntryResult with bylines, taxonomy terms and references hydrated */
 	async function successResult(
 		wrapped: ContentEntry<D>,
 		opts: { isPreview: boolean; fallbackLocale?: string; cacheHint: CacheHint },
 	): Promise<EntryResult<D>> {
+		// Read the draft pointer before stripping it: a public render drops it
+		// from `data`, and a staged selection is resolved from it.
+		const draftRevisionId = dataStr(entryData(wrapped), "draftRevisionId") || undefined;
 		if (!opts.isPreview) stripRevisionMetadata(wrapped);
 		// No-i18n callers use the legacy wildcard cache key. The query path still
 		// resolves against the stored content-row locale when this is undefined.
 		const termLocale = isI18nEnabled()
 			? dataStr(entryData(wrapped), "locale") || undefined
 			: undefined;
-		await Promise.all([
+		// References resolve alongside bylines and terms rather than after the
+		// entry returns: all three are independent reads, and running them
+		// together keeps an opted-in render to one extra round of queries.
+		const [, , referenceHint] = await Promise.all([
 			hydrateEntryBylines(type, [wrapped]),
 			hydrateEntryTerms(type, [wrapped], termLocale),
+			references
+				? attachReferences(type, wrapped, {
+						selection: references,
+						serveDrafts: opts.isPreview,
+						draftRevisionId,
+					})
+				: Promise.resolve<CacheHint>({}),
 		]);
 		return {
 			entry: wrapped,
 			isPreview: opts.isPreview,
 			fallbackLocale: opts.fallbackLocale,
-			cacheHint: opts.cacheHint,
+			cacheHint: mergeCacheHints(opts.cacheHint, referenceHint),
 		};
 	}
 
@@ -1082,9 +1208,20 @@ async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 		return { entry: null, isPreview: false, cacheHint: {} };
 	};
 
+	// A snapshot now carries whatever references the caller asked for, so both
+	// halves of the cache identity have to account for the selection: the key,
+	// or a render that asked for references would be served one that did not;
+	// the namespaces, or the snapshot would outlive a write to a child. A caller
+	// that asked for none keeps the key and namespaces it had before references
+	// existed, so entries cached by the previous release stay reachable.
+	const namespaces = references
+		? [...contentNamespaces(type), ...(await referenceTargetNamespaces(type, references))]
+		: contentNamespaces(type);
+	const referenceKey = references ? `|refs=${stableStringify(references)}` : "";
+
 	const snapshot = await cachedQuery<ContentSnapshot<CachedEntryValue>>({
-		namespace: contentNamespaces(type),
-		key: `entry:${id}|loc=${requestedLocale ?? ""}`,
+		namespace: namespaces,
+		key: `entry:${id}|loc=${requestedLocale ?? ""}${referenceKey}`,
 		load: async () => {
 			const result = await resolveNormal();
 			if (result.error) {

@@ -40,6 +40,8 @@ for (const related of post?.references?.related_posts.entries ?? []) {
 
 It is opt-in in both directions: a call that passes no `references` issues no extra queries, and a field left out of the selection is not read. A call that does select fields costs one link read per field plus one entry read per _distinct_ target collection, however many entries each field holds — so a page asking for an author and six related posts is two link reads and two entry reads, not eight.
 
+Those reads go into the entry's cached snapshot, so a site with an object cache configured pays them on a miss and not on a hit, and publishing a referenced entry drops the snapshots that carry it. The `cacheHint` the call returns names every referenced row the render read and takes the newest modification time across the entry and its references, so passing it to `Astro.cache.set` expires a route-cached page when a referenced entry changes, not only when the entry itself does.
+
 A referenced entry is a `ContentEntry` like any other: the same `id`, the same `data` — dates as `Date`, booleans as booleans, media values resolved — and a working `edit` proxy in visual editing, scoped to the referenced entry so clicking through opens the entry the card is about. Bylines and taxonomy terms are not hydrated onto referenced entries; read those from the entry itself when a card needs them.
 
 Entries come back in the order the editor arranged them for a field on the parent end of its relation. A field on the child end lists whatever points at it, which has no order of its own.
