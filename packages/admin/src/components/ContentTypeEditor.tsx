@@ -20,9 +20,11 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Plus, DotsSixVertical, Pencil, Trash, Database, FileText } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 
+import { fetchRelations } from "../lib/api";
 import type {
 	SchemaCollectionWithFields,
 	SchemaField,
@@ -35,6 +37,7 @@ import { ArrowPrev } from "./ArrowIcons.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EditorHeader } from "./EditorHeader";
 import { FieldEditor } from "./FieldEditor";
+import { RelationImpact } from "./RelationImpact.js";
 import { RouterLinkButton } from "./RouterLinkButton.js";
 import { SaveButton } from "./SaveButton";
 
@@ -49,7 +52,9 @@ export interface ContentTypeEditorProps {
 	onSave: (input: CreateCollectionInput | UpdateCollectionInput) => void;
 	onAddField?: (input: CreateFieldInput) => void;
 	onUpdateField?: (fieldSlug: string, input: CreateFieldInput) => void;
-	onDeleteField?: (fieldSlug: string) => void;
+	/** `deleteRelation` also removes the relationship a reference field views,
+	 * its links, and the field on the other end. */
+	onDeleteField?: (fieldSlug: string, options?: { deleteRelation?: boolean }) => void;
 	onReorderFields?: (fieldSlugs: string[]) => void;
 }
 
@@ -190,6 +195,9 @@ export function ContentTypeEditor({
 	const [editingField, setEditingField] = React.useState<SchemaField | undefined>();
 	const [fieldSaving, setFieldSaving] = React.useState(false);
 	const [deleteFieldTarget, setDeleteFieldTarget] = React.useState<SchemaField | null>(null);
+	// Checked by default: deleting a reference field almost always means the
+	// relationship it views is finished too.
+	const [deleteFieldRelation, setDeleteFieldRelation] = React.useState(true);
 
 	const urlPatternValid = !urlPattern || urlPattern.includes("{slug}");
 
@@ -305,6 +313,11 @@ export function ContentTypeEditor({
 		}
 	};
 
+	const requestDeleteField = (field: SchemaField) => {
+		setDeleteFieldRelation(true);
+		setDeleteFieldTarget(field);
+	};
+
 	const handleEditField = (field: SchemaField) => {
 		setEditingField(field);
 		setFieldEditorOpen(true);
@@ -317,6 +330,13 @@ export function ContentTypeEditor({
 
 	const isFromCode = collection?.source === "code";
 	const fields = collection?.fields ?? [];
+
+	const { data: relations = [] } = useQuery({
+		queryKey: ["relations"],
+		queryFn: () => fetchRelations(),
+	});
+	const targetRelationSlug = deleteFieldTarget?.validation?.relation;
+	const targetRelation = relations.find((rel) => rel.slug === targetRelationSlug);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -672,7 +692,7 @@ export function ContentTypeEditor({
 														field={field}
 														isFromCode={isFromCode}
 														onEdit={() => handleEditField(field)}
-														onDelete={() => setDeleteFieldTarget(field)}
+														onDelete={() => requestDeleteField(field)}
 													/>
 												))}
 											</div>
@@ -710,11 +730,36 @@ export function ContentTypeEditor({
 				error={null}
 				onConfirm={() => {
 					if (deleteFieldTarget) {
-						onDeleteField?.(deleteFieldTarget.slug);
+						onDeleteField?.(
+							deleteFieldTarget.slug,
+							targetRelation ? { deleteRelation: deleteFieldRelation } : undefined,
+						);
 						setDeleteFieldTarget(null);
 					}
 				}}
-			/>
+			>
+				{targetRelation && (
+					<div className="mt-4 space-y-3">
+						<Checkbox
+							checked={deleteFieldRelation}
+							onCheckedChange={(checked) => setDeleteFieldRelation(checked === true)}
+							label={t`Also delete the relationship this field uses`}
+						/>
+						{deleteFieldRelation && collection && (
+							<div className="rounded-md border border-kumo-danger/50 bg-kumo-danger-tint p-3">
+								<p className="text-sm font-medium">{t`This also removes:`}</p>
+								<RelationImpact
+									relations={[targetRelation]}
+									excludeField={{
+										collectionSlug: collection.slug,
+										fieldSlug: deleteFieldTarget?.slug ?? "",
+									}}
+								/>
+							</div>
+						)}
+					</div>
+				)}
+			</ConfirmDialog>
 		</div>
 	);
 }

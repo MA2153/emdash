@@ -54,6 +54,7 @@ import { PluginSettings } from "./components/PluginSettings";
 import { Redirects } from "./components/Redirects";
 import { RegistryBrowse } from "./components/RegistryBrowse";
 import { RegistryPluginDetail } from "./components/RegistryPluginDetail";
+import { RelationDangerZone } from "./components/RelationDangerZone";
 import { RelationEditor } from "./components/RelationEditor";
 import { RelationList } from "./components/RelationList";
 import { SandboxedPluginPage } from "./components/SandboxedPluginPage";
@@ -92,6 +93,7 @@ import {
 	updateMedia,
 	uploadMedia,
 	createRelation,
+	deleteRelation,
 	fetchCollections,
 	fetchRelations,
 	updateRelation,
@@ -2441,6 +2443,9 @@ function ContentTypesListPage() {
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
 			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+			// Every relationship the collection was an end of went with it, along
+			// with the reference fields on the other collections.
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
 		},
 	});
 
@@ -2609,6 +2614,18 @@ function RelationsEditPage() {
 		queryFn: fetchCollections,
 	});
 
+	const navigate = useNavigate();
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => deleteRelation(id),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+			// The fields bound to the relation went with it, on both collections.
+			void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
+			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+			void navigate({ to: "/content-types/relations" });
+		},
+	});
+
 	if (error) return <ErrorScreen error={error.message} />;
 	if (isLoading) return <LoadingScreen />;
 	if (!relation) return <ErrorScreen error={t`Relation not found`} />;
@@ -2621,6 +2638,14 @@ function RelationsEditPage() {
 			isSaving={updateMutation.isPending}
 			error={updateMutation.error ? updateMutation.error.message : undefined}
 			onSave={(input) => updateMutation.mutate(input)}
+			footer={
+				<RelationDangerZone
+					relation={relation}
+					onDelete={() => deleteMutation.mutate(relation.id)}
+					isDeleting={deleteMutation.isPending}
+					error={deleteMutation.error}
+				/>
+			}
 		/>
 	);
 }
@@ -2707,12 +2732,22 @@ function ContentTypesEditPage() {
 	});
 
 	const deleteFieldMutation = useMutation({
-		mutationFn: (fieldSlug: string) => deleteField(slug, fieldSlug),
+		mutationFn: ({
+			fieldSlug,
+			alsoDeleteRelation,
+		}: {
+			fieldSlug: string;
+			alsoDeleteRelation?: boolean;
+		}) => deleteField(slug, fieldSlug, { deleteRelation: alsoDeleteRelation }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
 				queryKey: ["schema", "collections", slug],
 			});
 			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+			// Deleting the relationship takes the field on its other end with it,
+			// so every collection's field list and the relations list can change.
+			void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
 		},
 	});
 
@@ -2741,7 +2776,9 @@ function ContentTypesEditPage() {
 			onSave={(input) => updateMutation.mutate(input)}
 			onAddField={(input) => addFieldMutation.mutateAsync(input)}
 			onUpdateField={(fieldSlug, input) => updateFieldMutation.mutateAsync({ fieldSlug, input })}
-			onDeleteField={(fieldSlug) => deleteFieldMutation.mutate(fieldSlug)}
+			onDeleteField={(fieldSlug, options) =>
+				deleteFieldMutation.mutate({ fieldSlug, alsoDeleteRelation: options?.deleteRelation })
+			}
 			onReorderFields={(fieldSlugs) => reorderFieldsMutation.mutate(fieldSlugs)}
 		/>
 	);

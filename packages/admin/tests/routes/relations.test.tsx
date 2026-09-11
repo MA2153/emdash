@@ -17,6 +17,7 @@ import {
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RelationDangerZone } from "../../src/components/RelationDangerZone";
 import { RelationEditor } from "../../src/components/RelationEditor";
 import { RelationList } from "../../src/components/RelationList";
 import type { SchemaCollection } from "../../src/lib/api";
@@ -225,5 +226,37 @@ describe("relation routes", () => {
 			"/_admin/content-types/relations/$slug",
 		);
 		expect(matchIds("/content-types/posts")).toBe("/_admin/content-types/$slug");
+	});
+});
+
+describe("RelationDangerZone", () => {
+	// The relation delete cascades to the fields on both ends, so the dialog
+	// says so before it runs rather than reporting it afterwards.
+	it("names what the delete takes before it runs", async () => {
+		const { screen } = await renderWithRoutes(
+			<RelationDangerZone relation={relation()} onDelete={vi.fn()} />,
+		);
+
+		await screen.getByRole("button", { name: "Delete relationship", exact: true }).click();
+
+		await expect.element(screen.getByText("This removes:")).toBeInTheDocument();
+		await expect
+			.element(screen.getByText(/the author field on posts, which picks entries it links to/))
+			.toBeInTheDocument();
+		await expect.element(screen.getByText("12 links")).toBeInTheDocument();
+	});
+
+	// Bound fields are not a refusal: the dialog names them and the delete
+	// removes them.
+	it("deletes a relationship that fields are still bound to", async () => {
+		const onDelete = vi.fn();
+		const { screen } = await renderWithRoutes(
+			<RelationDangerZone relation={relation()} onDelete={onDelete} />,
+		);
+
+		await screen.getByRole("button", { name: "Delete relationship", exact: true }).click();
+		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
+
+		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
 });

@@ -5,8 +5,15 @@ import {
 	ContentTypeEditor,
 	type ContentTypeEditorProps,
 } from "../../src/components/ContentTypeEditor";
+import { fetchRelations } from "../../src/lib/api";
 import type { SchemaCollectionWithFields, SchemaField } from "../../src/lib/api";
+import type { RelationWithUsage } from "../../src/lib/api/relations.js";
 import { render } from "../utils/render";
+
+vi.mock("../../src/lib/api", async () => {
+	const actual = await vi.importActual<typeof import("../../src/lib/api")>("../../src/lib/api");
+	return { ...actual, fetchRelations: vi.fn(async () => []) };
+});
 
 // Regexes hoisted to module scope to avoid recompilation per call
 const EDIT_TITLE_RE = /Edit Title field/i;
@@ -314,7 +321,7 @@ describe("ContentTypeEditor", () => {
 		// Direct DOM click to bypass Base UI inert overlay
 		screen.getByRole("button", { name: "Delete" }).element().click();
 
-		expect(onDeleteField).toHaveBeenCalledWith("title");
+		expect(onDeleteField).toHaveBeenCalledWith("title", undefined);
 	});
 
 	it("does not call onDeleteField when delete dialog is cancelled", async () => {
@@ -337,6 +344,107 @@ describe("ContentTypeEditor", () => {
 		screen.getByRole("button", { name: "Cancel" }).element().click();
 
 		expect(onDeleteField).not.toHaveBeenCalled();
+	});
+
+	// ---- Deleting a reference field offers to delete its relationship ----
+
+	describe("deleting a reference field", () => {
+		const referenceField = makeField({
+			id: "field-ref",
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			validation: { relation: "posts_authors", relationSide: "parent" },
+		});
+
+		const boundRelation: RelationWithUsage = {
+			id: "rel-1",
+			slug: "posts_authors",
+			parentCollection: "posts",
+			childCollection: "authors",
+			parentLabel: "Posts",
+			parentLabelSingular: "Post",
+			childLabel: "Authors",
+			childLabelSingular: "Author",
+			maxChildrenPerParent: 1,
+			maxParentsPerChild: null,
+			boundFields: [
+				{ collectionSlug: "posts", fieldSlug: "author", side: "parent" },
+				{ collectionSlug: "authors", fieldSlug: "posts", side: "child" },
+			],
+			linkCount: 7,
+		};
+
+		async function openDeleteDialog(onDeleteField = vi.fn()) {
+			vi.mocked(fetchRelations).mockResolvedValue([boundRelation]);
+			const collection = makeCollection({ fields: [referenceField] });
+			const screen = await render(
+				<ContentTypeEditor {...defaultProps({ onDeleteField })} collection={collection} />,
+			);
+			await screen.getByRole("button", { name: /Delete Author field/i }).click();
+			await expect.element(screen.getByText("Delete Field?")).toBeInTheDocument();
+			return { screen, onDeleteField };
+		}
+
+		it("names the field on the other content type and the links that go with it", async () => {
+			const { screen } = await openDeleteDialog();
+
+			await expect
+				.element(
+					screen.getByText(/the posts field on authors, which lists entries that link to it/),
+				)
+				.toBeInTheDocument();
+			await expect.element(screen.getByText("7 links")).toBeInTheDocument();
+		});
+
+		// The field being deleted is already named in the dialog title; repeating
+		// it in the list of what else goes reads as a second field.
+		it("leaves the field being deleted out of the list", async () => {
+			const { screen } = await openDeleteDialog();
+
+			expect(
+				screen.getByText(/the author field on posts, which picks entries it links to/).query(),
+			).toBeNull();
+		});
+
+		it("deletes the relationship by default", async () => {
+			const { screen, onDeleteField } = await openDeleteDialog();
+
+			screen.getByRole("button", { name: "Delete" }).element().click();
+
+			expect(onDeleteField).toHaveBeenCalledWith("author", { deleteRelation: true });
+		});
+
+		// Unchecking leaves a relationship with no bound fields, which the
+		// relations page still lists so it stays deletable.
+		it("keeps the relationship when the checkbox is cleared", async () => {
+			const { screen, onDeleteField } = await openDeleteDialog();
+
+			screen
+				.getByRole("checkbox", { name: "Also delete the relationship this field uses" })
+				.element()
+				.click();
+			screen.getByRole("button", { name: "Delete" }).element().click();
+
+			expect(onDeleteField).toHaveBeenCalledWith("author", { deleteRelation: false });
+		});
+
+		it("offers nothing extra for a field that uses no relationship", async () => {
+			vi.mocked(fetchRelations).mockResolvedValue([boundRelation]);
+			const collection = makeCollection({ fields: [makeField()] });
+			const screen = await render(
+				<ContentTypeEditor {...defaultProps()} collection={collection} />,
+			);
+
+			await screen.getByRole("button", { name: DELETE_FIELD_BUTTON_PATTERN }).click();
+			await expect.element(screen.getByText("Delete Field?")).toBeInTheDocument();
+
+			expect(
+				screen
+					.getByRole("checkbox", { name: "Also delete the relationship this field uses" })
+					.query(),
+			).toBeNull();
+		});
 	});
 
 	// ---- Code-source collections show disabled inputs and info banner ----
