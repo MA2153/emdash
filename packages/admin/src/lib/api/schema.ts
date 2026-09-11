@@ -80,6 +80,7 @@ export interface SchemaField {
 		targetCollection?: string;
 		multiple?: boolean;
 		relation?: string;
+		relationSide?: "parent" | "child";
 	};
 	widget?: string;
 	options?: Record<string, unknown>;
@@ -146,6 +147,7 @@ export interface CreateFieldInput {
 		targetCollection?: string;
 		multiple?: boolean;
 		relation?: string;
+		relationSide?: "parent" | "child";
 	} | null;
 	widget?: string;
 	options?: Record<string, unknown>;

@@ -692,6 +692,7 @@ export function ContentTypeEditor({
 				field={editingField}
 				onSave={handleFieldSave}
 				isSaving={fieldSaving}
+				collectionSlug={collection?.slug}
 			/>
 
 			<ConfirmDialog

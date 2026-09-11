@@ -112,6 +112,15 @@ const fieldValidation = z
 		// handler rejects the field for a missing target collection.
 		targetCollection: z.string().min(1).optional(),
 		multiple: z.boolean().optional(),
+		// Reference fields: bind to an existing relation instead of creating one,
+		// and say which of its ends this collection sits on.
+		relation: z
+			.string()
+			.min(1)
+			.max(63)
+			.regex(slugPattern, "Invalid relation slug format")
+			.optional(),
+		relationSide: z.enum(["parent", "child"]).optional(),
 	})
 	.superRefine((validation, ctx) => {
 		for (const [minimum, maximum] of [

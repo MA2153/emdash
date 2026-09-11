@@ -1,4 +1,4 @@
-import { Button, Dialog, Input, InputArea, Select, Switch } from "@cloudflare/kumo";
+import { Button, Dialog, Input, InputArea, Select, Switch, Tooltip } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
 import {
 	TextT,
@@ -19,12 +19,14 @@ import {
 	Plus,
 	Trash,
 	X,
+	Info,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 
-import { fetchCollections } from "../lib/api";
+import { fetchCollections, fetchRelations } from "../lib/api";
 import type { FieldType, CreateFieldInput, SchemaField } from "../lib/api";
+import type { RelationSide, RelationWithUsage } from "../lib/api/relations.js";
 import { cn } from "../lib/utils";
 import { AllowedTypesEditor } from "./AllowedTypesEditor";
 
@@ -52,6 +54,20 @@ const INDEXABLE_FIELD_TYPES = new Set<FieldType>([
 	"slug",
 ]);
 
+/**
+ * Which ends of `relation` a field on `collection` could still bind to.
+ *
+ * A self-referential relation offers both; any other relation offers the one
+ * end that matches. An end a field already picks from is not offered again.
+ */
+function freeSidesFor(relation: RelationWithUsage, collection: string): RelationSide[] {
+	const taken = new Set(relation.boundFields.map((f) => f.side));
+	const sides: RelationSide[] = [];
+	if (relation.parentCollection === collection && !taken.has("parent")) sides.push("parent");
+	if (relation.childCollection === collection && !taken.has("child")) sides.push("child");
+	return sides;
+}
+
 function isSearchableFieldType(type: FieldType | null): type is FieldType {
 	return type !== null && SEARCHABLE_FIELD_TYPES.has(type);
 }
@@ -70,6 +86,9 @@ export interface FieldEditorProps {
 	field?: SchemaField;
 	onSave: (input: CreateFieldInput) => void;
 	isSaving?: boolean;
+	/** The collection the field belongs to. Reference fields need it to work out
+	 * which relations they can bind to, and from which end. */
+	collectionSlug?: string;
 }
 
 interface FieldTypeConfig {
@@ -108,6 +127,9 @@ interface FieldFormState {
 	targetCollection: string;
 	allowMultiple: boolean;
 	darkVariant: boolean;
+	/** Relation slug to bind to, or `""` for "create a new one". */
+	relation: string;
+	relationSide: RelationSide;
 }
 
 function getInitialFormState(field?: SchemaField): FieldFormState {
@@ -141,6 +163,8 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 				(typeof field.options?.collection === "string" ? field.options.collection : ""),
 			allowMultiple: field.validation?.multiple ?? true,
 			darkVariant: field.options?.darkVariant === true,
+			relation: field.validation?.relation ?? "",
+			relationSide: field.validation?.relationSide ?? "parent",
 		};
 	}
 	return {
@@ -165,13 +189,22 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 		targetCollection: "",
 		allowMultiple: true,
 		darkVariant: false,
+		relation: "",
+		relationSide: "parent",
 	};
 }
 
 /**
  * Field editor dialog for creating/editing fields
  */
-export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: FieldEditorProps) {
+export function FieldEditor({
+	open,
+	onOpenChange,
+	field,
+	onSave,
+	isSaving,
+	collectionSlug,
+}: FieldEditorProps) {
 	const { t } = useLingui();
 	const [formState, setFormState] = React.useState(() => getInitialFormState(field));
 	const [refError, setRefError] = React.useState(false);
@@ -179,6 +212,11 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 	const { data: collections = [] } = useQuery({
 		queryKey: ["collections"],
 		queryFn: fetchCollections,
+	});
+
+	const { data: allRelations = [] } = useQuery({
+		queryKey: ["relations"],
+		queryFn: () => fetchRelations(),
 	});
 
 	// Reset state when dialog opens
@@ -191,13 +229,39 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 
 	const { step, selectedType, slug, label, required, unique, searchable, indexed } = formState;
 	const { minLength, maxLength, min, max, pattern, options } = formState;
-	const { targetCollection, allowMultiple } = formState;
+	const { targetCollection, allowMultiple, relation, relationSide } = formState;
 	const setField = <K extends keyof FieldFormState>(key: K, value: FieldFormState[K]) =>
 		setFormState((prev) => ({ ...prev, [key]: value }));
 
 	// Only a reference field already bound to a relation has an immutable target;
 	// one that predates relations is still waiting for its first.
 	const isBoundReference = typeof field?.validation?.relation === "string";
+
+	// Relations this collection can still bind a field to, with the ends that
+	// are free. A relation whose every matching end already has a field is left
+	// out: two pickers over one link set have no defined merge.
+	const bindableRelations = React.useMemo(
+		() =>
+			collectionSlug
+				? allRelations
+						.map((rel) => ({ relation: rel, sides: freeSidesFor(rel, collectionSlug) }))
+						.filter((candidate) => candidate.sides.length > 0)
+				: [],
+		[allRelations, collectionSlug],
+	);
+
+	const selectedRelation = bindableRelations.find((c) => c.relation.slug === relation);
+	// The side is only a genuine choice when both ends of the relation are this
+	// collection and both are free — a self-referential relation such as related
+	// posts. Anywhere else the matching end decides it.
+	const sideIsAChoice = (selectedRelation?.sides.length ?? 0) > 1;
+	const derivedSide = selectedRelation?.sides[0] ?? "parent";
+	const effectiveSide = sideIsAChoice ? relationSide : derivedSide;
+	const boundTarget = selectedRelation
+		? effectiveSide === "parent"
+			? selectedRelation.relation.childCollection
+			: selectedRelation.relation.parentCollection
+		: "";
 
 	// Build field types inside the component so t`` works
 	const FIELD_TYPES: FieldTypeConfig[] = [
@@ -321,7 +385,7 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 	const handleSave = () => {
 		if (!selectedType || !slug || !label) return;
 
-		if (selectedType === "reference" && !targetCollection) {
+		if (selectedType === "reference" && !relation && !targetCollection) {
 			setRefError(true);
 			return;
 		}
@@ -373,8 +437,15 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 		}
 
 		if (selectedType === "reference") {
-			validation.targetCollection = targetCollection;
-			validation.multiple = allowMultiple;
+			if (relation) {
+				// The relation owns the target and the limits; sending a target
+				// collection too would let the two disagree.
+				validation.relation = relation;
+				validation.relationSide = effectiveSide;
+			} else {
+				validation.targetCollection = targetCollection;
+				validation.multiple = allowMultiple;
+			}
 		}
 
 		// Only include searchable for text-based fields
@@ -593,33 +664,109 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 						{selectedType === "reference" && (
 							<div className="flex flex-col gap-4">
 								<h4 className="font-medium text-sm">{t`Reference`}</h4>
-								<Select
-									label={t`Referenced collection`}
-									value={targetCollection}
-									onValueChange={(v) => {
-										setField("targetCollection", v ?? "");
-										setRefError(false);
-									}}
-									items={collections.map((c) => ({ label: c.label, value: c.slug }))}
-									placeholder={t`Select a collection`}
-									disabled={isBoundReference}
-									error={refError ? t`Referenced collection is required` : undefined}
-								/>
-								{isBoundReference && (
-									<p className="text-xs text-kumo-subtle">
-										{t`The referenced collection cannot be changed after creation`}
-									</p>
+
+								{isBoundReference ? (
+									<>
+										<Select
+											label={t`Relationship`}
+											value={field?.validation?.relation ?? ""}
+											onValueChange={() => undefined}
+											items={{
+												[field?.validation?.relation ?? ""]: field?.validation?.relation ?? "",
+											}}
+											disabled
+										/>
+										<Select
+											label={t`Referenced collection`}
+											value={targetCollection}
+											onValueChange={() => undefined}
+											items={collections.map((c) => ({ label: c.label, value: c.slug }))}
+											disabled
+										/>
+										<SideNote side={field?.validation?.relationSide ?? "parent"} />
+										<p className="text-xs text-kumo-subtle">
+											{t`The relationship and the referenced collection cannot be changed after creation. How many entries this field accepts is set on the relationship.`}
+										</p>
+									</>
+								) : (
+									<>
+										{bindableRelations.length > 0 && (
+											<Select
+												label={t`Relationship`}
+												value={relation}
+												onValueChange={(v) => {
+													setField("relation", v ?? "");
+													setRefError(false);
+												}}
+												items={[
+													{ label: t`Create a new relationship`, value: "" },
+													...bindableRelations.map(({ relation: rel }) => ({
+														label: rel.slug,
+														value: rel.slug,
+													})),
+												]}
+											/>
+										)}
+
+										{relation ? (
+											<>
+												<Select
+													label={t`Referenced collection`}
+													value={boundTarget}
+													onValueChange={() => undefined}
+													items={collections.map((c) => ({ label: c.label, value: c.slug }))}
+													disabled
+												/>
+												{sideIsAChoice ? (
+													<div className="flex items-end gap-1.5">
+														<Select
+															label={t`This field picks`}
+															value={effectiveSide}
+															onValueChange={(v) => setField("relationSide", v ?? "parent")}
+															items={{
+																parent: t`Entries this one links to`,
+																child: t`Entries that link to this one`,
+															}}
+														/>
+														<SideTooltip />
+													</div>
+												) : (
+													<div className="flex items-center gap-1.5">
+														<SideNote side={effectiveSide} />
+														<SideTooltip />
+													</div>
+												)}
+												<p className="text-xs text-kumo-subtle">
+													{t`The relationship decides the referenced collection and how many entries this field accepts.`}
+												</p>
+											</>
+										) : (
+											<>
+												<Select
+													label={t`Referenced collection`}
+													value={targetCollection}
+													onValueChange={(v) => {
+														setField("targetCollection", v ?? "");
+														setRefError(false);
+													}}
+													items={collections.map((c) => ({ label: c.label, value: c.slug }))}
+													placeholder={t`Select a collection`}
+													error={refError ? t`Referenced collection is required` : undefined}
+												/>
+												{field && (
+													<p className="text-xs text-kumo-subtle">
+														{t`Saving a collection here turns this field into an entry picker. Its stored entry IDs move to the relationship, and the field can no longer be searched or filtered on.`}
+													</p>
+												)}
+												<Switch
+													checked={allowMultiple}
+													onCheckedChange={(checked) => setField("allowMultiple", checked)}
+													label={<span className="text-sm">{t`Allow multiple references`}</span>}
+												/>
+											</>
+										)}
+									</>
 								)}
-								{field && !isBoundReference && (
-									<p className="text-xs text-kumo-subtle">
-										{t`Saving a collection here turns this field into an entry picker. Its stored entry IDs move to the relationship, and the field can no longer be searched or filtered on.`}
-									</p>
-								)}
-								<Switch
-									checked={allowMultiple}
-									onCheckedChange={(checked) => setField("allowMultiple", checked)}
-									label={<span className="text-sm">{t`Allow multiple references`}</span>}
-								/>
 							</div>
 						)}
 
@@ -782,5 +929,46 @@ export function FieldEditor({ open, onOpenChange, field, onSave, isSaving }: Fie
 				)}
 			</Dialog>
 		</Dialog.Root>
+	);
+}
+
+/** States which end of a relation a field picks from, for a side the user did
+ * not choose. */
+function SideNote({ side }: { side: RelationSide }) {
+	const { t } = useLingui();
+	return (
+		<p className="text-sm">
+			{side === "parent"
+				? t`This field picks entries this one links to.`
+				: t`This field lists entries that link to this one.`}
+		</p>
+	);
+}
+
+/** Explains what the side costs: only the linking end orders its selection,
+ * because a link's position is scoped to the entry that made it. */
+function SideTooltip() {
+	const { t } = useLingui();
+	return (
+		<Tooltip
+			content={
+				<span className="block max-w-64 text-pretty">
+					{t`Picking entries this one links to lets editors drag them into an order. The other direction lists whatever points at the entry and cannot be reordered.`}
+				</span>
+			}
+			delay={0}
+			closeDelay={0}
+			render={
+				<Button
+					type="button"
+					variant="ghost"
+					shape="square"
+					size="xs"
+					icon={<Info aria-hidden="true" />}
+					className="text-kumo-subtle hover:text-kumo-default ms-1"
+					aria-label={t`What the direction changes`}
+				/>
+			}
+		/>
 	);
 }

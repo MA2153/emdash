@@ -22,7 +22,7 @@ import {
 	type CollectionWithFields,
 } from "../../schema/index.js";
 import type { ApiResult } from "../types.js";
-import { handleRelationDelete } from "./relations.js";
+import { fieldsBoundToRelation, handleRelationDelete } from "./relations.js";
 
 /** Maximum attempts to allocate a unique relation slug for a new reference
  * field: the base `${collection}_${field}` slug, then `_2` through `_5`. */
@@ -445,6 +445,103 @@ export async function handleSchemaFieldGet(
 }
 
 /**
+ * Resolve which end of `relation` a field on `collectionSlug` sits on.
+ *
+ * The side is only a choice when both ends are the same collection — a
+ * self-referential relation such as related posts. Anywhere else the matching
+ * end decides it, and an explicit side that disagrees is a client error rather
+ * than something to silently override.
+ */
+function resolveBindingSide(
+	relation: Relation,
+	collectionSlug: string,
+	requested: "parent" | "child" | undefined,
+): { side: "parent" | "child"; targetCollection: string } | { error: string } {
+	const isParent = relation.parentCollection === collectionSlug;
+	const isChild = relation.childCollection === collectionSlug;
+
+	if (!isParent && !isChild) {
+		return {
+			error: `Relation '${relation.slug}' does not touch collection '${collectionSlug}'`,
+		};
+	}
+
+	if (isParent && isChild) {
+		const side = requested ?? "parent";
+		return {
+			side,
+			targetCollection: side === "parent" ? relation.childCollection : relation.parentCollection,
+		};
+	}
+
+	const side = isParent ? "parent" : "child";
+	if (requested && requested !== side) {
+		return {
+			error: `Collection '${collectionSlug}' is the ${side} of relation '${relation.slug}'`,
+		};
+	}
+
+	return {
+		side,
+		targetCollection: isParent ? relation.childCollection : relation.parentCollection,
+	};
+}
+
+/**
+ * Create a reference field that views an existing relation.
+ *
+ * Only one field may view a relation from a given end: two pickers writing the
+ * same link set have no defined merge, and the second would silently overwrite
+ * the first on every save.
+ */
+async function createBoundReferenceField(
+	db: Kysely<Database>,
+	collectionSlug: string,
+	input: CreateFieldInput,
+	relationSlug: string,
+): Promise<ApiResult<FieldResponse>> {
+	const relation = await new RelationRepository(db).findBySlug(relationSlug);
+	if (!relation) {
+		return {
+			success: false,
+			error: { code: "NOT_FOUND", message: `Relation '${relationSlug}' not found` },
+		};
+	}
+
+	const resolved = resolveBindingSide(relation, collectionSlug, input.validation?.relationSide);
+	if ("error" in resolved) {
+		return { success: false, error: { code: "VALIDATION_ERROR", message: resolved.error } };
+	}
+
+	const bound = await fieldsBoundToRelation(db, relation.slug);
+	const taken = bound.find((field) => field.side === resolved.side);
+	if (taken) {
+		return {
+			success: false,
+			error: {
+				code: "CONFLICT",
+				message: `Relation '${relation.slug}' is already picked from by ${taken.collectionSlug}.${taken.fieldSlug}`,
+			},
+		};
+	}
+
+	const item = await new SchemaRegistry(db).createField(collectionSlug, {
+		...input,
+		validation: {
+			...input.validation,
+			relation: relation.slug,
+			relationSide: resolved.side,
+			targetCollection: resolved.targetCollection,
+		},
+	});
+
+	invalidateCollectionCache(collectionSlug);
+	invalidateSchemaCache(collectionSlug);
+
+	return { success: true, data: { item } };
+}
+
+/**
  * Create a field
  */
 export async function handleSchemaFieldCreate(
@@ -453,6 +550,10 @@ export async function handleSchemaFieldCreate(
 	input: CreateFieldInput,
 ): Promise<ApiResult<FieldResponse>> {
 	try {
+		if (input.type === "reference" && input.validation?.relation) {
+			return await createBoundReferenceField(db, collectionSlug, input, input.validation.relation);
+		}
+
 		if (input.type === "reference") {
 			const targetCollection = input.validation?.targetCollection;
 			if (!targetCollection) {

@@ -2,8 +2,15 @@ import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { FieldEditor } from "../../src/components/FieldEditor";
+import { fetchCollections, fetchRelations } from "../../src/lib/api";
 import type { SchemaField } from "../../src/lib/api";
+import type { RelationWithUsage } from "../../src/lib/api/relations.js";
 import { render } from "../utils/render.tsx";
+
+vi.mock("../../src/lib/api", async () => {
+	const actual = await vi.importActual<typeof import("../../src/lib/api")>("../../src/lib/api");
+	return { ...actual, fetchCollections: vi.fn(), fetchRelations: vi.fn() };
+});
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -67,6 +74,12 @@ describe("FieldEditor", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(fetchCollections).mockResolvedValue([
+			{ slug: "posts", label: "Posts", labelSingular: "Post" },
+			{ slug: "authors", label: "Authors", labelSingular: "Author" },
+			{ slug: "pages", label: "Pages", labelSingular: "Page" },
+		] as Awaited<ReturnType<typeof fetchCollections>>);
+		vi.mocked(fetchRelations).mockResolvedValue([]);
 	});
 
 	describe("type selection step", () => {
@@ -425,7 +438,9 @@ describe("FieldEditor", () => {
 				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
 				.toBeDisabled();
 			await expect
-				.element(screen.getByText("The referenced collection cannot be changed after creation"))
+				.element(
+					screen.getByText(/The relationship and the referenced collection cannot be changed/),
+				)
 				.toBeInTheDocument();
 		});
 
@@ -438,6 +453,179 @@ describe("FieldEditor", () => {
 			const button = screen.getByRole("button", { name: "Update Field" });
 			await expect.element(button).toBeEnabled();
 			button.element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					validation: expect.objectContaining({ targetCollection: "authors" }),
+				}),
+			);
+		});
+	});
+
+	describe("binding a reference field to an existing relationship", () => {
+		const relationField = makeField({
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			required: false,
+			searchable: false,
+		});
+
+		function relation(overrides: Partial<RelationWithUsage> = {}): RelationWithUsage {
+			return {
+				id: "rel-1",
+				slug: "posts_authors",
+				parentCollection: "posts",
+				childCollection: "authors",
+				parentLabel: "Posts",
+				parentLabelSingular: "Post",
+				childLabel: "Authors",
+				childLabelSingular: "Author",
+				maxChildrenPerParent: 1,
+				maxParentsPerChild: null,
+				boundFields: [],
+				linkCount: 0,
+				...overrides,
+			};
+		}
+
+		async function openWithRelations(
+			relations: RelationWithUsage[],
+			props: Partial<React.ComponentProps<typeof FieldEditor>> = {},
+		) {
+			vi.mocked(fetchRelations).mockResolvedValue(relations);
+			return render(
+				<FieldEditor {...defaultProps} field={relationField} collectionSlug="posts" {...props} />,
+			);
+		}
+
+		/** Kumo's Select is a combobox button over a listbox; the dialog's inert
+		 * overlay blocks Playwright's actionability checks, so drive it through
+		 * the DOM as the other dialog tests do. */
+		async function choose(
+			screen: Awaited<ReturnType<typeof openWithRelations>>,
+			label: string,
+			option: string,
+		) {
+			const trigger = screen.getByRole("combobox", { name: label });
+			await expect.element(trigger).toBeInTheDocument();
+			trigger.element().click();
+			await vi.waitFor(() => {
+				screen.getByRole("option", { name: option, exact: true }).element().click();
+			});
+		}
+
+		it("offers a relationship this collection can still bind to", async () => {
+			const screen = await openWithRelations([relation()]);
+
+			await expect
+				.element(screen.getByRole("combobox", { name: "Relationship" }))
+				.toBeInTheDocument();
+		});
+
+		// Both ends of this relation already have a field, so a third picker over
+		// the same links has nowhere to go.
+		it("leaves out a relationship whose ends are already picked from", async () => {
+			const screen = await openWithRelations([
+				relation({
+					boundFields: [
+						{ collectionSlug: "posts", fieldSlug: "author", side: "parent" },
+						{ collectionSlug: "authors", fieldSlug: "posts", side: "child" },
+					],
+				}),
+			]);
+
+			await expect
+				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
+				.toBeInTheDocument();
+			expect(screen.getByRole("combobox", { name: "Relationship" }).query()).toBeNull();
+		});
+
+		it("derives the side and sends it with the relationship", async () => {
+			const onSave = vi.fn();
+			const screen = await openWithRelations([relation()], { onSave });
+
+			await choose(screen, "Relationship", "posts_authors");
+			await expect
+				.element(screen.getByText("This field picks entries this one links to."))
+				.toBeInTheDocument();
+
+			screen.getByRole("button", { name: "Update Field" }).element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					validation: expect.objectContaining({
+						relation: "posts_authors",
+						relationSide: "parent",
+					}),
+				}),
+			);
+		});
+
+		it("derives the child side when this collection is the linked end", async () => {
+			const onSave = vi.fn();
+			const screen = await openWithRelations(
+				[relation({ parentCollection: "pages", childCollection: "posts" })],
+				{ onSave },
+			);
+
+			await choose(screen, "Relationship", "posts_authors");
+			await expect
+				.element(screen.getByText("This field lists entries that link to this one."))
+				.toBeInTheDocument();
+
+			screen.getByRole("button", { name: "Update Field" }).element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					validation: expect.objectContaining({ relationSide: "child" }),
+				}),
+			);
+		});
+
+		// Both ends are this collection, so neither is implied by the schema.
+		it("offers the side as a choice on a self-referential relationship", async () => {
+			const onSave = vi.fn();
+			const screen = await openWithRelations(
+				[relation({ slug: "posts_related", parentCollection: "posts", childCollection: "posts" })],
+				{ onSave },
+			);
+
+			await choose(screen, "Relationship", "posts_related");
+			await choose(screen, "This field picks", "Entries that link to this one");
+
+			screen.getByRole("button", { name: "Update Field" }).element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					validation: expect.objectContaining({
+						relation: "posts_related",
+						relationSide: "child",
+					}),
+				}),
+			);
+		});
+
+		// The relationship owns the target and the limits, so sending a target
+		// collection alongside it would let the two disagree.
+		it("sends no target collection when a relationship is chosen", async () => {
+			const onSave = vi.fn();
+			const screen = await openWithRelations([relation()], { onSave });
+
+			await choose(screen, "Relationship", "posts_authors");
+			screen.getByRole("button", { name: "Update Field" }).element().click();
+
+			const validation = onSave.mock.calls[0]?.[0]?.validation as Record<string, unknown>;
+			expect(validation.targetCollection).toBeUndefined();
+			expect(validation.multiple).toBeUndefined();
+		});
+
+		it("still creates a relationship when none is chosen", async () => {
+			const onSave = vi.fn();
+			const screen = await openWithRelations([relation()], { onSave });
+
+			await choose(screen, "Referenced collection", "Authors");
+			screen.getByRole("button", { name: "Update Field" }).element().click();
 
 			expect(onSave).toHaveBeenCalledWith(
 				expect.objectContaining({

@@ -422,7 +422,217 @@ describeEachDialect("reference field lifecycle", (dialect) => {
 
 			const relRepo = new RelationRepository(ctx.db);
 			const relations = await relRepo.list();
-			expect(relations.find((r) => r.name === "posts_id")).toBeUndefined();
+			expect(relations.find((r) => r.slug === "posts_id")).toBeUndefined();
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+	/** Two collections and one relation between them, bound to no field yet. */
+	async function seedUnboundRelation() {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createCollection({ slug: "authors", label: "Authors", labelSingular: "Author" });
+
+		const relation = await new RelationRepository(ctx.db).create({
+			slug: "posts_authors",
+			parentCollection: "posts",
+			childCollection: "authors",
+			parentLabel: "Posts",
+			childLabel: "Authors",
+			maxChildrenPerParent: 1,
+		});
+		return { registry, relation };
+	}
+
+	it("binds a new field to an existing relation instead of creating one", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const { relation } = await seedUnboundRelation();
+
+			const res = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+
+			expect(res.success).toBe(true);
+			if (res.success) {
+				expect(res.data.item.validation?.relation).toBe("posts_authors");
+				expect(res.data.item.validation?.relationSide).toBe("parent");
+				expect(res.data.item.validation?.targetCollection).toBe("authors");
+			}
+
+			// The relation it bound to is the only one: binding must not create a
+			// second relation alongside the one it was given.
+			const relations = await new RelationRepository(ctx.db).list();
+			expect(relations.map((r) => r.id)).toEqual([relation.id]);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("derives the child side from the end that matches, and points the field back at the parent", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await seedUnboundRelation();
+
+			const res = await handleSchemaFieldCreate(ctx.db, "authors", {
+				slug: "posts",
+				label: "Posts",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+
+			expect(res.success).toBe(true);
+			if (res.success) {
+				expect(res.data.item.validation?.relationSide).toBe("child");
+				expect(res.data.item.validation?.targetCollection).toBe("posts");
+			}
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("takes the requested side on a self-referential relation", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await new RelationRepository(ctx.db).create({
+				slug: "posts_related",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Posts",
+				childLabel: "Related posts",
+			});
+
+			const res = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "referenced_by",
+				label: "Referenced by",
+				type: "reference",
+				validation: { relation: "posts_related", relationSide: "child" },
+			});
+
+			expect(res.success).toBe(true);
+			if (res.success) {
+				expect(res.data.item.validation?.relationSide).toBe("child");
+				expect(res.data.item.validation?.targetCollection).toBe("posts");
+			}
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("refuses a second field on the same end of a relation", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await seedUnboundRelation();
+
+			const first = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+			expect(first.success).toBe(true);
+
+			const second = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "co_author",
+				label: "Co-author",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+
+			expect(second.success).toBe(false);
+			if (!second.success) expect(second.error.code).toBe("CONFLICT");
+
+			// The refused field leaves no row behind.
+			expect(await new SchemaRegistry(ctx.db).getField("posts", "co_author")).toBeNull();
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("allows the opposite end of a relation that is already bound once", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await seedUnboundRelation();
+
+			await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+			const inverse = await handleSchemaFieldCreate(ctx.db, "authors", {
+				slug: "posts",
+				label: "Posts",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+
+			expect(inverse.success).toBe(true);
+			if (inverse.success) expect(inverse.data.item.validation?.relationSide).toBe("child");
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("refuses a relation that does not touch the collection", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const { registry } = await seedUnboundRelation();
+			await registry.createCollection({ slug: "pages", label: "Pages", labelSingular: "Page" });
+
+			const res = await handleSchemaFieldCreate(ctx.db, "pages", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "posts_authors" },
+			});
+
+			expect(res.success).toBe(false);
+			if (!res.success) expect(res.error.code).toBe("VALIDATION_ERROR");
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("refuses a side that contradicts the matching end", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await seedUnboundRelation();
+
+			const res = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "posts_authors", relationSide: "child" },
+			});
+
+			expect(res.success).toBe(false);
+			if (!res.success) expect(res.error.code).toBe("VALIDATION_ERROR");
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("reports a relation that does not exist", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+
+			const res = await handleSchemaFieldCreate(ctx.db, "posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "nope" },
+			});
+
+			expect(res.success).toBe(false);
+			if (!res.success) expect(res.error.code).toBe("NOT_FOUND");
 		} finally {
 			await teardownForDialect(ctx);
 		}
