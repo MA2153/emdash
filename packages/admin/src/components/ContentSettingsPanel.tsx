@@ -1114,12 +1114,7 @@ export const ContentSettingsPanel = React.memo(function ContentSettingsPanel({
 
 				{item && !isNew && (
 					<SortableContentSettingsSection id="references" label={t`Referenced by`}>
-						<ReferencesSidebar
-							className="p-4"
-							collection={collection}
-							entryId={item.id}
-							entryLocale={item.locale ?? entryLocale}
-						/>
+						<ReferencesSidebar className="p-4" collection={collection} entryId={item.id} />
 					</SortableContentSettingsSection>
 				)}
 

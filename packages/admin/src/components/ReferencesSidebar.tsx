@@ -30,9 +30,6 @@ import { RouterLinkButton } from "./RouterLinkButton.js";
 interface ReferencesSidebarProps {
 	collection: string;
 	entryId: string;
-	/** Locale of the entry being edited. Scopes the relation definitions read so
-	 * labels localize to the entry's translation. */
-	entryLocale?: string;
 	/** Applied to the root element. */
 	className?: string;
 }
@@ -45,18 +42,8 @@ interface ParentsState {
 
 const PAGE_SIZE = 50;
 
-export function ReferencesSidebar({
-	collection,
-	entryId,
-	entryLocale,
-	className,
-}: ReferencesSidebarProps) {
+export function ReferencesSidebar({ collection, entryId, className }: ReferencesSidebarProps) {
 	const { t } = useLingui();
-	// Fetch every relation definition (no locale scope). The reference-field
-	// lifecycle creates a relation row only in the default locale, so scoping the
-	// read to a non-default `entryLocale` would return no defs and wrongly hide the
-	// panel; instead we dedupe by translation group below, preferring the
-	// entry-locale translation when one exists.
 	const relationsQuery = useQuery({
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
@@ -78,20 +65,12 @@ export function ReferencesSidebar({
 		return map;
 	}, [collectionsQuery.data]);
 
-	// One relation per translation group whose child side is this collection.
-	// Prefer the entry-locale translation for localized labels; fall back to any
-	// sibling (currently the default-locale row) so backlinks still surface.
-	const applicableRelations = React.useMemo(() => {
-		const byGroup = new Map<string, RelationDef>();
-		for (const r of relationsQuery.data ?? []) {
-			if (r.childCollection !== collection) continue;
-			const existing = byGroup.get(r.translationGroup);
-			if (!existing || (entryLocale && r.locale === entryLocale)) {
-				byGroup.set(r.translationGroup, r);
-			}
-		}
-		return [...byGroup.values()];
-	}, [relationsQuery.data, collection, entryLocale]);
+	// Every relation whose child side is this collection: those are the ones
+	// something can point at this entry through.
+	const applicableRelations = React.useMemo(
+		() => (relationsQuery.data ?? []).filter((r) => r.childCollection === collection),
+		[relationsQuery.data, collection],
+	);
 
 	// Per-relation parents pagination, keyed by relation id. First pages are
 	// loaded on demand (effect below) once the relations list resolves; manual
@@ -108,9 +87,7 @@ export function ReferencesSidebar({
 		void (async () => {
 			for (const rel of applicableRelations) {
 				try {
-					// The edge endpoints resolve a relation by id or translation_group,
-					// never by `name` — passing the group mirrors the children flow.
-					const res = await fetchReferenceParents(collection, entryId, rel.translationGroup, {
+					const res = await fetchReferenceParents(collection, entryId, rel.id, {
 						limit: PAGE_SIZE,
 					});
 					if (cancelled) return;
@@ -148,7 +125,7 @@ export function ReferencesSidebar({
 			});
 			if (!cursor) return;
 			try {
-				const res = await fetchReferenceParents(collection, entryId, rel.translationGroup, {
+				const res = await fetchReferenceParents(collection, entryId, rel.id, {
 					cursor,
 					limit: PAGE_SIZE,
 				});
