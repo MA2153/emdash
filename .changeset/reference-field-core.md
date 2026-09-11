@@ -129,6 +129,19 @@ Seed files gain a top-level `relations` array, so a relation can be declared wit
 }
 ```
 
+A reference field created through the schema API can name a relation the same way. `POST /_emdash/api/schema/collections/{slug}/fields` accepts `validation.relation`, and `validation.relationSide` for a relation whose two ends are the same collection, and binds the field to it instead of creating a relation:
+
+```jsonc
+{
+	"slug": "author",
+	"label": "Author",
+	"type": "reference",
+	"validation": { "relation": "post_authors" },
+}
+```
+
+The referenced collection and the selection limits come from the relation, so a `targetCollection` sent alongside a relation is ignored. Naming a relation the collection is not an end of, a side that contradicts the end that matches, or an end another field already picks from is refused — two fields picking from the same end of a relation would write the same links, and the second save would overwrite the first. A field that names only a `targetCollection` still gets a relation created for it, as before.
+
 A field that names a relation binds to it; the side it views follows from which end its collection sits on, and `relationSide` is needed only for a relation whose two ends are the same collection. A field that names only a `targetCollection` still gets a relation created for it. Re-applying a seed updates a relation's labels and limits under `onConflict: "update"`, but a seed naming different collections for an existing relation fails rather than leaving its links pointing into a collection that is no longer an end of it.
 
 `emdash export-seed` emits those relations, and `--with-content` emits each entry's links as `$ref:` values on the parent side of the relation, so a site's reference selections survive an export and re-apply. Entry IDs in a reference field with no relation are emitted as `$ref:` too; previously they were emitted as a reference to the source database's row id, which resolved to nothing on apply.
