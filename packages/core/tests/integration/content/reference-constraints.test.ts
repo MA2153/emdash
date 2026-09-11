@@ -112,25 +112,25 @@ describeEachDialect("reference field constraints", (dialect) => {
 	});
 
 	it("accepts a create with one required reference while the optional field is omitted", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+		await setupConstrainedFields();
 		const child = await createPage("Child");
 
 		const result = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 
 		expect(result.success).toBe(true);
 	});
 
 	it("accepts required reference selections through runtime validation", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+		await setupConstrainedFields();
 		const child = await createPage("Child");
 		const runtime = createTestRuntime(ctx.db);
 
 		const missingStoredField = await runtime.handleContentCreate("posts", {
 			data: {},
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 		expect(missingStoredField.success).toBe(false);
 		if (!missingStoredField.success) {
@@ -140,7 +140,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const result = await runtime.handleContentCreate("posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 
 		expect(result.success).toBe(true);
@@ -149,13 +149,13 @@ describeEachDialect("reference field constraints", (dialect) => {
 	});
 
 	it("rejects multiple children on a single-reference field through content create", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+		await setupConstrainedFields();
 		const first = await createPage("First");
 		const second = await createPage("Second");
 
 		const result = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [first.id, second.id] },
+			references: { featured_page: [first.id, second.id] },
 		});
 
 		expect(result.success).toBe(false);
@@ -163,16 +163,16 @@ describeEachDialect("reference field constraints", (dialect) => {
 	});
 
 	it("rejects clearing a required reference through content update", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+		await setupConstrainedFields();
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
 		const result = await handleContentUpdate(ctx.db, "posts", parent.data.item.id, {
-			references: { [requiredSingle.slug]: [] },
+			references: { featured_page: [] },
 		});
 
 		expect(result.success).toBe(false);
@@ -184,7 +184,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -206,7 +206,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [first.id] },
+			references: { featured_page: [first.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -228,7 +228,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [first.id] },
+			references: { featured_page: [first.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -249,7 +249,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
@@ -273,7 +273,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const rejected = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Post" },
-			references: { [requiredSingle.slug]: [first.id, second.id] },
+			references: { featured_page: [first.id, second.id] },
 		});
 		expect(rejected.success).toBe(false);
 
@@ -281,7 +281,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 
 		const accepted = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Post" },
-			references: { [requiredSingle.slug]: [first.id, second.id] },
+			references: { featured_page: [first.id, second.id] },
 		});
 		expect(accepted.success, JSON.stringify(accepted)).toBe(true);
 	});
@@ -314,11 +314,11 @@ describeEachDialect("reference field constraints", (dialect) => {
 	});
 
 	it("inherits a source group's references when creating a translation", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+		await setupConstrainedFields();
 		const child = await createPage("Child");
 		const source = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
-			references: { [requiredSingle.slug]: [child.id] },
+			references: { featured_page: [child.id] },
 		});
 		if (!source.success) throw new Error("Source setup failed");
 
@@ -335,7 +335,7 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		expect(hydrated.success).toBe(true);
 		if (!hydrated.success) return;
-		const selected = hydrated.data.item.references?.[requiredSingle.slug]?.children[0];
+		const selected = hydrated.data.item.references?.featured_page?.children[0];
 		expect(selected?.id).toBe(child.id);
 		expect(selected && referenceTranslationGroup(selected)).toBe(child.translationGroup);
 	});

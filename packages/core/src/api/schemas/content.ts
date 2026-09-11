@@ -197,7 +197,7 @@ export const contentCreateBody = z
 		}),
 		references: z.record(z.string(), z.array(z.string())).optional().meta({
 			description:
-				"Reference selections as { relationTranslationGroup: [childEntryId, ...] }, in display order. Written as content-reference edges in the same transaction as the entry.",
+				"Reference selections as { fieldSlug: [entryId, ...] }, in display order. Written as content-reference links in the same transaction as the entry. A field bound to the child end of its relation selects the entries pointing at this one, which carry no order.",
 		}),
 		publishedAt: contentDateOverride,
 		createdAt: contentDateOverride,
@@ -224,7 +224,7 @@ export const contentUpdateBody = z
 		}),
 		references: z.record(z.string(), z.array(z.string())).optional().meta({
 			description:
-				"Reference selections as { relationTranslationGroup: [childEntryId, ...] }, in display order. Written as content-reference edges in the same transaction as the entry.",
+				"Reference selections as { fieldSlug: [entryId, ...] }, in display order. Written as content-reference links in the same transaction as the entry. A field bound to the child end of its relation selects the entries pointing at this one, which carry no order.",
 		}),
 		publishedAt: contentDateOverride,
 	})
@@ -361,8 +361,8 @@ export const contentItemSchema = z
 		locale: z.string().nullable(),
 		translationGroup: z.string().nullable(),
 		seo: contentSeoSchema.optional(),
-		// First page of resolved children per reference field, keyed by the field's
-		// relation group. Only present when the editor GET path opts into hydration
+		// First page of each reference field's selection, keyed by field slug. Only
+		// present when the editor GET path opts into hydration
 		// (`referenceOptions`); omitted otherwise, so it's optional here.
 		references: z.record(z.string(), referenceChildrenResponseSchema).optional(),
 	})

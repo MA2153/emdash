@@ -2375,12 +2375,16 @@ describe("ContentEditor", () => {
 			},
 		};
 
-		/** An entry whose hydrated first page leaves a second page to auto-load. */
+		/**
+		 * An entry whose hydrated first page leaves a second page to auto-load.
+		 * Keyed by field slug, as the server hydrates it; the paging request
+		 * addresses the relation the field names.
+		 */
 		function itemWithPendingPage(): ContentItem {
 			return makeItem({
 				data: { title: "Hello" },
 				references: {
-					[RELATION]: {
+					related: {
 						children: [
 							{ id: "c-1", slug: "one", title: "One", locale: "en", translationGroup: "g-1" },
 						],
@@ -2429,7 +2433,9 @@ describe("ContentEditor", () => {
 			await expect.element(screen.getByText("Two")).toBeInTheDocument();
 			const calls = vi.mocked(fetchReferenceChildren).mock.calls;
 			expect(calls.length).toBeGreaterThan(before);
-			// The failed page must be re-requested, not skipped past.
+			// The failed page must be re-requested, not skipped past, and addressed
+			// by the relation the field names.
+			expect(calls[before]?.[2]).toBe(RELATION);
 			expect(calls[before]?.[3]).toEqual({ cursor: "cursor-1" });
 			expect(screen.getByText("Couldn't load all references.").query()).toBeNull();
 		});

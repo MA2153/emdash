@@ -17,7 +17,11 @@ import { requestCached } from "../../request-cache.js";
 import { invalidateSchemaCache } from "../../schema/index.js";
 import { SchemaRegistry } from "../../schema/registry.js";
 import type { ApiResult } from "../types.js";
-import { referenceFieldConstraints, validateReferenceSelection } from "./validate-references.js";
+import {
+	constraintsForRelationSide,
+	referenceFieldConstraints,
+	validateReferenceSelection,
+} from "./validate-references.js";
 
 /** Map an edge-read failure: a bad pagination cursor is a 400 client error,
  * everything else is the generic 500-shaped reference-read error. */
@@ -479,41 +483,52 @@ export async function handleReferenceChildrenGet(
 }
 
 /**
- * Resolve a relation + parent entry + child ids and replace the parent's
- * children under that relation. Extracted from `handleReferenceChildrenSet` so
- * the content create/update transaction can reuse the same resolution logic
- * with either a `Kysely<Database>` or a `Transaction<Database>`.
+ * Resolve a relation + an entry on one of its ends + the ids it selects, and
+ * replace that entry's links. Extracted from `handleReferenceChildrenSet` so the
+ * content create/update transaction can reuse the same resolution logic with
+ * either a `Kysely<Database>` or a `Transaction<Database>`.
+ *
+ * `side` is the end the entry sits on: a `parent` entry replaces its children, a
+ * `child` entry replaces the parents pointing at it.
  *
  * Returns the resolved relation/entry translation_groups on success so callers
  * can re-read and echo the new set without re-deriving them.
  */
-export async function setReferenceChildren(
+async function setReferenceSide(
 	db: Kysely<Database>,
 	collection: string,
 	entryId: string,
 	relation: string,
-	childIds: string[],
+	selectedIds: string[],
+	side: "parent" | "child",
 ): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
 	const repo = new RelationRepository(db);
 	const content = new ContentRepository(db);
 
 	const rel = await resolveRelation(repo, relation);
 	if (!rel) return { success: false, error: { code: "NOT_FOUND", message: "Relation not found" } };
-	if (collection !== rel.parentCollection) {
+
+	const ownCollection = side === "parent" ? rel.parentCollection : rel.childCollection;
+	const otherCollection = side === "parent" ? rel.childCollection : rel.parentCollection;
+	if (collection !== ownCollection) {
 		return {
 			success: false,
 			error: {
 				code: "VALIDATION_ERROR",
-				message: "Entry is not the parent side of this relation",
+				message: `Entry is not the ${side} side of this relation`,
 			},
 		};
 	}
 
-	// Keyed by the field's `validation.relation`, which is the relation's slug —
-	// `relation` here may have arrived as either an id or a slug.
-	const constraints = (await referenceFieldConstraints(db, collection)).get(rel.slug);
+	// `relation` may have arrived as either an id or a slug, so look the field up
+	// by the resolved slug and the side it views.
+	const constraints = constraintsForRelationSide(
+		await referenceFieldConstraints(db, collection),
+		rel.slug,
+		side,
+	);
 	if (constraints) {
-		const selection = validateReferenceSelection(constraints, childIds);
+		const selection = validateReferenceSelection(constraints, selectedIds);
 		if (!selection.success) return selection;
 	}
 
@@ -522,31 +537,81 @@ export async function setReferenceChildren(
 		return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
 	}
 
-	// Resolve every child within the relation's child_collection in one batch
-	// (constant queries, not an N+1 of point lookups for a set up to 1000). A
-	// child id that does not resolve there fails collection-agreement
-	// (invariant 3); order is preserved by iterating the caller's `childIds`.
-	const resolvedChildren = await content.findManyByIdOrSlug(rel.childCollection, childIds);
-	const childGroups: string[] = [];
-	for (const childId of childIds) {
-		const child = resolvedChildren.get(childId);
-		if (!child?.translationGroup) {
+	// Resolve every selected entry within the relation's other collection in one
+	// batch (constant queries, not an N+1 of point lookups for a set up to 1000).
+	// An id that does not resolve there fails collection-agreement (invariant 3);
+	// order is preserved by iterating the caller's ids.
+	const resolved = await content.findManyByIdOrSlug(otherCollection, selectedIds);
+	const groups: string[] = [];
+	for (const selectedId of selectedIds) {
+		const other = resolved.get(selectedId);
+		if (!other?.translationGroup) {
 			return {
 				success: false,
 				error: {
 					code: "NOT_FOUND",
-					message: `Child entry '${childId}' not found in ${rel.childCollection}`,
+					message: `${side === "parent" ? "Child" : "Parent"} entry '${selectedId}' not found in ${otherCollection}`,
 				},
 			};
 		}
-		childGroups.push(child.translationGroup);
+		groups.push(other.translationGroup);
 	}
 
-	await repo.setChildren(rel.id, entry.translationGroup, childGroups);
+	if (side === "parent") {
+		await repo.setChildren(rel.id, entry.translationGroup, groups);
+	} else {
+		await repo.setParents(rel.id, entry.translationGroup, groups);
+	}
 	return {
 		success: true,
 		data: { relationId: rel.id, entryGroup: entry.translationGroup },
 	};
+}
+
+/** `setReferenceSide` for the parent end, which the relation-scoped route takes. */
+export function setReferenceChildren(
+	db: Kysely<Database>,
+	collection: string,
+	entryId: string,
+	relation: string,
+	childIds: string[],
+): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
+	return setReferenceSide(db, collection, entryId, relation, childIds, "parent");
+}
+
+/**
+ * Replace a reference field's selection on one entry, addressed by field slug.
+ *
+ * The field decides which relation and which end: a field bound to the parent
+ * end replaces that entry's children, one bound to the child end replaces the
+ * parents pointing at it. This is what the entry create/update body writes
+ * through, so a site addresses a selection the way it addresses any other field.
+ */
+export async function setReferenceSelection(
+	db: Kysely<Database>,
+	collection: string,
+	entryId: string,
+	fieldSlug: string,
+	selectedIds: string[],
+): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
+	const constraints = (await referenceFieldConstraints(db, collection)).get(fieldSlug);
+	if (!constraints) {
+		return {
+			success: false,
+			error: {
+				code: "VALIDATION_ERROR",
+				message: `Field '${fieldSlug}' is not a reference field on ${collection}`,
+			},
+		};
+	}
+	return setReferenceSide(
+		db,
+		collection,
+		entryId,
+		constraints.relation,
+		selectedIds,
+		constraints.relationSide,
+	);
 }
 
 export async function handleReferenceChildrenSet(

@@ -4,6 +4,15 @@
 
 Adds reference fields that store relationships between entries. Selections are written atomically with the entry and are hydrated on read alongside SEO and bylines. Each resolved reference includes a display title from the referenced entry's configured title field, `title`, or `name`, so pickers and backlinks show a readable label.
 
+A selection is addressed by field slug, in the entry create and update bodies and in the `references` an entry read returns:
+
+```jsonc
+// POST /_emdash/api/content/posts
+{ "data": { "title": "Hello" }, "references": { "author": ["01HXK5MZSN..."] } }
+```
+
+A field bound to the child end of its relation selects the entries pointing at it, and those have no order of their own: `sort_order` positions children within one parent, and nothing positions a child's parents. The relation-scoped routes, `/content/{collection}/{id}/references/{relation}/children` and `/parents`, still address a relation — that is what they are about.
+
 Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
 
 A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.

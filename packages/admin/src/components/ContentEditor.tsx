@@ -38,7 +38,12 @@ import type {
 	UserListItem,
 	TranslationSummary,
 } from "../lib/api";
-import { fetchReferenceChildren, getPreviewUrl, getDraftStatus } from "../lib/api";
+import {
+	fetchReferenceChildren,
+	fetchReferenceParents,
+	getPreviewUrl,
+	getDraftStatus,
+} from "../lib/api";
 import { getContentPublishingState } from "../lib/content-publishing-state.js";
 import { fromDatetimeLocalInputValue, toDatetimeLocalInputValue } from "../lib/datetime-local.js";
 import { getEntryTitle } from "../lib/entryTitle.js";
@@ -158,7 +163,7 @@ type ReferenceGroupState = {
 	error?: boolean;
 };
 
-/** Seed reference state from a hydrated item (first page per relation group). */
+/** Seed reference state from a hydrated item (first page per reference field). */
 function seedReferenceState(item?: ContentItem | null): Record<string, ReferenceGroupState> {
 	const out: Record<string, ReferenceGroupState> = {};
 	const refs = item?.references;
@@ -186,11 +191,11 @@ function sameReferenceIds(a: ReferenceEntryRow[], b: ReferenceEntryRow[]): boole
 }
 
 /**
- * Build the `references` save payload from staged state. Only groups whose id
- * list has changed are included: the server replaces edges for every group it
- * receives, so sending an untouched (and possibly not-yet-fully-loaded) group
- * would risk overwriting it with a partial list. Untouched groups are omitted
- * and left as-is on the server.
+ * Build the `references` save payload from staged state, keyed by field slug.
+ * Only fields whose id list has changed are included: the server replaces the
+ * links of every field it receives, so sending an untouched (and possibly
+ * not-yet-fully-loaded) field would risk overwriting it with a partial list.
+ * Untouched fields are omitted and left as-is on the server.
  */
 function buildReferencesPayload(
 	state: Record<string, ReferenceGroupState>,
@@ -643,20 +648,33 @@ export function ContentEditor({
 		[],
 	);
 
-	// Page the rest of a relation's hydrated set. The full set must be loaded
-	// before reorder/remove so a save never emits a partial (truncating) list.
+	// Page the rest of a field's hydrated set. The full set must be loaded before
+	// reorder/remove so a save never emits a partial (truncating) list.
+	//
+	// State is keyed by field slug, the key the entry API takes a selection under,
+	// while the paging routes address the relation — so the relation and the side
+	// the field views come from the field descriptor.
 	const handleLoadMoreReferences = React.useCallback(
 		async (group: string) => {
 			if (!item?.id) return;
 			const st = referenceStateRef.current[group];
 			if (!st || !st.nextCursor || st.loading) return;
+			const validation = fields[group]?.validation;
+			const relation = typeof validation?.relation === "string" ? validation.relation : undefined;
+			if (!relation) return;
+			const onChildSide = validation?.relationSide === "child";
 			const cursor = st.nextCursor;
 			setReferenceState((prev) => {
 				const cur = prev[group];
 				return cur ? { ...prev, [group]: { ...cur, loading: true } } : prev;
 			});
 			try {
-				const res = await fetchReferenceChildren(collection, item.id, group, { cursor });
+				const res = onChildSide
+					? await fetchReferenceParents(collection, item.id, relation, { cursor }).then((page) => ({
+							children: page.parents,
+							nextCursor: page.nextCursor,
+						}))
+					: await fetchReferenceChildren(collection, item.id, relation, { cursor });
 				const rows: ReferenceEntryRow[] = res.children.map((c) => ({
 					id: c.id,
 					slug: c.slug,
@@ -692,7 +710,7 @@ export function ContentEditor({
 				});
 			}
 		},
-		[collection, item?.id],
+		[collection, item?.id, fields],
 	);
 
 	// Clearing the flag is the whole retry: the auto-page effect gates on it and
@@ -2064,10 +2082,11 @@ function FieldRenderer({
 					labelClass={labelClass}
 					targetCollection={targetCollection}
 					multiple={multiple}
-					state={referenceState?.[relationGroup]}
-					onChange={(rows) => onReferenceChange?.(relationGroup, rows)}
-					onLoadMore={() => onLoadMoreReferences?.(relationGroup)}
-					onRetry={() => onRetryReferences?.(relationGroup)}
+					reorderable={field.validation?.relationSide !== "child"}
+					state={referenceState?.[name]}
+					onChange={(rows) => onReferenceChange?.(name, rows)}
+					onLoadMore={() => onLoadMoreReferences?.(name)}
+					onRetry={() => onRetryReferences?.(name)}
 					entryLocale={entryLocale}
 				/>
 			);
@@ -2136,6 +2155,7 @@ function ReferenceFieldRenderer({
 	labelClass,
 	targetCollection,
 	multiple,
+	reorderable,
 	state,
 	onChange,
 	onLoadMore,
@@ -2146,6 +2166,12 @@ function ReferenceFieldRenderer({
 	labelClass?: string;
 	targetCollection: string;
 	multiple: boolean;
+	/**
+	 * Whether the selection has an order to change. A field on the child end of
+	 * its relation has none: `sort_order` positions children within one parent,
+	 * and nothing positions a child's parents.
+	 */
+	reorderable: boolean;
 	state?: ReferenceGroupState;
 	onChange: (rows: ReferenceEntryRow[]) => void;
 	onLoadMore: () => void;
@@ -2249,7 +2275,7 @@ function ReferenceFieldRenderer({
 										icon={<ArrowSquareOut className="h-4 w-4" />}
 										aria-label={t`Open ${referenceRowLabel(row)} in a new tab`}
 									/>
-									{multiple && (
+									{multiple && reorderable && (
 										<div className="flex items-center gap-1">
 											<Button
 												type="button"

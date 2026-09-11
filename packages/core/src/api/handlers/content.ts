@@ -48,7 +48,7 @@ import { invalidateTermCache } from "../../taxonomies/index.js";
 import { isMissingColumnError, isMissingTableError } from "../../utils/db-errors.js";
 import { decodeRev, encodeRev, validateRev } from "../rev.js";
 import type { ApiResult, ContentListResponse, ContentResponse } from "../types.js";
-import { getReferenceTitleField, resolveEntries, setReferenceChildren } from "./relations.js";
+import { getReferenceTitleField, resolveEntries, setReferenceSelection } from "./relations.js";
 import { validateMediaFields } from "./validate-media-fields.js";
 import { validateRequiredReferencesPresent } from "./validate-references.js";
 
@@ -213,18 +213,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Hydrate the first page of each reference field's children onto a single
- * content item.
+ * Hydrate the first page of each reference field's selection onto a single
+ * content item, keyed by field slug — the same key the create and update bodies
+ * take a selection under.
  *
  * Opt-in only: callers must have already decided `includeDrafts` (draft
  * visibility is enforced by the caller, not this helper) because a resolved
- * child can carry a draft/scheduled entry's id and slug. See
+ * entry can carry a draft/scheduled entry's id and slug. See
  * `handleContentGet`'s `referenceOptions` param — the REST GET route is the
  * only caller that currently opts in.
- *
- * Reference fields are storage-less (edges live only in
- * `_emdash_content_references`); a field missing `validation.relation` or
- * `validation.targetCollection` is a legacy field and contributes nothing.
  */
 async function hydrateReferences(
 	db: Kysely<Database>,
@@ -243,7 +240,7 @@ async function hydrateReferences(
 
 	const fields = await db
 		.selectFrom("_emdash_fields")
-		.select("validation")
+		.select(["slug", "validation"])
 		.where("collection_id", "=", collectionRow.id)
 		.where("type", "=", "reference")
 		.execute();
@@ -268,22 +265,29 @@ async function hydrateReferences(
 			}
 			if (isRecord(parsed)) validation = parsed;
 		}
-		const relationGroup = typeof validation.relation === "string" ? validation.relation : undefined;
-		const childCollection =
+		const relation = typeof validation.relation === "string" ? validation.relation : undefined;
+		const targetCollection =
 			typeof validation.targetCollection === "string" ? validation.targetCollection : undefined;
-		if (!relationGroup || !childCollection) continue; // legacy field: no edges to hydrate
+		// A field with no relation keeps its own column; its value is already in
+		// `data` and there are no links to resolve.
+		if (!relation || !targetCollection) continue;
 
-		const edges = await repo.getChildrenPage(relationGroup, item.translationGroup);
+		// A field on the child end of its relation selects parents, which carry no
+		// order of their own — `sort_order` positions children within one parent.
+		const onChildSide = validation.relationSide === "child";
+		const edges = onChildSide
+			? await repo.getParentsPage(relation, item.translationGroup)
+			: await repo.getChildrenPage(relation, item.translationGroup);
 		const children = await resolveEntries(
 			content,
-			childCollection,
+			targetCollection,
 			edges.items,
-			(e) => e.childGroup,
+			(e) => (onChildSide ? e.parentGroup : e.childGroup),
 			item.locale,
 			includeDrafts,
-			await getReferenceTitleField(db, childCollection),
+			await getReferenceTitleField(db, targetCollection),
 		);
-		references[relationGroup] = {
+		references[field.slug] = {
 			children,
 			...(edges.nextCursor ? { nextCursor: edges.nextCursor } : {}),
 		};
@@ -1070,18 +1074,18 @@ export async function handleContentCreate(
 				await assignTaxonomies(trx, collection, created.id, effectiveLocale, body.taxonomies);
 			}
 
-			// Attach reference edges in the same transaction: a relation or
-			// child id that fails to resolve throws with a structured
+			// Attach reference links in the same transaction: a field slug or
+			// selected id that fails to resolve throws with a structured
 			// `apiError`, aborting the whole save so no half-written entry
 			// (with taxonomies/bylines/SEO already committed) is left behind.
 			if (body.references) {
-				for (const [relationGroup, childIds] of Object.entries(body.references)) {
-					const set = await setReferenceChildren(
+				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
+					const set = await setReferenceSelection(
 						trx,
 						collection,
 						created.id,
-						relationGroup,
-						childIds,
+						fieldSlug,
+						selectedIds,
 					);
 					if (!set.success) {
 						throw Object.assign(new Error(set.error.message), {
@@ -1100,7 +1104,7 @@ export async function handleContentCreate(
 		};
 	} catch (error) {
 		// Handle structured errors thrown from inside the transaction (e.g. a
-		// reference resolution failure from `setReferenceChildren`).
+		// reference resolution failure from `setReferenceSelection`).
 		if (hasApiError(error)) {
 			return {
 				success: false,
@@ -1327,17 +1331,17 @@ export async function handleContentUpdate(
 				);
 			}
 
-			// Replace reference edges in the same transaction. See the matching
+			// Replace reference links in the same transaction. See the matching
 			// block in handleContentCreate: a resolution failure throws with a
 			// structured `apiError`, aborting the whole update.
 			if (body.references) {
-				for (const [relationGroup, childIds] of Object.entries(body.references)) {
-					const set = await setReferenceChildren(
+				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
+					const set = await setReferenceSelection(
 						trx,
 						collection,
 						resolvedId,
-						relationGroup,
-						childIds,
+						fieldSlug,
+						selectedIds,
 					);
 					if (!set.success) {
 						throw Object.assign(new Error(set.error.message), {

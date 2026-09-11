@@ -55,9 +55,10 @@ function parseColumnIds(value: unknown): string[] {
  * Every insert is `ON CONFLICT DO NOTHING` against the edge table's unique
  * constraint, so running this twice adds nothing the first run already wrote.
  *
- * Migration 077 runs this on upgrade and the schema handler runs it when an
- * editor binds a field by hand, so its behaviour is shipped history: a change
- * here changes what that migration does on a database that has not run it yet.
+ * Migration 077 carries its own copy of this for the upgrade path. A migration
+ * must not share a module with the handler layer — the bundler then puts the two
+ * in chunks that cycle through the migration runner, and the built package throws
+ * on import — and a shipped migration has to keep behaving the way it did anyway.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runs against a migration's untyped Kysely as well as the app's
 export async function backfillReferenceEdges(

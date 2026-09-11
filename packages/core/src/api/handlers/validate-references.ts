@@ -4,9 +4,13 @@ import type { Database } from "../../database/types.js";
 import { requestCached } from "../../request-cache.js";
 import type { ApiResult } from "../types.js";
 
-interface ReferenceFieldConstraints {
+export interface ReferenceFieldConstraints {
+	/** Field slug — how the entry API addresses the selection. */
 	slug: string;
+	/** Relation slug the field binds to. */
 	relation: string;
+	/** Which end of the relation the field's own collection sits on. */
+	relationSide: "parent" | "child";
 	/** How many entries this side of the relation may hold. `null` is unlimited. */
 	maxSelected: number | null;
 	required: boolean;
@@ -20,6 +24,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
+/**
+ * Every reference field on a collection that is bound to a relation, by field
+ * slug — the key the entry API takes a selection under.
+ */
 export function referenceFieldConstraints(
 	db: Kysely<Database>,
 	collection: string,
@@ -55,20 +63,38 @@ export function referenceFieldConstraints(
 			if (!isRecord(parsed) || typeof parsed.relation !== "string") continue;
 
 			const relation = limits.get(parsed.relation);
+			const relationSide = parsed.relationSide === "child" ? "child" : "parent";
 			const maxSelected =
-				parsed.relationSide === "child"
+				relationSide === "child"
 					? (relation?.max_parents_per_child ?? null)
 					: (relation?.max_children_per_parent ?? null);
 
-			constraints.set(parsed.relation, {
+			constraints.set(field.slug, {
 				slug: field.slug,
 				relation: parsed.relation,
+				relationSide,
 				maxSelected,
 				required: field.required === 1,
 			});
 		}
 		return constraints;
 	});
+}
+
+/**
+ * The field viewing one end of a relation, for the relation-scoped routes, which
+ * address a relation rather than a field. At most one field binds each
+ * (relation, side), so this is unambiguous.
+ */
+export function constraintsForRelationSide(
+	constraints: Map<string, ReferenceFieldConstraints>,
+	relation: string,
+	side: "parent" | "child",
+): ReferenceFieldConstraints | undefined {
+	for (const field of constraints.values()) {
+		if (field.relation === relation && field.relationSide === side) return field;
+	}
+	return undefined;
 }
 
 export function validateReferenceSelection(
@@ -104,7 +130,7 @@ export async function validateRequiredReferencesPresent(
 	const constraints = await referenceFieldConstraints(db, collection);
 	for (const field of constraints.values()) {
 		if (!field.required) continue;
-		if (references && Object.hasOwn(references, field.relation)) continue;
+		if (references && Object.hasOwn(references, field.slug)) continue;
 		return validationError(
 			`Field '${field.slug}' is required and must reference at least one entry.`,
 		);

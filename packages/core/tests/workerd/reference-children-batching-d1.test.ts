@@ -38,7 +38,7 @@ it("replaces more than sixteen reference children in order on D1", async () => {
 
 	const repo = new RelationRepository(db);
 	const relation = await repo.create({
-		name: "batch_related_pages",
+		slug: "batch_related_pages",
 		parentCollection: "batch_posts",
 		childCollection: "batch_pages",
 		parentLabel: "Post",
@@ -49,7 +49,8 @@ it("replaces more than sixteen reference children in order on D1", async () => {
 		label: "Related pages",
 		type: "reference",
 		validation: {
-			relation: relation.translationGroup,
+			relation: relation.slug,
+			relationSide: "parent",
 			targetCollection: "batch_pages",
 			multiple: true,
 		},
@@ -72,7 +73,7 @@ it("replaces more than sixteen reference children in order on D1", async () => {
 		db,
 		"batch_posts",
 		parent.data.item.id,
-		relation.translationGroup,
+		relation.slug,
 		[oldChild.data.item.id],
 	);
 	expect(seeded.success).toBe(true);
@@ -81,15 +82,12 @@ it("replaces more than sixteen reference children in order on D1", async () => {
 		db,
 		"batch_posts",
 		parent.data.item.id,
-		relation.translationGroup,
+		relation.slug,
 		children.map((child) => child.id),
 	);
 	expect(replaced.success).toBe(true);
 
-	const stored = await repo.getChildren(
-		relation.translationGroup,
-		parent.data.item.translationGroup,
-	);
+	const stored = await repo.getChildren(relation.slug, parent.data.item.translationGroup);
 	expect(stored.map((edge) => edge.childGroup)).toEqual(
 		children.map((child) => child.translationGroup),
 	);

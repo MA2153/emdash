@@ -310,11 +310,11 @@ export interface ContentItem {
 	 */
 	liveData?: Record<string, unknown>;
 	/**
-	 * First page of resolved children per reference field, keyed by the
-	 * field's relation group. Only populated when the caller opts in via
-	 * `handleContentGet`'s `referenceOptions` param (see content.ts) —
-	 * hydration is never unconditional because it can leak draft child
-	 * ids/slugs to callers without `content:read_drafts`.
+	 * First page of each reference field's resolved selection, keyed by field
+	 * slug. Only populated when the caller opts in via `handleContentGet`'s
+	 * `referenceOptions` param (see content.ts) — hydration is never
+	 * unconditional because it can leak draft ids/slugs to callers without
+	 * `content:read_drafts`.
 	 *
 	 * Shape mirrors `EntryRef` from `api/handlers/relations.ts`, duplicated
 	 * here (rather than imported) so the database layer doesn't depend on

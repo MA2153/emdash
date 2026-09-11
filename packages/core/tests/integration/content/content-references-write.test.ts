@@ -6,6 +6,7 @@ import {
 	handleContentDuplicate,
 	handleContentGet,
 	handleContentPermanentDelete,
+	handleContentUpdate,
 } from "../../../src/api/handlers/content.js";
 import { setReferenceChildren } from "../../../src/api/handlers/relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
@@ -128,6 +129,14 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 				parentLabel: "Related posts",
 				childLabel: "Related to",
 			});
+			// A selection is addressed by field slug, so the field that views the
+			// relation has to exist.
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, targetCollection: "posts", multiple: true },
+			});
 
 			const childA = await handleContentCreate(ctx.db, "posts", { data: { title: "Child A" } });
 			const childB = await handleContentCreate(ctx.db, "posts", { data: { title: "Child B" } });
@@ -137,9 +146,7 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 
 			const res = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: {
-					[relation.slug]: [childA.data.item.id, childB.data.item.id],
-				},
+				references: { related: [childA.data.item.id, childB.data.item.id] },
 			});
 			expect(res.success).toBe(true);
 			if (!res.success) return;
@@ -171,13 +178,19 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 				parentLabel: "Related posts",
 				childLabel: "Related to",
 			});
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, targetCollection: "posts", multiple: true },
+			});
 
 			const contentRepo = new ContentRepository(ctx.db);
 			const countBefore = await contentRepo.count("posts");
 
 			const res = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: { [relation.slug]: ["does-not-exist"] },
+				references: { related: ["does-not-exist"] },
 			});
 			expect(res.success).toBe(false);
 			if (!res.success) expect(res.error.code).toBe("NOT_FOUND");
@@ -186,6 +199,138 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 			// transaction, not just the reference write, so no half-written entry.
 			const countAfter = await contentRepo.count("posts");
 			expect(countAfter).toBe(countBefore);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+});
+
+describeEachDialect("a reference field bound to the child side of its relation", (dialect) => {
+	let ctx: DialectTestContext;
+
+	/** `posts.author` picks an author; `authors.posts` views the same links back. */
+	async function setupBothSides() {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+		await registry.createCollection({ slug: "authors", label: "Authors", labelSingular: "Author" });
+		await registry.createField("authors", { slug: "name", label: "Name", type: "string" });
+
+		const relation = await new RelationRepository(ctx.db).create({
+			slug: "post_authors",
+			parentCollection: "posts",
+			childCollection: "authors",
+			parentLabel: "Posts",
+			childLabel: "Author",
+			maxChildrenPerParent: 1,
+		});
+		await registry.createField("posts", {
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			validation: {
+				relation: relation.slug,
+				relationSide: "parent",
+				targetCollection: "authors",
+			},
+		});
+		await registry.createField("authors", {
+			slug: "posts",
+			label: "Posts",
+			type: "reference",
+			validation: {
+				relation: relation.slug,
+				relationSide: "child",
+				targetCollection: "posts",
+			},
+		});
+		return relation;
+	}
+
+	it("writes the links from the child end and reads them back on both fields", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const relation = await setupBothSides();
+
+			const first = await handleContentCreate(ctx.db, "posts", { data: { title: "First" } });
+			const second = await handleContentCreate(ctx.db, "posts", { data: { title: "Second" } });
+			const author = await handleContentCreate(ctx.db, "authors", { data: { name: "Jane" } });
+			if (!first.success || !second.success || !author.success) throw new Error("setup failed");
+
+			// Selecting from the child end names the parents pointing at this entry.
+			const updated = await handleContentUpdate(ctx.db, "authors", author.data.item.id, {
+				references: { posts: [first.data.item.id, second.data.item.id] },
+			});
+			expect(updated, JSON.stringify(updated)).toMatchObject({ success: true });
+
+			const hydratedAuthor = await handleContentGet(
+				ctx.db,
+				"authors",
+				author.data.item.id,
+				undefined,
+				{ includeDrafts: true },
+			);
+			if (!hydratedAuthor.success) throw new Error("author read failed");
+			expect(hydratedAuthor.data.item.references?.posts?.children.map((c) => c.id)).toEqual([
+				first.data.item.id,
+				second.data.item.id,
+			]);
+
+			// The same links seen from the parent end, through the other field.
+			const hydratedPost = await handleContentGet(ctx.db, "posts", first.data.item.id, undefined, {
+				includeDrafts: true,
+			});
+			if (!hydratedPost.success) throw new Error("post read failed");
+			expect(hydratedPost.data.item.references?.author?.children.map((c) => c.id)).toEqual([
+				author.data.item.id,
+			]);
+
+			const repo = new RelationRepository(ctx.db);
+			const edges = await repo.getParents(relation.id, author.data.item.translationGroup!);
+			expect(edges).toHaveLength(2);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("enforces the child side's own limit, not the parent side's", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const relation = await setupBothSides();
+			// One author per post, but a post may be linked from one author only too.
+			await new RelationRepository(ctx.db).update(relation.id, { maxParentsPerChild: 1 });
+
+			const first = await handleContentCreate(ctx.db, "posts", { data: { title: "First" } });
+			const second = await handleContentCreate(ctx.db, "posts", { data: { title: "Second" } });
+			const author = await handleContentCreate(ctx.db, "authors", { data: { name: "Jane" } });
+			if (!first.success || !second.success || !author.success) throw new Error("setup failed");
+
+			const rejected = await handleContentUpdate(ctx.db, "authors", author.data.item.id, {
+				references: { posts: [first.data.item.id, second.data.item.id] },
+			});
+			expect(rejected).toMatchObject({
+				success: false,
+				error: { code: "VALIDATION_ERROR" },
+			});
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("rejects a references key that is not a reference field", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await setupBothSides();
+			const post = await handleContentCreate(ctx.db, "posts", { data: { title: "First" } });
+			if (!post.success) throw new Error("setup failed");
+
+			const rejected = await handleContentUpdate(ctx.db, "posts", post.data.item.id, {
+				references: { title: ["whatever"] },
+			});
+			expect(rejected).toMatchObject({
+				success: false,
+				error: { code: "VALIDATION_ERROR" },
+			});
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -231,9 +376,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 
 			const parent = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: {
-					[relation.slug]: [childA.data.item.id, childB.data.item.id],
-				},
+				references: { related: [childA.data.item.id, childB.data.item.id] },
 			});
 			expect(parent.success).toBe(true);
 			if (!parent.success) return;
@@ -243,7 +386,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 			});
 			expect(got.success).toBe(true);
 			if (got.success) {
-				const refs = got.data.item.references?.[relation.slug];
+				const refs = got.data.item.references?.related;
 				expect(refs?.children.map((c) => c.id)).toEqual([childA.data.item.id, childB.data.item.id]);
 			}
 		} finally {
@@ -314,7 +457,7 @@ describeEachDialect("handleContentGet reference hydration (opt-in)", (dialect) =
 
 			const parent = await handleContentCreate(ctx.db, "posts", {
 				data: { title: "Parent" },
-				references: { [relation.slug]: [child.data.item.id] },
+				references: { related: [child.data.item.id] },
 			});
 			expect(parent.success).toBe(true);
 			if (!parent.success) return;

@@ -253,6 +253,51 @@ describeEachDialect("RelationRepository", (dialect) => {
 		expect(await repo.getChildren("unknown-relation", "p1")).toEqual([]);
 	});
 
+	it("setParents replaces the parents pointing at one child", async () => {
+		const rel = await repo.create({ ...baseInput });
+		await repo.setParents(rel.id, "c1", ["p1", "p2"]);
+
+		expect((await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup)).toEqual([
+			"p1",
+			"p2",
+		]);
+
+		await repo.setParents(rel.id, "c1", ["p2", "p3"]);
+		expect((await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup)).toEqual([
+			"p2",
+			"p3",
+		]);
+	});
+
+	it("setParents leaves the other children of a parent it drops", async () => {
+		const rel = await repo.create({ ...baseInput });
+		await repo.setChildren(rel.id, "p1", ["c1", "c2"]);
+
+		await repo.setParents(rel.id, "c1", []);
+
+		// Replace-all is scoped to (relation, child), so p1 keeps c2.
+		expect((await repo.getChildren(rel.id, "p1")).map((edge) => edge.childGroup)).toEqual(["c2"]);
+	});
+
+	it("setParents appends at the end of each parent's existing children", async () => {
+		const rel = await repo.create({ ...baseInput });
+		await repo.setChildren(rel.id, "p1", ["c1", "c2"]);
+
+		await repo.setParents(rel.id, "c3", ["p1"]);
+
+		const children = await repo.getChildren(rel.id, "p1");
+		expect(children.map((edge) => edge.childGroup)).toEqual(["c1", "c2", "c3"]);
+		expect(children.map((edge) => edge.sortOrder)).toEqual([0, 1, 2]);
+	});
+
+	it("setParents collapses duplicates and no-ops for an unknown relation", async () => {
+		const rel = await repo.create({ ...baseInput });
+		await repo.setParents(rel.id, "c1", ["p1", "p1"]);
+		expect(await repo.getParents(rel.id, "c1")).toHaveLength(1);
+
+		await expect(repo.setParents("unknown-relation", "c1", ["p1"])).resolves.toBeUndefined();
+	});
+
 	it("clearReferencesForGroup removes edges where the group is parent OR child", async () => {
 		const rel = await repo.create({ ...baseInput });
 		await repo.addReference(rel.id, "X", "a"); // X as parent

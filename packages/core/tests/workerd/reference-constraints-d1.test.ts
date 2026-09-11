@@ -37,11 +37,13 @@ it("enforces reference constraints while preserving translation-group inheritanc
 	await registry.createField("constraint_posts", { slug: "title", label: "Title", type: "string" });
 
 	const relation = await new RelationRepository(db).create({
-		name: "constraint_featured_page",
+		slug: "constraint_featured_page",
 		parentCollection: "constraint_posts",
 		childCollection: "constraint_pages",
 		parentLabel: "Posts",
 		childLabel: "Featured page",
+		// The limit is the relation's, not the field's.
+		maxChildrenPerParent: 1,
 	});
 	await registry.createField("constraint_posts", {
 		slug: "featured_page",
@@ -49,7 +51,8 @@ it("enforces reference constraints while preserving translation-group inheritanc
 		type: "reference",
 		required: true,
 		validation: {
-			relation: relation.translationGroup,
+			relation: relation.slug,
+			relationSide: "parent",
 			targetCollection: "constraint_pages",
 			multiple: false,
 		},
@@ -65,7 +68,7 @@ it("enforces reference constraints while preserving translation-group inheritanc
 
 	const source = await handleContentCreate(db, "constraint_posts", {
 		data: { title: "Source" },
-		references: { [relation.translationGroup]: [first.data.item.id] },
+		references: { featured_page: [first.data.item.id] },
 	});
 	expect(source.success).toBe(true);
 	if (!source.success) return;
@@ -74,7 +77,7 @@ it("enforces reference constraints while preserving translation-group inheritanc
 		db,
 		"constraint_posts",
 		source.data.item.id,
-		relation.translationGroup,
+		relation.slug,
 		[first.data.item.id, second.data.item.id],
 	);
 	expect(tooMany.success).toBe(false);
@@ -93,7 +96,7 @@ it("enforces reference constraints while preserving translation-group inheritanc
 	});
 	expect(hydrated.success).toBe(true);
 	if (!hydrated.success) return;
-	const child = hydrated.data.item.references?.[relation.translationGroup]?.children[0];
+	const child = hydrated.data.item.references?.featured_page?.children[0];
 	expect(child?.id).toBe(first.data.item.id);
 	expect(child?.translationGroup).toBe(first.data.item.translationGroup);
 });

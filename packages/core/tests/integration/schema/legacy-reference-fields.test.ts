@@ -187,7 +187,7 @@ describeEachDialect("binding a reference field that predates relations", (dialec
 		});
 		expect(fetched.success).toBe(true);
 		if (!fetched.success) return;
-		expect(fetched.data.item.references?.posts_author?.children.map((child) => child.id)).toEqual([
+		expect(fetched.data.item.references?.author?.children.map((child) => child.id)).toEqual([
 			author.id,
 		]);
 		// The column is frozen, not cleared: on a site that predates pickers it can

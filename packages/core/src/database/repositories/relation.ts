@@ -435,6 +435,68 @@ export class RelationRepository {
 	}
 
 	/**
+	 * Replace all parents of `childGroup` under a relation with `parentGroups`:
+	 * the mirror of `setChildren`, for a field bound to the child side.
+	 *
+	 * Duplicates collapse first-occurrence-wins, and the same
+	 * non-transactional caveats apply — see `setChildren`, including that two
+	 * concurrent replace-all calls for one (relation, child) can merge.
+	 *
+	 * `sort_order` orders children within a parent and has no counterpart on this
+	 * side, so each new edge takes the next position among that parent's existing
+	 * children rather than a position in this child's list. A child-side field
+	 * therefore has no order of its own; `getParents` reads by `id`.
+	 */
+	async setParents(relation: string, childGroup: string, parentGroups: string[]): Promise<void> {
+		const relationId = await this.resolveRelationId(relation);
+		if (!relationId) return;
+
+		await this.db
+			.deleteFrom("_emdash_content_references")
+			.where("relation_id", "=", relationId)
+			.where("child_group", "=", childGroup)
+			.execute();
+
+		const uniqueParentGroups = [...new Set(parentGroups)];
+		if (uniqueParentGroups.length === 0) return;
+
+		// One query for every new parent's highest position, so appending stays a
+		// fixed number of round trips rather than one per parent.
+		const nextSortOrder = new Map<string, number>();
+		for (const groupBatch of chunks(uniqueParentGroups, REFERENCE_INSERT_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+			const maxima = await this.db
+				.selectFrom("_emdash_content_references")
+				.select((eb) => ["parent_group", eb.fn.max("sort_order").as("max")])
+				.where("relation_id", "=", relationId)
+				.where("parent_group", "in", groupBatch)
+				.groupBy("parent_group")
+				.execute();
+			for (const row of maxima) {
+				nextSortOrder.set(row.parent_group, row.max === null ? 0 : Number(row.max) + 1);
+			}
+		}
+
+		const now = new Date().toISOString();
+		const rows = uniqueParentGroups.map((parentGroup) => ({
+			id: ulid(),
+			relation_id: relationId,
+			parent_group: parentGroup,
+			child_group: childGroup,
+			sort_order: nextSortOrder.get(parentGroup) ?? 0,
+			created_at: now,
+		}));
+		for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
+			await this.db
+				.insertInto("_emdash_content_references")
+				.values(rowBatch)
+				.onConflict((oc) => oc.doNothing())
+				.execute();
+		}
+	}
+
+	/**
 	 * Copy every outgoing edge of `fromParentGroup` onto `toParentGroup`,
 	 * preserving relation, child, and sort order. Used when duplicating a content
 	 * entry so the copy carries the same reference selections (edges are
