@@ -107,7 +107,9 @@ export async function resolveReferencePages(
 	options: ResolveReferencesOptions,
 ): Promise<Record<string, ResolvedReferencePage>> {
 	const fieldMap = await getReferenceFieldMap(options.collection);
-	const requested = Object.entries(options.selection).filter(([slug]) => fieldMap.has(slug));
+	const requested = Object.entries(options.selection).filter(
+		(entry): entry is [string, ReferenceQuery] => entry[1] !== undefined && fieldMap.has(entry[0]),
+	);
 	if (requested.length === 0) return {};
 
 	const db = await getDb();

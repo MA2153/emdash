@@ -386,11 +386,16 @@ export function generateTypesFile(collections: CollectionWithFields[]): string {
 		c.fields.some((f) => f.type === "portableText"),
 	);
 
+	const withReferences = collections.filter((c) => c.fields.some(isStoragelessField));
+
 	// Build imports - ContentBylineCredit and TaxonomyTerm are always needed
 	// for the hydrated bylines/terms fields
 	const imports = ["ContentBylineCredit", "TaxonomyTerm"];
 	if (needsPortableText) {
 		imports.push("PortableTextBlock");
+	}
+	if (withReferences.length > 0) {
+		imports.push("ReferencePage");
 	}
 	lines.push(`import type { ${imports.join(", ")} } from "emdash";`);
 	lines.push(``);
@@ -399,10 +404,23 @@ export function generateTypesFile(collections: CollectionWithFields[]): string {
 	// (e.g. `book` and `books` both -> `Book`), so resolve collisions up front
 	// to keep every interface identifier unique within the file.
 	const interfaceNames = uniqueInterfaceNames(collections);
+	// `{Collection}References`, built on an already-unique name. No slug can
+	// produce a data interface name ending in `References` -- `singularize`
+	// always strips the trailing `s` of a final `references` segment -- so the
+	// suffix cannot collide with one.
+	const referenceInterfaces: [CollectionWithFields, string][] = withReferences.map((c) => [
+		c,
+		`${interfaceNames.get(c.slug)}References`,
+	]);
 
 	// Generate individual interfaces
 	for (const collection of collections) {
 		lines.push(generateTypeScript(collection, interfaceNames.get(collection.slug)));
+		lines.push(``);
+	}
+
+	for (const [collection, name] of referenceInterfaces) {
+		lines.push(generateReferencesTypeScript(collection, name, interfaceNames));
 		lines.push(``);
 	}
 
@@ -413,8 +431,45 @@ export function generateTypesFile(collections: CollectionWithFields[]): string {
 		lines.push(`    ${collection.slug}: ${interfaceNames.get(collection.slug)};`);
 	}
 	lines.push(`  }`);
+	if (referenceInterfaces.length > 0) {
+		lines.push(`  interface EmDashCollectionReferences {`);
+		for (const [collection, name] of referenceInterfaces) {
+			lines.push(`    ${collection.slug}: ${name};`);
+		}
+		lines.push(`  }`);
+	}
 	lines.push(`}`);
 
+	return lines.join("\n");
+}
+
+/**
+ * Generate the references interface for one collection: a page per reference
+ * field bound to a relation, keyed by field slug, which is how
+ * `getEmDashEntry({ references })` both asks for and returns them.
+ *
+ * A field is always present on the interface, not optional -- a selection that
+ * names it always yields a page, empty when nothing is linked. The narrowing in
+ * `getEmDashEntry` picks out the fields the caller asked for.
+ */
+function generateReferencesTypeScript(
+	collection: CollectionWithFields,
+	interfaceName: string,
+	interfaceNames: Map<string, string>,
+): string {
+	const lines: string[] = [`export interface ${interfaceName} {`];
+
+	for (const field of collection.fields) {
+		if (!isStoragelessField(field)) continue;
+		// A target outside this file (dropped collection, or a relation whose
+		// other end has not been created) leaves the page's data un-narrowed
+		// rather than referring to an identifier that does not exist.
+		const target = field.validation?.targetCollection;
+		const targetName = target ? interfaceNames.get(target) : undefined;
+		lines.push(`  ${field.slug}: ReferencePage${targetName ? `<${targetName}>` : ""};`);
+	}
+
+	lines.push(`}`);
 	return lines.join("\n");
 }
 

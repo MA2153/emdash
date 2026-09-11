@@ -8,5 +8,9 @@
  */
 export type ReferenceQuery = true | { limit?: number; cursor?: string };
 
-/** The selection a caller opts into, by field slug. */
-export type ReferenceSelection = Record<string, ReferenceQuery>;
+/**
+ * The selection a caller opts into, by field slug. A field mapped to
+ * `undefined` is not requested, so a render can name one conditionally without
+ * building the object in two branches.
+ */
+export type ReferenceSelection = Record<string, ReferenceQuery | undefined>;

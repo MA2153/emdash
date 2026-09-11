@@ -59,6 +59,17 @@ const more = await getEmDashReferences("posts", post.id, "related_posts", {
 
 Both default to 50 entries per field and accept at most 100.
 
+Generated types cover references. A collection with at least one bound reference field gets a `{Collection}References` interface beside its data interface, registered under the collection slug the same way, so `getEmDashEntry` narrows its result to the fields the call named and each page's entries carry the target collection's interface:
+
+```ts
+const { entry: post } = await getEmDashEntry("posts", slug, { references: { author: true } });
+
+// post?.references?.author.entries[0].data is an Author
+// post?.references?.related_posts is a type error: it was not selected
+```
+
+Re-run `emdash types`, or restart the dev server, to pick the interfaces up. A reference field that is not bound to a relation keeps its `string` key in the data interface, as it keeps its column.
+
 Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
 
 A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.

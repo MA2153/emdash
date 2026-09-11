@@ -89,6 +89,58 @@ export type InferCollectionData<T extends string> = T extends keyof EmDashCollec
 	: Record<string, unknown>;
 
 /**
+ * Reference type registry, the counterpart to {@link EmDashCollections}.
+ *
+ * Extended by the generated emdash-env.d.ts for every collection that has at
+ * least one reference field bound to a relation, so a selection resolves to the
+ * target collection's own interface.
+ *
+ * @example
+ * ```ts
+ * // In emdash-env.d.ts (generated):
+ * declare module "emdash" {
+ *   interface EmDashCollectionReferences {
+ *     posts: { author: ReferencePage<Author>; related_posts: ReferencePage<Post> };
+ *   }
+ * }
+ *
+ * // Then in your code:
+ * const { entry } = await getEmDashEntry("posts", slug, { references: { author: true } });
+ * // entry.references.author.entries[0].data.name is typed as string
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface EmDashCollectionReferences {}
+
+/**
+ * Helper type to infer the reference shapes for a collection.
+ * Returns the registered type if known, otherwise falls back to one
+ * un-narrowed page per field slug.
+ */
+export type InferCollectionReferences<T extends string> = T extends keyof EmDashCollectionReferences
+	? EmDashCollectionReferences[T]
+	: ReferencePages;
+
+/**
+ * What `getEmDashEntry`'s `references` option accepts for a collection: any
+ * subset of its reference fields, or any field slug at all for a collection
+ * with no generated entry.
+ */
+export type SelectableReferences<T extends string> = Partial<
+	Record<keyof InferCollectionReferences<T> & string, ReferenceQuery>
+>;
+
+/**
+ * The `references` a selection produces: one page per field it named, and no
+ * key for a field it did not, so a render reads `entry.references.author`
+ * without a second optional check.
+ */
+export type SelectedReferences<T extends string, S> = Pick<
+	InferCollectionReferences<T>,
+	Extract<keyof S, keyof InferCollectionReferences<T>>
+>;
+
+/**
  * Sort direction
  */
 export type SortDirection = "asc" | "desc";
@@ -898,12 +950,19 @@ async function getEmDashCollectionUncached<T extends string, D = InferCollection
  * const author = post?.references?.author.entries[0];
  * ```
  */
-export async function getEmDashEntry<T extends string, D = InferCollectionData<T>>(
+export async function getEmDashEntry<
+	T extends string,
+	D = InferCollectionData<T>,
+	S extends SelectableReferences<T> = {},
+>(
 	type: T,
 	id: string,
-	options?: { locale?: string; references?: ReferenceSelection },
-): Promise<EntryResult<D>> {
-	return resolveEmDashEntry<T, D>(type, id, options);
+	options?: { locale?: string; references?: S },
+): Promise<EntryResult<D, SelectedReferences<T, S>>> {
+	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver returns one page per field the selection named, which is what SelectedReferences picks out
+	return resolveEmDashEntry<T, D>(type, id, options) as Promise<
+		EntryResult<D, SelectedReferences<T, S>>
+	>;
 }
 
 /**
@@ -1000,7 +1059,8 @@ async function referenceTargetNamespaces(
 	const { getReferenceFieldMap } = await import("./references/field-map.js");
 	const fieldMap = await getReferenceFieldMap(collection);
 	const targets = new Set<string>();
-	for (const slug of Object.keys(selection)) {
+	for (const [slug, query] of Object.entries(selection)) {
+		if (query === undefined) continue;
 		const binding = fieldMap.get(slug);
 		if (binding) targets.add(binding.targetCollection);
 	}
