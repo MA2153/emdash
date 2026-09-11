@@ -18,6 +18,7 @@ A seed file has the following top-level shape:
 	"meta": {},
 	"settings": {},
 	"collections": [],
+	"relations": [],
 	"taxonomies": [],
 	"bylines": [],
 	"menus": [],
@@ -28,20 +29,21 @@ A seed file has the following top-level shape:
 }
 ```
 
-| Field         | Type     | Required | Description                           |
-| ------------- | -------- | -------- | ------------------------------------- |
-| `$schema`     | `string` | No       | JSON schema URL for editor validation |
-| `version`     | `"1"`    | Yes      | Seed format version                   |
-| `meta`        | `object` | No       | Metadata about the seed               |
-| `settings`    | `object` | No       | Site settings                         |
-| `collections` | `array`  | No       | Collection definitions                |
-| `taxonomies`  | `array`  | No       | Taxonomy definitions                  |
-| `bylines`     | `array`  | No       | Byline profile definitions            |
-| `menus`       | `array`  | No       | Navigation menus                      |
-| `redirects`   | `array`  | No       | Redirect rules                        |
-| `widgetAreas` | `array`  | No       | Widget area definitions               |
-| `sections`    | `array`  | No       | Reusable content blocks               |
-| `content`     | `object` | No       | Sample content entries                |
+| Field         | Type     | Required | Description                             |
+| ------------- | -------- | -------- | --------------------------------------- |
+| `$schema`     | `string` | No       | JSON schema URL for editor validation   |
+| `version`     | `"1"`    | Yes      | Seed format version                     |
+| `meta`        | `object` | No       | Metadata about the seed                 |
+| `settings`    | `object` | No       | Site settings                           |
+| `collections` | `array`  | No       | Collection definitions                  |
+| `relations`   | `array`  | No       | Relations that reference fields bind to |
+| `taxonomies`  | `array`  | No       | Taxonomy definitions                    |
+| `bylines`     | `array`  | No       | Byline profile definitions              |
+| `menus`       | `array`  | No       | Navigation menus                        |
+| `redirects`   | `array`  | No       | Redirect rules                          |
+| `widgetAreas` | `array`  | No       | Widget area definitions                 |
+| `sections`    | `array`  | No       | Reusable content blocks                 |
+| `content`     | `object` | No       | Sample content entries                  |
 
 ## Meta
 
@@ -157,23 +159,90 @@ Each collection definition creates a content type in the database:
 
 ### Field Types
 
-| Type           | Description                | Stored As         |
-| -------------- | -------------------------- | ----------------- |
-| `string`       | Short text                 | `TEXT`            |
-| `text`         | Long text (textarea)       | `TEXT`            |
-| `number`       | Numeric value              | `REAL`            |
-| `integer`      | Whole number               | `INTEGER`         |
-| `boolean`      | True/false                 | `INTEGER`         |
-| `date`         | Date value                 | `TEXT` (ISO 8601) |
-| `datetime`     | Date and time              | `TEXT` (ISO 8601) |
-| `email`        | Email address              | `TEXT`            |
-| `url`          | URL                        | `TEXT`            |
-| `slug`         | URL-safe string            | `TEXT`            |
-| `portableText` | Rich text content          | `JSON`            |
-| `image`        | Image reference            | `JSON`            |
-| `file`         | File reference             | `JSON`            |
-| `json`         | Arbitrary JSON             | `JSON`            |
-| `reference`    | Reference to another entry | `TEXT`            |
+| Type           | Description                 | Stored As                            |
+| -------------- | --------------------------- | ------------------------------------ |
+| `string`       | Short text                  | `TEXT`                               |
+| `text`         | Long text (textarea)        | `TEXT`                               |
+| `number`       | Numeric value               | `REAL`                               |
+| `integer`      | Whole number                | `INTEGER`                            |
+| `boolean`      | True/false                  | `INTEGER`                            |
+| `date`         | Date value                  | `TEXT` (ISO 8601)                    |
+| `datetime`     | Date and time               | `TEXT` (ISO 8601)                    |
+| `email`        | Email address               | `TEXT`                               |
+| `url`          | URL                         | `TEXT`                               |
+| `slug`         | URL-safe string             | `TEXT`                               |
+| `portableText` | Rich text content           | `JSON`                               |
+| `image`        | Image reference             | `JSON`                               |
+| `file`         | File reference              | `JSON`                               |
+| `json`         | Arbitrary JSON              | `JSON`                               |
+| `reference`    | Links to another collection | nothing; see [Relations](#relations) |
+
+## Relations
+
+A relation joins two collections and owns the links between their entries. A reference field binds to
+one and views its links from one end:
+
+```json
+{
+	"relations": [
+		{
+			"slug": "post_authors",
+			"parentCollection": "posts",
+			"childCollection": "authors",
+			"parentLabel": "Posts",
+			"parentLabelSingular": "Post",
+			"childLabel": "Authors",
+			"childLabelSingular": "Author",
+			"maxChildrenPerParent": 1
+		}
+	]
+}
+```
+
+| Property               | Type             | Required | Description                                            |
+| ---------------------- | ---------------- | -------- | ------------------------------------------------------ |
+| `slug`                 | `string`         | Yes      | Unique name a reference field addresses it by          |
+| `parentCollection`     | `string`         | Yes      | Collection on the parent end                           |
+| `childCollection`      | `string`         | Yes      | Collection on the child end                            |
+| `parentLabel`          | `string`         | Yes      | Names the parent's role, as seen from the child        |
+| `parentLabelSingular`  | `string`         | No       | Singular form of `parentLabel`                         |
+| `childLabel`           | `string`         | Yes      | Names the child's role, as seen from the parent        |
+| `childLabelSingular`   | `string`         | No       | Singular form of `childLabel`                          |
+| `maxChildrenPerParent` | `number \| null` | No       | How many children one parent may link (null: no limit) |
+| `maxParentsPerChild`   | `number \| null` | No       | How many parents one child may link (null: no limit)   |
+
+A reference field names the relation it binds to:
+
+```json
+{
+	"slug": "author",
+	"label": "Author",
+	"type": "reference",
+	"validation": { "relation": "post_authors" }
+}
+```
+
+The side follows from which end of the relation the field's collection sits on, and the target
+collection is the other end. Add `"relationSide": "parent"` or `"child"` only for a relation whose
+two ends are the same collection, where both would match.
+
+A field can name a `targetCollection` instead of a relation, and gets one created for it:
+
+```json
+{
+	"slug": "author",
+	"label": "Author",
+	"type": "reference",
+	"validation": { "targetCollection": "authors", "multiple": false }
+}
+```
+
+That is the shorter path for a link only one collection views. Declare the relation when both
+collections should view it, or to set its labels and limits.
+
+A relation's two collections are fixed once it exists: a seed naming different ones fails rather than
+leaving the links it holds pointing into a collection that is no longer an end of it. Labels and
+limits are updated when the seed is applied with `onConflict: "update"`.
 
 ## Taxonomies
 
@@ -522,6 +591,9 @@ Reference other content entries using the `$ref:` prefix:
 ```
 
 The `$ref:` prefix resolves seed IDs to database IDs during seeding.
+
+For a reference field, declare the links from the parent end of its relation. Both ends view one set
+of links, so a field on the child collection would restate links the parent already carries.
 
 ## Media References
 

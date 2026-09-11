@@ -36,6 +36,7 @@ import type {
 	SeedApplyOptions,
 	SeedApplyResult,
 	SeedCollection,
+	SeedRelation,
 	SeedTaxonomyTerm,
 	SeedMenuItem,
 	SeedWidget,
@@ -107,6 +108,7 @@ export async function applySeed(
 	const result: SeedApplyResult = {
 		collections: { created: 0, skipped: 0, updated: 0 },
 		fields: { created: 0, skipped: 0, updated: 0 },
+		relations: { created: 0, skipped: 0, updated: 0 },
 		taxonomies: { created: 0, terms: 0 },
 		bylines: { created: 0, skipped: 0, updated: 0 },
 		menus: { created: 0, items: 0 },
@@ -128,12 +130,13 @@ export async function applySeed(
 
 	// Apply order (critical for foreign keys and references):
 	// 1. Site settings
-	// 2. Collections + Fields
-	// 3. Taxonomy definitions + Terms
-	// 4. Content (so menu refs can resolve)
-	// 5. Menus + Menu items (can now resolve content refs)
-	// 6. Redirects
-	// 7. Widget areas + Widgets
+	// 2. Relations (so the fields that name them can resolve)
+	// 3. Collections + Fields
+	// 4. Taxonomy definitions + Terms
+	// 5. Content (so menu refs can resolve)
+	// 6. Menus + Menu items (can now resolve content refs)
+	// 7. Redirects
+	// 8. Widget areas + Widgets
 
 	// Track seed content IDs for reference resolution (shared across content and menus)
 	const seedIdMap = new Map<string, string>(); // seed id -> real entry id
@@ -181,13 +184,17 @@ export async function applySeed(
 		result.settings.applied = Object.keys(seed.settings).length;
 	}
 
-	// 2-3. Collections and Fields
+	// 2. Declared relations, before the fields that name them
+	if (seed.relations) {
+		await applySeedRelations(db, seed.relations, seed.collections ?? [], onConflict, result);
+	}
+
+	// 3. Collections and Fields
 	if (seed.collections) {
 		const registry = new SchemaRegistry(db);
 		const seedCollectionSlugs = new Set(seed.collections.map((collection) => collection.slug));
-		const relationSlugs = new Set(
-			(await db.selectFrom("_emdash_relations").select("slug").execute()).map((row) => row.slug),
-		);
+		const knownRelations = await readRelationEnds(db);
+		const relationSlugs = new Set(knownRelations.keys());
 		const externalTargetExists = new Map<string, boolean>();
 		const pendingRelations: Array<{
 			id: string;
@@ -229,7 +236,7 @@ export async function applySeed(
 					// Update or create fields
 					for (const field of collection.fields) {
 						const existingField = await registry.getField(collection.slug, field.slug);
-						await upsertSeedField(db, collection.slug, field, existingField);
+						await upsertSeedField(db, collection.slug, field, existingField, knownRelations);
 						if (existingField) result.fields.updated++;
 						else result.fields.created++;
 					}
@@ -248,10 +255,18 @@ export async function applySeed(
 			const fields = [];
 			for (const field of collection.fields) {
 				let fieldValidation = field.validation;
+				// A field naming a relation binds to it; one naming only a target
+				// collection gets a relation created for it below.
+				const bound = resolveSeedFieldRelation(collection.slug, field, knownRelations);
 				const targetCollection =
-					field.type === "reference" && typeof fieldValidation?.targetCollection === "string"
+					!bound &&
+					field.type === "reference" &&
+					typeof fieldValidation?.targetCollection === "string"
 						? fieldValidation.targetCollection
 						: undefined;
+				if (bound) {
+					fieldValidation = { ...fieldValidation, ...bound };
+				}
 				if (targetCollection) {
 					let targetExists = seedCollectionSlugs.has(targetCollection);
 					if (!targetExists) {
@@ -987,6 +1002,162 @@ export async function applySeed(
 	return result;
 }
 
+/** Every relation the database knows, by slug, with the collections it joins. */
+type RelationEnds = Map<string, { parentCollection: string; childCollection: string }>;
+
+async function readRelationEnds(db: Kysely<Database>): Promise<RelationEnds> {
+	const rows = await db
+		.selectFrom("_emdash_relations")
+		.select(["slug", "parent_collection", "child_collection"])
+		.execute();
+	return new Map(
+		rows.map((row) => [
+			row.slug,
+			{ parentCollection: row.parent_collection, childCollection: row.child_collection },
+		]),
+	);
+}
+
+/**
+ * Resolve the relation a seed reference field names, and which end of it this
+ * collection sits on.
+ *
+ * `relationSide` is only needed for a self-referential relation, where both ends
+ * are this collection; otherwise the side follows from which end matches.
+ * `targetCollection` is the collection at the other end, derived rather than
+ * trusted, so a seed cannot declare a target the relation disagrees with.
+ */
+function resolveSeedFieldRelation(
+	collectionSlug: string,
+	field: SeedField,
+	knownRelations: RelationEnds,
+): { relation: string; relationSide: "parent" | "child"; targetCollection: string } | null {
+	if (field.type !== "reference") return null;
+	const named = field.validation?.relation;
+	if (typeof named !== "string" || named.length === 0) return null;
+
+	const relation = knownRelations.get(named);
+	if (!relation) {
+		throw new SchemaError(`Relation "${named}" not found`, "RELATION_NOT_FOUND");
+	}
+
+	const declared = field.validation?.relationSide;
+	const side =
+		declared === "parent" || declared === "child"
+			? declared
+			: relation.parentCollection === collectionSlug
+				? "parent"
+				: "child";
+
+	const end = side === "parent" ? relation.parentCollection : relation.childCollection;
+	if (end !== collectionSlug) {
+		throw new SchemaError(
+			`Relation "${named}" has no ${side} end on collection "${collectionSlug}"`,
+			"VALIDATION_ERROR",
+		);
+	}
+
+	return {
+		relation: named,
+		relationSide: side,
+		targetCollection: side === "parent" ? relation.childCollection : relation.parentCollection,
+	};
+}
+
+/**
+ * Create or update the relations a seed declares, before the fields that name
+ * them.
+ *
+ * A relation's two collections are fixed once it exists: changing one would
+ * leave its links pointing into a collection that is no longer an end of it, so
+ * a seed that names different ones fails rather than rewriting the row. Labels
+ * and limits are updated under `onConflict: "update"`.
+ */
+async function applySeedRelations(
+	db: Kysely<Database>,
+	relations: SeedRelation[],
+	seedCollections: SeedCollection[],
+	onConflict: "skip" | "update" | "error",
+	result: SeedApplyResult,
+): Promise<void> {
+	const existing = await readRelationEnds(db);
+	const known = new Set(seedCollections.map((collection) => collection.slug));
+	for (const row of await db.selectFrom("_emdash_collections").select("slug").execute()) {
+		known.add(row.slug);
+	}
+
+	const now = new Date().toISOString();
+	for (const relation of relations) {
+		for (const end of [relation.parentCollection, relation.childCollection]) {
+			if (!known.has(end)) {
+				throw new SchemaError(
+					`Relation "${relation.slug}" names collection "${end}", which does not exist`,
+					"COLLECTION_NOT_FOUND",
+				);
+			}
+		}
+
+		const current = existing.get(relation.slug);
+		if (current) {
+			if (
+				current.parentCollection !== relation.parentCollection ||
+				current.childCollection !== relation.childCollection
+			) {
+				throw new SchemaError(
+					`Relation "${relation.slug}" joins ${current.parentCollection} to ${current.childCollection}; ` +
+						`a relation's collections cannot change`,
+					"RELATION_COLLECTIONS_IMMUTABLE",
+				);
+			}
+			if (onConflict === "error") {
+				throw new Error(`Conflict: relation "${relation.slug}" already exists`);
+			}
+			if (onConflict !== "update") {
+				result.relations.skipped++;
+				continue;
+			}
+			await db
+				.updateTable("_emdash_relations")
+				.set({
+					parent_label: relation.parentLabel,
+					parent_label_singular: relation.parentLabelSingular ?? null,
+					child_label: relation.childLabel,
+					child_label_singular: relation.childLabelSingular ?? null,
+					max_children_per_parent: relation.maxChildrenPerParent ?? null,
+					max_parents_per_child: relation.maxParentsPerChild ?? null,
+					updated_at: now,
+				})
+				.where("slug", "=", relation.slug)
+				.execute();
+			result.relations.updated++;
+			continue;
+		}
+
+		await db
+			.insertInto("_emdash_relations")
+			.values({
+				id: ulid(),
+				slug: relation.slug,
+				parent_collection: relation.parentCollection,
+				child_collection: relation.childCollection,
+				parent_label: relation.parentLabel,
+				parent_label_singular: relation.parentLabelSingular ?? null,
+				child_label: relation.childLabel,
+				child_label_singular: relation.childLabelSingular ?? null,
+				max_children_per_parent: relation.maxChildrenPerParent ?? null,
+				max_parents_per_child: relation.maxParentsPerChild ?? null,
+				created_at: now,
+				updated_at: now,
+			})
+			.execute();
+		existing.set(relation.slug, {
+			parentCollection: relation.parentCollection,
+			childCollection: relation.childCollection,
+		});
+		result.relations.created++;
+	}
+}
+
 function allocateSeedRelationName(
 	collectionSlug: string,
 	fieldSlug: string,
@@ -1155,13 +1326,21 @@ async function upsertSeedField(
 	collectionSlug: string,
 	field: SeedField,
 	existing: Field | null,
+	knownRelations: RelationEnds,
 ): Promise<void> {
+	const bound = resolveSeedFieldRelation(collectionSlug, field, knownRelations);
+
 	if (existing) {
-		const validation =
-			field.type === "reference" && existing.validation?.relation
+		// A field naming a relation binds to that one. Otherwise keep whatever
+		// relation the field is already bound to: a seed's field validation omits
+		// the server-assigned keys and would orphan the relation row.
+		const validation = bound
+			? { ...field.validation, ...bound }
+			: field.type === "reference" && existing.validation?.relation
 				? {
 						...field.validation,
 						relation: existing.validation.relation,
+						relationSide: existing.validation.relationSide,
 						targetCollection: existing.validation.targetCollection,
 					}
 				: field.validation;
@@ -1194,6 +1373,15 @@ async function upsertSeedField(
 		widget: field.widget,
 		options: field.options,
 	};
+
+	if (bound) {
+		const registry = new SchemaRegistry(db);
+		await registry.createField(collectionSlug, {
+			...input,
+			validation: { ...field.validation, ...bound },
+		});
+		return;
+	}
 
 	const targetCollection =
 		field.type === "reference" && typeof field.validation?.targetCollection === "string"

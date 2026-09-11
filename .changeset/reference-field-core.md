@@ -31,3 +31,38 @@ Migration 076 restructures `_emdash_relations` to match: the per-locale rows col
 Deleting a reference field no longer deletes its relation by default. The relation and its edges survive until they are deleted deliberately, either from the relations admin or by opting in on the field delete, which also removes the field bound to the relation's other side. Deleting a collection removes every relation it is an end of, along with the reference fields viewing them — including fields on the collection at the far end, which would otherwise address a collection that no longer exists.
 
 Reading a relation now reports what deleting it would take: the reference fields bound to it and how many links it holds.
+
+Seed files gain a top-level `relations` array, so a relation can be declared with its labels and limits instead of being created as a side effect of the first reference field that needs one:
+
+```json
+{
+	"relations": [
+		{
+			"slug": "post_authors",
+			"parentCollection": "posts",
+			"childCollection": "authors",
+			"parentLabel": "Posts",
+			"childLabel": "Authors",
+			"maxChildrenPerParent": 1
+		}
+	],
+	"collections": [
+		{
+			"slug": "posts",
+			"label": "Posts",
+			"fields": [
+				{
+					"slug": "author",
+					"label": "Author",
+					"type": "reference",
+					"validation": { "relation": "post_authors" }
+				}
+			]
+		}
+	]
+}
+```
+
+A field that names a relation binds to it; the side it views follows from which end its collection sits on, and `relationSide` is needed only for a relation whose two ends are the same collection. A field that names only a `targetCollection` still gets a relation created for it. Re-applying a seed updates a relation's labels and limits under `onConflict: "update"`, but a seed naming different collections for an existing relation fails rather than leaving its links pointing into a collection that is no longer an end of it.
+
+`emdash export-seed` emits those relations, and `--with-content` emits each entry's links as `$ref:` values on the parent side of the relation, so a site's reference selections survive an export and re-apply. Entry IDs in a reference field with no relation are emitted as `$ref:` too; previously they were emitted as a reference to the source database's row id, which resolved to nothing on apply.

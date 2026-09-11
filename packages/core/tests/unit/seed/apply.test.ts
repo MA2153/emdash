@@ -353,6 +353,204 @@ describe("applySeed", () => {
 		});
 	});
 
+	describe("relations", () => {
+		/** Two collections, and a relation joining them, declared up front. */
+		function seedWithRelation(overrides: Partial<SeedFile> = {}): SeedFile {
+			return {
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [{ slug: "title", label: "Title", type: "string" }],
+					},
+					{
+						slug: "authors",
+						label: "Authors",
+						fields: [{ slug: "name", label: "Name", type: "string" }],
+					},
+				],
+				relations: [
+					{
+						slug: "post_authors",
+						parentCollection: "posts",
+						childCollection: "authors",
+						parentLabel: "Posts",
+						parentLabelSingular: "Post",
+						childLabel: "Authors",
+						childLabelSingular: "Author",
+						maxChildrenPerParent: 2,
+					},
+				],
+				...overrides,
+			};
+		}
+
+		it("creates a declared relation with its labels and limits", async () => {
+			const result = await applySeed(db, seedWithRelation());
+
+			expect(result.relations).toMatchObject({ created: 1, updated: 0, skipped: 0 });
+			const relation = await new RelationRepository(db).findBySlug("post_authors");
+			expect(relation).toMatchObject({
+				parentCollection: "posts",
+				childCollection: "authors",
+				parentLabel: "Posts",
+				parentLabelSingular: "Post",
+				childLabel: "Authors",
+				childLabelSingular: "Author",
+				maxChildrenPerParent: 2,
+				maxParentsPerChild: null,
+			});
+		});
+
+		it("binds a field that names a relation instead of creating a second one", async () => {
+			const seed = seedWithRelation();
+			seed.collections![0]!.fields.push({
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "post_authors" },
+			});
+
+			await applySeed(db, seed);
+
+			expect(await new RelationRepository(db).list()).toHaveLength(1);
+			const field = await new SchemaRegistry(db).getField("posts", "author");
+			expect(field?.validation).toMatchObject({
+				relation: "post_authors",
+				relationSide: "parent",
+				targetCollection: "authors",
+			});
+		});
+
+		it("binds a field on the other collection to the child side of the same relation", async () => {
+			const seed = seedWithRelation();
+			seed.collections![1]!.fields.push({
+				slug: "posts",
+				label: "Posts",
+				type: "reference",
+				validation: { relation: "post_authors" },
+			});
+
+			await applySeed(db, seed);
+
+			const field = await new SchemaRegistry(db).getField("authors", "posts");
+			expect(field?.validation).toMatchObject({
+				relation: "post_authors",
+				relationSide: "child",
+				targetCollection: "posts",
+			});
+		});
+
+		it("keeps the declared side for a relation whose ends are the same collection", async () => {
+			const seed: SeedFile = {
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [
+							{ slug: "title", label: "Title", type: "string" },
+							{
+								slug: "referenced_by",
+								label: "Referenced by",
+								type: "reference",
+								validation: { relation: "related_posts", relationSide: "child" },
+							},
+						],
+					},
+				],
+				relations: [
+					{
+						slug: "related_posts",
+						parentCollection: "posts",
+						childCollection: "posts",
+						parentLabel: "Referenced by",
+						childLabel: "Related posts",
+					},
+				],
+			};
+
+			await applySeed(db, seed);
+
+			const field = await new SchemaRegistry(db).getField("posts", "referenced_by");
+			expect(field?.validation).toMatchObject({
+				relationSide: "child",
+				targetCollection: "posts",
+			});
+		});
+
+		it("updates labels and limits on re-apply, and leaves them on skip", async () => {
+			await applySeed(db, seedWithRelation());
+
+			const changed = seedWithRelation();
+			changed.relations![0]!.childLabel = "Bylines";
+			changed.relations![0]!.maxChildrenPerParent = null;
+
+			const skipped = await applySeed(db, changed);
+			expect(skipped.relations).toMatchObject({ created: 0, updated: 0, skipped: 1 });
+			expect((await new RelationRepository(db).findBySlug("post_authors"))?.childLabel).toBe(
+				"Authors",
+			);
+
+			const updated = await applySeed(db, changed, { onConflict: "update" });
+			expect(updated.relations).toMatchObject({ created: 0, updated: 1, skipped: 0 });
+			expect(await new RelationRepository(db).findBySlug("post_authors")).toMatchObject({
+				childLabel: "Bylines",
+				maxChildrenPerParent: null,
+			});
+		});
+
+		it("refuses to move a relation onto different collections", async () => {
+			await applySeed(db, seedWithRelation());
+
+			const moved = seedWithRelation();
+			moved.relations![0]!.childCollection = "posts";
+
+			// The links it already holds point into the collection it is leaving.
+			await expect(applySeed(db, moved, { onConflict: "update" })).rejects.toThrow(
+				/collections cannot change/,
+			);
+		});
+
+		it("refuses a relation naming a collection that does not exist", async () => {
+			const seed = seedWithRelation();
+			seed.relations![0]!.childCollection = "ghosts";
+
+			await expect(applySeed(db, seed)).rejects.toMatchObject({ code: "COLLECTION_NOT_FOUND" });
+		});
+
+		it("refuses a field naming a relation that does not exist", async () => {
+			const seed = seedWithRelation();
+			seed.collections![0]!.fields.push({
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "nope" },
+			});
+
+			await expect(applySeed(db, seed)).rejects.toMatchObject({ code: "RELATION_NOT_FOUND" });
+		});
+
+		it("refuses a field naming a relation that does not touch its collection", async () => {
+			const seed = seedWithRelation();
+			seed.collections!.push({
+				slug: "pages",
+				label: "Pages",
+				fields: [
+					{
+						slug: "author",
+						label: "Author",
+						type: "reference",
+						validation: { relation: "post_authors" },
+					},
+				],
+			});
+
+			await expect(applySeed(db, seed)).rejects.toThrow(/has no child end on collection "pages"/);
+		});
+	});
+
 	describe("taxonomies", () => {
 		it("should create taxonomy definitions", async () => {
 			const seed: SeedFile = {
