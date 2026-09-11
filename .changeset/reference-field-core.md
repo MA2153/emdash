@@ -13,6 +13,16 @@ A selection is addressed by field slug, in the entry create and update bodies an
 
 A field bound to the child end of its relation selects the entries pointing at it, and those have no order of their own: `sort_order` positions children within one parent, and nothing positions a child's parents. The relation-scoped routes, `/content/{collection}/{id}/references/{relation}/children` and `/parents`, still address a relation — that is what they are about.
 
+#### Reference selections are versioned
+
+On a collection that keeps revisions, changing a picker on a published entry no longer changes the published page. The new selection is staged in the entry's draft alongside its other pending edits and becomes live when the entry is published — through the publish action, a scheduled publish, or restoring a revision. Discarding the draft discards the selection with it, and duplicating an entry copies the published selection rather than the source's pending one.
+
+An entry read that includes drafts, which is what the admin does, reports the staged selection; a public read reports the published one. A collection created without `revisions` support keeps writing a selection straight through, as do entry creations, which have no published version to differ from.
+
+Publishing re-checks the staged selection against the relation's limits, so a draft cannot carry a selection past a schema change that would now reject it — the publish fails with `VALIDATION_ERROR` and the published selection stands.
+
+Comparing an entry's live and draft revisions now reports `_references` on both sides, filled in from the published selection for the fields a draft did not stage, so an unchanged reference field does not read as one the draft removed.
+
 Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
 
 A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.

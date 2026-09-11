@@ -257,16 +257,18 @@ describeEachDialect("RelationRepository", (dialect) => {
 		const rel = await repo.create({ ...baseInput });
 		await repo.setParents(rel.id, "c1", ["p1", "p2"]);
 
-		expect((await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup)).toEqual([
-			"p1",
-			"p2",
-		]);
+		// A child's parents have no order: `sort_order` positions children within
+		// one parent and has no counterpart here, so `getParents` falls back to
+		// link id, and two links written in the same millisecond carry ULIDs whose
+		// order is not the write order. Assert the set.
+		expect(
+			(await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup).toSorted(),
+		).toEqual(["p1", "p2"]);
 
 		await repo.setParents(rel.id, "c1", ["p2", "p3"]);
-		expect((await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup)).toEqual([
-			"p2",
-			"p3",
-		]);
+		expect(
+			(await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup).toSorted(),
+		).toEqual(["p2", "p3"]);
 	});
 
 	it("setParents leaves the other children of a parent it drops", async () => {

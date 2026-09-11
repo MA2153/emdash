@@ -387,7 +387,7 @@ function pickVariant(items: ContentItem[], locale: string | null): ContentItem |
  * is restricted to published entries so a draft/scheduled entry referenced by an
  * edge is skipped exactly like a dangling one, never leaking its id/slug/locale.
  */
-export async function resolveEntries(
+export function resolveEntries(
 	content: ContentRepository,
 	collection: string,
 	edges: ContentReference[],
@@ -396,13 +396,56 @@ export async function resolveEntries(
 	includeDrafts: boolean,
 	titleField?: string,
 ): Promise<EntryRef[]> {
-	const groups = edges.map(pick);
-	const all = await content.findTranslationsForGroups(collection, groups, {
-		publishedOnly: !includeDrafts,
-	});
+	return resolveGroupSelection(
+		content,
+		collection,
+		edges.map((edge) => ({ group: pick(edge), sortOrder: edge.sortOrder })),
+		locale,
+		includeDrafts,
+		titleField,
+	);
+}
 
-	// Group the flat variant list by translation_group so each edge can pick its
-	// own locale variant.
+/**
+ * `resolveEntries` for a selection that has no links behind it yet — a pending
+ * one staged in a draft revision, which is already a list of translation groups
+ * in the order the editor chose. Position stands in for the `sort_order` the
+ * links will carry once it is published.
+ */
+export function resolveEntryGroups(
+	content: ContentRepository,
+	collection: string,
+	groups: string[],
+	locale: string | null,
+	includeDrafts: boolean,
+	titleField?: string,
+): Promise<EntryRef[]> {
+	return resolveGroupSelection(
+		content,
+		collection,
+		groups.map((group, index) => ({ group, sortOrder: index })),
+		locale,
+		includeDrafts,
+		titleField,
+	);
+}
+
+async function resolveGroupSelection(
+	content: ContentRepository,
+	collection: string,
+	selection: Array<{ group: string; sortOrder: number }>,
+	locale: string | null,
+	includeDrafts: boolean,
+	titleField?: string,
+): Promise<EntryRef[]> {
+	const all = await content.findTranslationsForGroups(
+		collection,
+		selection.map((entry) => entry.group),
+		{ publishedOnly: !includeDrafts },
+	);
+
+	// Group the flat variant list by translation_group so each selected entry can
+	// pick its own locale variant.
 	const variantsByGroup = new Map<string, ContentItem[]>();
 	for (const item of all) {
 		if (item.translationGroup == null) continue;
@@ -412,8 +455,8 @@ export async function resolveEntries(
 	}
 
 	const refs: EntryRef[] = [];
-	for (const edge of edges) {
-		const variants = variantsByGroup.get(pick(edge));
+	for (const selected of selection) {
+		const variants = variantsByGroup.get(selected.group);
 		if (!variants) continue;
 		const entry = pickVariant(variants, locale);
 		if (!entry) continue;
@@ -424,7 +467,7 @@ export async function resolveEntries(
 			title: entryTitle(entry.data, titleField),
 			locale: entry.locale,
 			translationGroup: entry.translationGroup,
-			sortOrder: edge.sortOrder,
+			sortOrder: selected.sortOrder,
 		});
 	}
 	return refs;
@@ -483,25 +526,37 @@ export async function handleReferenceChildrenGet(
 }
 
 /**
- * Resolve a relation + an entry on one of its ends + the ids it selects, and
- * replace that entry's links. Extracted from `handleReferenceChildrenSet` so the
- * content create/update transaction can reuse the same resolution logic with
- * either a `Kysely<Database>` or a `Transaction<Database>`.
- *
- * `side` is the end the entry sits on: a `parent` entry replaces its children, a
- * `child` entry replaces the parents pointing at it.
- *
- * Returns the resolved relation/entry translation_groups on success so callers
- * can re-read and echo the new set without re-deriving them.
+ * A selection expressed in the identifiers the link table actually stores:
+ * `translation_group` on both ends, because an edge names a thing rather than
+ * one locale's row of it.
  */
-async function setReferenceSide(
+export interface ReferenceSelectionWrite {
+	/** The relation, by id or slug — `setChildren` / `setParents` take either. */
+	relation: string;
+	/** The end of the relation the selecting entry sits on. */
+	side: "parent" | "child";
+	/** The selecting entry's own translation group. */
+	entryGroup: string;
+	/** The selected entries' translation groups, in the caller's order. */
+	groups: string[];
+}
+
+/**
+ * Resolve a relation + an entry on one of its ends + the ids it selects, without
+ * writing anything, so a draft save can validate and canonicalize a selection at
+ * save time and stage the result.
+ *
+ * `side` is the end the entry sits on: a `parent` entry selects children, a
+ * `child` entry selects the parents pointing at it.
+ */
+async function resolveReferenceSide(
 	db: Kysely<Database>,
 	collection: string,
 	entryId: string,
 	relation: string,
 	selectedIds: string[],
 	side: "parent" | "child",
-): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
+): Promise<ApiResult<ReferenceSelectionWrite>> {
 	const repo = new RelationRepository(db);
 	const content = new ContentRepository(db);
 
@@ -557,14 +612,53 @@ async function setReferenceSide(
 		groups.push(other.translationGroup);
 	}
 
-	if (side === "parent") {
-		await repo.setChildren(rel.id, entry.translationGroup, groups);
-	} else {
-		await repo.setParents(rel.id, entry.translationGroup, groups);
-	}
 	return {
 		success: true,
-		data: { relationId: rel.id, entryGroup: entry.translationGroup },
+		data: { relation: rel.id, side, entryGroup: entry.translationGroup, groups },
+	};
+}
+
+/**
+ * Replace one end's links from an already-resolved selection.
+ *
+ * Nothing here can fail on the caller's input: resolution has already proved the
+ * relation, the entry and every selected entry exist. That is what lets publish
+ * apply a staged selection on D1, where the surrounding transaction degrades to
+ * sequential statements and a mid-way failure cannot be rolled back.
+ */
+export async function writeReferenceSelection(
+	db: Kysely<Database>,
+	selection: ReferenceSelectionWrite,
+): Promise<void> {
+	const repo = new RelationRepository(db);
+	if (selection.side === "parent") {
+		await repo.setChildren(selection.relation, selection.entryGroup, selection.groups);
+	} else {
+		await repo.setParents(selection.relation, selection.entryGroup, selection.groups);
+	}
+}
+
+/**
+ * Resolve a relation + an entry on one of its ends + the ids it selects, and
+ * replace that entry's links.
+ *
+ * Returns the resolved relation/entry translation_groups on success so callers
+ * can re-read and echo the new set without re-deriving them.
+ */
+async function setReferenceSide(
+	db: Kysely<Database>,
+	collection: string,
+	entryId: string,
+	relation: string,
+	selectedIds: string[],
+	side: "parent" | "child",
+): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
+	const resolved = await resolveReferenceSide(db, collection, entryId, relation, selectedIds, side);
+	if (!resolved.success) return resolved;
+	await writeReferenceSelection(db, resolved.data);
+	return {
+		success: true,
+		data: { relationId: resolved.data.relation, entryGroup: resolved.data.entryGroup },
 	};
 }
 
@@ -594,6 +688,29 @@ export async function setReferenceSelection(
 	fieldSlug: string,
 	selectedIds: string[],
 ): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
+	const resolved = await resolveReferenceSelection(db, collection, entryId, fieldSlug, selectedIds);
+	if (!resolved.success) return resolved;
+	await writeReferenceSelection(db, resolved.data);
+	return {
+		success: true,
+		data: { relationId: resolved.data.relation, entryGroup: resolved.data.entryGroup },
+	};
+}
+
+/**
+ * `setReferenceSelection` up to but not including the write.
+ *
+ * A collection that keeps drafts stages the result in its draft revision instead
+ * of writing links, so a save reports a bad id or an over-long selection exactly
+ * as a direct write would, and publication has nothing left to resolve.
+ */
+export async function resolveReferenceSelection(
+	db: Kysely<Database>,
+	collection: string,
+	entryId: string,
+	fieldSlug: string,
+	selectedIds: string[],
+): Promise<ApiResult<ReferenceSelectionWrite>> {
 	const constraints = (await referenceFieldConstraints(db, collection)).get(fieldSlug);
 	if (!constraints) {
 		return {
@@ -604,7 +721,7 @@ export async function setReferenceSelection(
 			},
 		};
 	}
-	return setReferenceSide(
+	return resolveReferenceSide(
 		db,
 		collection,
 		entryId,

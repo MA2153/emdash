@@ -271,10 +271,13 @@ describeEachDialect("a reference field bound to the child side of its relation",
 				{ includeDrafts: true },
 			);
 			if (!hydratedAuthor.success) throw new Error("author read failed");
-			expect(hydratedAuthor.data.item.references?.posts?.children.map((c) => c.id)).toEqual([
-				first.data.item.id,
-				second.data.item.id,
-			]);
+			// The child side is unordered by design: `sort_order` positions children
+			// within one parent and has no symmetric counterpart, so this list comes
+			// back by link id. Two links written in the same millisecond carry ULIDs
+			// whose order is not the write order, so assert the set, not a sequence.
+			expect(
+				hydratedAuthor.data.item.references?.posts?.children.map((c) => c.id).toSorted(),
+			).toEqual([first.data.item.id, second.data.item.id].toSorted());
 
 			// The same links seen from the parent end, through the other field.
 			const hydratedPost = await handleContentGet(ctx.db, "posts", first.data.item.id, undefined, {

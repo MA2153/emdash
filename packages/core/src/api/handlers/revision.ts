@@ -10,6 +10,7 @@ import { RevisionRepository, type Revision } from "../../database/repositories/r
 import { withTransaction } from "../../database/transaction.js";
 import type { Database } from "../../database/types.js";
 import type { ApiResult, ContentResponse } from "../types.js";
+import { applyStagedReferences, readStagedReferences } from "./staged-references.js";
 
 export interface RevisionListResponse {
 	items: Revision[];
@@ -110,8 +111,16 @@ export async function handleRevisionRestore(
 			};
 		}
 
-		// Extract _slug from revision data (stored as metadata, not a real column)
-		const { _slug, ...fieldData } = revision.data;
+		// Leading-underscore keys are staged metadata (`_slug`, `_references`), not
+		// columns — `writableContentData` rejects them as identifiers. Each is
+		// restored on its own path below, both live: a restore replaces the
+		// published entry rather than staging a new draft.
+		const { _slug } = revision.data;
+		const fieldData: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(revision.data)) {
+			if (!key.startsWith("_")) fieldData[key] = value;
+		}
+		const stagedReferences = readStagedReferences(revision.data);
 
 		// Atomically update content and create a new revision to record the restore.
 		// If either operation fails, neither is committed (on engines that support
@@ -124,6 +133,15 @@ export async function handleRevisionRestore(
 				data: fieldData,
 				slug: typeof _slug === "string" ? _slug : undefined,
 			});
+
+			if (stagedReferences && updated.translationGroup) {
+				await applyStagedReferences(
+					trx,
+					revision.collection,
+					updated.translationGroup,
+					stagedReferences,
+				);
+			}
 
 			const queuedRevision = await trxRevisionRepo.create({
 				collection: revision.collection,

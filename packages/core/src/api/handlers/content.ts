@@ -48,7 +48,20 @@ import { invalidateTermCache } from "../../taxonomies/index.js";
 import { isMissingColumnError, isMissingTableError } from "../../utils/db-errors.js";
 import { decodeRev, encodeRev, validateRev } from "../rev.js";
 import type { ApiResult, ContentListResponse, ContentResponse } from "../types.js";
-import { getReferenceTitleField, resolveEntries, setReferenceSelection } from "./relations.js";
+import {
+	getReferenceTitleField,
+	resolveEntries,
+	resolveEntryGroups,
+	setReferenceSelection,
+} from "./relations.js";
+import {
+	applyStagedReferences,
+	liveReferenceSelection,
+	readStagedReferences,
+	STAGED_REFERENCES_KEY,
+	type StagedReferences,
+	validateStagedReferences,
+} from "./staged-references.js";
 import { validateMediaFields } from "./validate-media-fields.js";
 import { validateRequiredReferencesPresent } from "./validate-references.js";
 
@@ -222,6 +235,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * entry can carry a draft/scheduled entry's id and slug. See
  * `handleContentGet`'s `referenceOptions` param — the REST GET route is the
  * only caller that currently opts in.
+ *
+ * For a caller that opted into drafts, a field whose selection is staged in the
+ * entry's draft revision is answered from that revision; every other field, and
+ * every field for a caller that did not opt in, is answered from the links,
+ * which hold the published selection. That is what keeps a picker change on a
+ * published entry invisible until it is published.
+ *
+ * A staged selection arrives whole rather than a page at a time: it is already
+ * in memory, and resolving it costs the one batched read the save that staged it
+ * already paid.
  */
 async function hydrateReferences(
 	db: Kysely<Database>,
@@ -254,6 +277,13 @@ async function hydrateReferences(
 	const repo = new RelationRepository(db);
 	const content = new ContentRepository(db);
 
+	const staged =
+		includeDrafts && item.draftRevisionId
+			? readStagedReferences(
+					(await new RevisionRepository(db).findById(item.draftRevisionId))?.data,
+				)
+			: undefined;
+
 	for (const field of fields) {
 		let validation: Record<string, unknown> = {};
 		if (field.validation) {
@@ -271,6 +301,21 @@ async function hydrateReferences(
 		// A field with no relation keeps its own column; its value is already in
 		// `data` and there are no links to resolve.
 		if (!relation || !targetCollection) continue;
+
+		const stagedGroups = staged?.[field.slug];
+		if (stagedGroups) {
+			references[field.slug] = {
+				children: await resolveEntryGroups(
+					content,
+					targetCollection,
+					stagedGroups,
+					item.locale,
+					includeDrafts,
+					await getReferenceTitleField(db, targetCollection),
+				),
+			};
+			continue;
+		}
 
 		// A field on the child end of its relation selects parents, which carry no
 		// order of their own — `sort_order` positions children within one parent.
@@ -1859,6 +1904,25 @@ export async function handleContentPublish(
 			// are normally created.
 			const existing = await repo.findById(collection, resolvedId);
 
+			// A selection staged in the draft becomes the live one here. Validate
+			// before the publishing statement rather than after: `withTransaction`
+			// degrades to sequential statements on D1, so a selection rejected
+			// afterwards would leave the entry published with the old links.
+			const stagedReferences =
+				publishConfig.supportsRevisions && existing?.draftRevisionId
+					? readStagedReferences(
+							(await new RevisionRepository(trx).findById(existing.draftRevisionId))?.data,
+						)
+					: undefined;
+			if (stagedReferences) {
+				const valid = await validateStagedReferences(trx, collection, stagedReferences);
+				if (!valid.success) {
+					throw Object.assign(new Error(valid.error.message), {
+						apiError: { code: valid.error.code },
+					});
+				}
+			}
+
 			const published = await repo.publish(
 				collection,
 				resolvedId,
@@ -1869,6 +1933,10 @@ export async function handleContentPublish(
 				publishConfig.routable,
 				expectedRevision,
 			);
+
+			if (stagedReferences && published.translationGroup) {
+				await applyStagedReferences(trx, collection, published.translationGroup, stagedReferences);
+			}
 
 			// Leave a 301 behind when publishing changed the slug of an entry that
 			// was already published — its old URL was live and may be indexed or
@@ -1901,6 +1969,12 @@ export async function handleContentPublish(
 			data: { item, _rev: encodeRev(item) },
 		};
 	} catch (error) {
+		if (hasApiError(error)) {
+			return {
+				success: false,
+				error: { code: error.apiError.code, message: error.message },
+			};
+		}
 		if (error instanceof ContentMutationConflictError) {
 			return {
 				success: false,
@@ -2131,13 +2205,31 @@ export async function handleContentCompare(
 		const live = entry.liveRevisionId ? await revisionRepo.findById(entry.liveRevisionId) : null;
 		const draft = entry.draftRevisionId ? await revisionRepo.findById(entry.draftRevisionId) : null;
 
+		// Reference selections have to be filled in from the links on both sides
+		// before they can be compared. The published selection is the links, not
+		// whatever `_references` the live revision happens to carry; and the draft
+		// stages only the fields its saves named, so the rest of its effective
+		// selection is the live one.
+		const liveReferences = entry.translationGroup
+			? await liveReferenceSelection(db, collection, entry.translationGroup)
+			: {};
+		const withReferences = (
+			revisionData: Record<string, unknown> | undefined,
+			staged: StagedReferences,
+		) => {
+			if (!revisionData) return undefined;
+			const selection = { ...liveReferences, ...staged };
+			if (Object.keys(selection).length === 0) return revisionData;
+			return { ...revisionData, [STAGED_REFERENCES_KEY]: selection };
+		};
+
 		return {
 			success: true,
 			data: {
 				hasChanges:
 					entry.draftRevisionId !== null && entry.draftRevisionId !== entry.liveRevisionId,
-				live: live?.data ?? null,
-				draft: draft?.data ?? null,
+				live: withReferences(live?.data, {}) ?? null,
+				draft: withReferences(draft?.data, readStagedReferences(draft?.data) ?? {}) ?? null,
 			},
 		};
 	} catch (error) {
