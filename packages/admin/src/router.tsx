@@ -54,6 +54,8 @@ import { PluginSettings } from "./components/PluginSettings";
 import { Redirects } from "./components/Redirects";
 import { RegistryBrowse } from "./components/RegistryBrowse";
 import { RegistryPluginDetail } from "./components/RegistryPluginDetail";
+import { RelationEditor } from "./components/RelationEditor";
+import { RelationList } from "./components/RelationList";
 import { SandboxedPluginPage } from "./components/SandboxedPluginPage";
 import { SectionEditor } from "./components/SectionEditor";
 import { Sections } from "./components/Sections";
@@ -89,7 +91,12 @@ import {
 	fetchMediaList,
 	updateMedia,
 	uploadMedia,
+	createRelation,
 	fetchCollections,
+	fetchRelations,
+	updateRelation,
+	type CreateRelationInput,
+	type UpdateRelationInput,
 	fetchCollection,
 	createCollection,
 	updateCollection,
@@ -2506,6 +2513,118 @@ function ContentTypesNewPage() {
 	);
 }
 
+// Relations: link definitions between two content types. Under /content-types
+// because a relation is schema, like a collection.
+const relationsListRoute = createRoute({
+	getParentRoute: () => adminLayoutRoute,
+	path: "/content-types/relations",
+	component: RelationsListPage,
+});
+
+function RelationsListPage() {
+	const { data: relations, isLoading, error } = useRelationsQuery();
+
+	return (
+		<RelationList
+			relations={relations ?? []}
+			isLoading={isLoading}
+			error={error ? error.message : undefined}
+		/>
+	);
+}
+
+function useRelationsQuery() {
+	return useQuery({
+		queryKey: ["relations"],
+		queryFn: () => fetchRelations(),
+	});
+}
+
+const relationsNewRoute = createRoute({
+	getParentRoute: () => adminLayoutRoute,
+	path: "/content-types/relations/new",
+	component: RelationsNewPage,
+});
+
+function RelationsNewPage() {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+
+	const { data: collections = [] } = useQuery({
+		queryKey: ["schema", "collections"],
+		queryFn: fetchCollections,
+	});
+
+	const createMutation = useMutation({
+		mutationFn: (input: CreateRelationInput) => createRelation(input),
+		onSuccess: (relation) => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+			void navigate({
+				to: "/content-types/relations/$slug",
+				params: { slug: relation.slug },
+			});
+		},
+	});
+
+	return (
+		<RelationEditor
+			isNew
+			collections={collections}
+			isSaving={createMutation.isPending}
+			error={createMutation.error ? createMutation.error.message : undefined}
+			onSave={(input) => createMutation.mutate(input as CreateRelationInput)}
+		/>
+	);
+}
+
+const relationsEditRoute = createRoute({
+	getParentRoute: () => adminLayoutRoute,
+	path: "/content-types/relations/$slug",
+	component: RelationsEditPage,
+});
+
+function RelationsEditPage() {
+	const { slug } = useParams({ from: "/_admin/content-types/relations/$slug" });
+	const queryClient = useQueryClient();
+	const { t } = useLingui();
+
+	// The list carries the same `RelationWithUsage` shape the editor needs, and
+	// the relation endpoints address a relation by id while the URL names it by
+	// slug — so one list read answers both.
+	const { data: relations, isLoading, error } = useRelationsQuery();
+	const relation = relations?.find((r) => r.slug === slug);
+
+	const updateMutation = useMutation({
+		mutationFn: (input: UpdateRelationInput) => {
+			if (!relation) throw new Error("Relation not loaded");
+			return updateRelation(relation.id, input);
+		},
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+		},
+	});
+
+	const { data: collections = [] } = useQuery({
+		queryKey: ["schema", "collections"],
+		queryFn: fetchCollections,
+	});
+
+	if (error) return <ErrorScreen error={error.message} />;
+	if (isLoading) return <LoadingScreen />;
+	if (!relation) return <ErrorScreen error={t`Relation not found`} />;
+
+	return (
+		<RelationEditor
+			key={relation.id}
+			relation={relation}
+			collections={collections}
+			isSaving={updateMutation.isPending}
+			error={updateMutation.error ? updateMutation.error.message : undefined}
+			onSave={(input) => updateMutation.mutate(input)}
+		/>
+	);
+}
+
 const contentTypesEditRoute = createRoute({
 	getParentRoute: () => adminLayoutRoute,
 	path: "/content-types/$slug",
@@ -2680,6 +2799,9 @@ const adminRoutes = adminLayoutRoute.addChildren([
 	contentEditRoute,
 	contentTypesListRoute,
 	contentTypesNewRoute,
+	relationsListRoute,
+	relationsNewRoute,
+	relationsEditRoute,
 	contentTypesEditRoute,
 	mediaRoute,
 	commentsRoute,

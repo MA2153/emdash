@@ -420,12 +420,21 @@ export { type CurrentUser, useCurrentUser } from "./current-user.js";
 
 // Relations (reference fields)
 export {
-	type RelationDef,
+	type BoundField,
+	type CreateRelationInput,
 	type EntryRef,
 	type ReferencePageOptions,
-	fetchRelations,
+	type RelationDef,
+	type RelationSide,
+	type RelationWithUsage,
+	type UpdateRelationInput,
+	createRelation,
+	deleteRelation,
 	fetchReferenceChildren,
 	fetchReferenceParents,
+	fetchRelation,
+	fetchRelations,
+	updateRelation,
 } from "./relations.js";
 
 // Entry edit locks

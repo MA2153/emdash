@@ -26,6 +26,7 @@ import {
 	Warning,
 	Check,
 	DotsSixVertical,
+	LinkSimple,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
@@ -118,9 +119,14 @@ export function ContentTypeList({
 						{t`Define the structure of your content`}
 					</p>
 				</div>
-				<RouterLinkButton to="/content-types/new" icon={<Plus />}>
-					{t`New Content Type`}
-				</RouterLinkButton>
+				<div className="flex items-center gap-2">
+					<RouterLinkButton to="/content-types/relations" variant="outline" icon={<LinkSimple />}>
+						{t`Relations`}
+					</RouterLinkButton>
+					<RouterLinkButton to="/content-types/new" icon={<Plus />}>
+						{t`New Content Type`}
+					</RouterLinkButton>
+				</div>
 			</div>
 
 			{/* Orphaned Tables Warning */}
