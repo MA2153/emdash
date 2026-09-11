@@ -22,6 +22,7 @@ import { getI18nConfig } from "./i18n/config.js";
 import type { Database } from "./index.js";
 import { primeSeoPanel } from "./page/seo-panel.js";
 import { getRequestContext } from "./request-context.js";
+import { chunks, SQL_BATCH_SIZE } from "./utils/chunks.js";
 import { isMissingColumnError, isMissingTableError } from "./utils/db-errors.js";
 
 const FIELD_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -567,6 +568,90 @@ function mapRowToData(
 	});
 
 	return data;
+}
+
+/**
+ * The entry id Astro addresses a row by: its slug, prefixed with the locale
+ * whenever i18n routing would prefix the URL. Shared by every path that builds
+ * a loader entry so a referenced entry carries the same id it would have been
+ * loaded under directly.
+ */
+function entryIdForRow(row: Record<string, unknown>): string {
+	const i18nConfig = virtualConfig?.i18n;
+	const slug = rowStr(row, "slug") || rowStr(row, "id");
+	const locale = rowStr(row, "locale");
+	const shouldPrefix =
+		i18nConfig &&
+		i18nConfig.locales.length > 1 &&
+		locale !== "" &&
+		(locale !== i18nConfig.defaultLocale || i18nConfig.prefixDefaultLocale);
+	return shouldPrefix ? `${locale}/${slug}` : slug;
+}
+
+/** A loader entry as {@link emdashLoader} builds one, before the query layer wraps it. */
+export interface LoadedEntry {
+	id: string;
+	slug: string;
+	status: string;
+	data: Record<string, unknown>;
+	cacheHint: { tags: string[]; lastModified?: Date };
+}
+
+/**
+ * Load every locale variant of each translation group, in one query per
+ * `SQL_BATCH_SIZE` chunk of groups.
+ *
+ * Reference resolution is the caller: a selection names translation groups, and
+ * the group's variants are what a render picks a locale from. The rows go
+ * through the same {@link mapRowToData} as a direct entry load, so a referenced
+ * entry's `data` carries the same dates, booleans and normalized media values a
+ * caller would get from `getEmDashEntry` — a hand-rolled row mapper would drift
+ * from it silently.
+ *
+ * Byline and taxonomy hydration is deliberately not folded in: those are
+ * per-row correlated subqueries, and a referenced entry is rendered as a link
+ * or a card far more often than as a full page.
+ */
+export async function loadEntriesByGroups(
+	type: string,
+	translationGroups: string[],
+	options: { publishedOnly?: boolean } = {},
+): Promise<LoadedEntry[]> {
+	if (translationGroups.length === 0) return [];
+	const db = await getDb();
+	const tableName = getTableName(type);
+	const statusFilter = options.publishedOnly ? sql`AND status = ${"published"}` : sql``;
+	const booleanFieldsSelect = foldedBooleanFieldsSelect(db, type);
+
+	const entries: LoadedEntry[] = [];
+	try {
+		for (const chunk of chunks(translationGroups, SQL_BATCH_SIZE)) {
+			const result = await sql<Record<string, unknown>>`
+				SELECT *, ${booleanFieldsSelect} FROM ${sql.ref(tableName)}
+				WHERE translation_group IN (${sql.join(chunk.map((group) => sql`${group}`))})
+				AND deleted_at IS NULL
+				${statusFilter}
+				ORDER BY translation_group ASC, locale ASC
+			`.execute(db);
+			const booleanFields = parseFoldedBooleanFields(result.rows[0]);
+			for (const row of result.rows) {
+				entries.push({
+					id: entryIdForRow(row),
+					slug: rowStr(row, "slug"),
+					status: rowStr(row, "status", "draft"),
+					data: mapRowToData(row, booleanFields),
+					cacheHint: {
+						tags: [rowStr(row, "id")],
+						lastModified: row.updated_at ? new Date(rowStr(row, "updated_at")) : undefined,
+					},
+				});
+			}
+		}
+	} catch (error) {
+		if (isMissingTableError(error)) return [];
+		throw error;
+	}
+	return entries;
 }
 
 function parseFoldedBooleanFields(row: Record<string, unknown> | undefined): Set<string> {
@@ -1422,17 +1507,9 @@ export function emdashLoader(): LiveLoader<EntryData, EntryFilter, CollectionFil
 				const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
 				// Map rows to entries
-				const i18nConfig = virtualConfig?.i18n;
-				const i18nEnabled = i18nConfig && i18nConfig.locales.length > 1;
 				const booleanFields = parseFoldedBooleanFields(rows[0]);
 				const entries = rows.map((row) => {
-					const slug = rowStr(row, "slug") || rowStr(row, "id");
-					const rowLocale = rowStr(row, "locale");
-					const shouldPrefix =
-						i18nEnabled &&
-						rowLocale !== "" &&
-						(rowLocale !== i18nConfig.defaultLocale || i18nConfig.prefixDefaultLocale);
-					const id = shouldPrefix ? `${rowLocale}/${slug}` : slug;
+					const id = entryIdForRow(row);
 					const data = mapRowToData(row, booleanFields);
 					stashFolded(data, row);
 					return {
@@ -1576,13 +1653,7 @@ export function emdashLoader(): LiveLoader<EntryData, EntryFilter, CollectionFil
 
 				const i18nConfig = virtualConfig?.i18n;
 				const i18nEnabled = i18nConfig && i18nConfig.locales.length > 1;
-				const entrySlug = rowStr(row, "slug") || rowStr(row, "id");
-				const entryLocale = rowStr(row, "locale");
-				const shouldPrefixEntry =
-					i18nEnabled &&
-					entryLocale !== "" &&
-					(entryLocale !== i18nConfig.defaultLocale || i18nConfig.prefixDefaultLocale);
-				const entryId = shouldPrefixEntry ? `${entryLocale}/${entrySlug}` : entrySlug;
+				const entryId = entryIdForRow(row);
 
 				// Preview mode: override content fields with revision data,
 				// keeping system metadata from the content table row.

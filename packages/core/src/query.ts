@@ -41,6 +41,7 @@ import {
 	invalidateSchemaObjectCache,
 } from "./object-cache/index.js";
 import { primeSeoPanel } from "./page/seo-panel.js";
+import type { ReferenceQuery, ReferenceSelection } from "./references/types.js";
 import { requestCached } from "./request-cache.js";
 import { getRequestContext } from "./request-context.js";
 import { resetRegisteredCollectionsCache } from "./schema/collection-slugs-cache.js";
@@ -100,6 +101,7 @@ export type SortDirection = "asc" | "desc";
 export type OrderBySpec = Record<string, SortDirection>;
 
 export type { WhereRange, WhereValue };
+export type { ReferenceQuery, ReferenceSelection };
 
 /**
  * Fields shared by every collection query, independent of pagination mode.
@@ -197,11 +199,35 @@ export interface OffsetCollectionFilter extends CollectionFilterBase {
  */
 export type CollectionFilter = CursorCollectionFilter | OffsetCollectionFilter;
 
-export interface ContentEntry<T = Record<string, unknown>> {
+export interface ContentEntry<T = Record<string, unknown>, R = ReferencePages> {
 	id: string;
 	data: T;
+	/**
+	 * One page of each reference field the caller opted into, by field slug.
+	 * Absent unless `references` was passed to {@link getEmDashEntry}.
+	 */
+	references?: R;
 	/** Visual editing annotations. Spread onto elements: {...entry.edit.title} */
 	edit: EditProxy;
+}
+
+/**
+ * One page of a reference field's selection: the entries it points at, in the
+ * order the editor chose, plus the cursor for the next page when the field
+ * holds more than the limit asked for.
+ */
+export interface ReferencePage<T = Record<string, unknown>> {
+	entries: ContentEntry<T>[];
+	nextCursor?: string;
+}
+
+/** The un-narrowed shape of `entry.references` — one page per field slug. */
+export type ReferencePages = Record<string, ReferencePage>;
+
+/** A reference page with the error channel the standalone query returns. */
+export interface ReferenceResult<T = Record<string, unknown>> extends ReferencePage<T> {
+	/** Set only for actual errors; an unknown field or entry is an empty page. */
+	error?: Error;
 }
 
 /** Cache hint returned by the content loader for route caching */
@@ -237,9 +263,9 @@ export interface CollectionResult<T> {
 /**
  * Result from getEmDashEntry
  */
-export interface EntryResult<T> {
+export interface EntryResult<T, R = ReferencePages> {
 	/** The entry, or null if not found */
-	entry: ContentEntry<T> | null;
+	entry: ContentEntry<T, R> | null;
 	/** Error if the query failed (not set for "not found", only for actual errors) */
 	error?: Error;
 	/** Whether we're in preview mode (valid token was provided) */
@@ -803,8 +829,96 @@ async function getEmDashCollectionUncached<T extends string, D = InferCollection
  * const { entry: post, isPreview, error } = await getEmDashEntry("posts", "my-slug");
  * if (!post) return Astro.redirect("/404");
  * ```
+ *
+ * @example
+ * ```ts
+ * // Opt into reference fields, by field slug
+ * const { entry: post } = await getEmDashEntry("posts", slug, {
+ *   references: { author: true, related_posts: { limit: 6 } },
+ * });
+ * const author = post?.references?.author.entries[0];
+ * ```
  */
 export async function getEmDashEntry<T extends string, D = InferCollectionData<T>>(
+	type: T,
+	id: string,
+	options?: { locale?: string; references?: ReferenceSelection },
+): Promise<EntryResult<D>> {
+	const result = await resolveEmDashEntry<T, D>(type, id, options);
+	// Resolved outside the entry's cached snapshot: the snapshot is keyed by the
+	// entry alone and invalidated by writes to its own collection, so a cached
+	// selection would survive a change to the entries it points at.
+	if (options?.references && result.entry) {
+		await attachReferences(type, result, options.references);
+	}
+	return result;
+}
+
+/**
+ * Attach one page of each selected reference field to a resolved entry.
+ *
+ * An entry with no translation group predates i18n and has no links; there is
+ * nothing to resolve, and `references` stays absent rather than becoming an
+ * empty object that reads as "this entry references nothing".
+ */
+async function attachReferences<D>(
+	type: string,
+	result: EntryResult<D>,
+	selection: ReferenceSelection,
+): Promise<void> {
+	const entry = result.entry;
+	if (!entry) return;
+	const data = entryData(entry);
+	const entryGroup = dataStr(data, "translationGroup");
+	if (!entryGroup) return;
+
+	const { resolveReferencePages } = await import("./references/resolve.js");
+	const pages = await resolveReferencePages({
+		collection: type,
+		entryGroup,
+		locale: dataStr(data, "locale") || null,
+		draftRevisionId: dataStr(data, "draftRevisionId") || undefined,
+		// The entry's own draft visibility decides its children's: a preview
+		// token that did not match served this entry as public, and its pending
+		// selection must stay just as invisible as its pending data.
+		serveDrafts: result.isPreview,
+		selection,
+	});
+
+	const references: ReferencePages = {};
+	for (const [field, page] of Object.entries(pages)) {
+		references[field] = {
+			entries: page.entries.map((child) => wrapReferencedEntry(page.collection, child)),
+			...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+		};
+	}
+	entry.references = references;
+}
+
+/**
+ * Wrap a referenced entry the way the collection paths wrap their own: an edit
+ * proxy in edit mode, revision metadata stripped for anyone who may not see it.
+ *
+ * The proxy is scoped to the *referenced* entry's collection and row, so
+ * clicking through from a card opens the entry the card is about.
+ */
+function wrapReferencedEntry<D = Record<string, unknown>>(
+	collection: string,
+	child: { id: string; data: Record<string, unknown> },
+): ContentEntry<D> {
+	const isEditMode = getRequestContext()?.editMode ?? false;
+	const dbId = entryDatabaseId(child);
+	if (isEditMode) tagEditableFields(child.data, collection, dbId);
+	if (!canExposeRevisionMetadata(child, collection)) stripRevisionMetadata(child);
+	return {
+		id: child.id,
+		// eslint-disable-next-line typescript/no-unsafe-type-assertion -- row data is shaped by the target collection, which only generated types know
+		data: child.data as D,
+		edit: isEditMode ? createEditable(collection, dbId, entryEditOptions(child)) : createNoop(),
+	};
+}
+
+async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 	type: T,
 	id: string,
 	options?: { locale?: string },
@@ -1009,6 +1123,80 @@ export async function getEmDashEntry<T extends string, D = InferCollectionData<T
 		fallbackLocale: snapshot.value.fallbackLocale,
 		cacheHint: snapshot.value.cacheHint,
 	};
+}
+
+/**
+ * Get one page of a single reference field, without re-reading the entry it
+ * hangs off.
+ *
+ * `getEmDashEntry({ references })` returns the first page of each field it is
+ * asked for; this is how a "load more" walks past it, using the `nextCursor`
+ * that page carried. Draft visibility follows the same request context — a
+ * preview token for this entry, or edit mode — so a walk started in preview
+ * keeps seeing the pending selection.
+ *
+ * @example
+ * ```ts
+ * import { getEmDashReferences } from "emdash";
+ *
+ * const more = await getEmDashReferences("posts", post.id, "related_posts", {
+ *   cursor,
+ *   limit: 20,
+ * });
+ * ```
+ */
+export async function getEmDashReferences<D = Record<string, unknown>>(
+	type: string,
+	id: string,
+	field: string,
+	options?: { limit?: number; cursor?: string; locale?: string },
+): Promise<ReferenceResult<D>> {
+	const ctx = getRequestContext();
+	const preview = ctx?.preview;
+	const isEditMode = ctx?.editMode ?? false;
+	const locale = options?.locale ?? ctx?.locale;
+
+	try {
+		const { getDb } = await import("./loader.js");
+		const { ContentRepository } = await import("./database/repositories/content.js");
+		const { resolveReferencePages } = await import("./references/resolve.js");
+
+		const db = await getDb();
+		const entry = await new ContentRepository(db).findByIdOrSlug(type, id, locale);
+		if (!entry?.translationGroup) return { entries: [] };
+
+		// Preview tokens are entry-scoped, so a token minted for another entry
+		// gives no draft access here; edit mode is collection-wide.
+		const previewMatches =
+			!!preview && preview.collection === type && (preview.id === entry.id || preview.id === id);
+		const serveDrafts = isEditMode || previewMatches;
+		// Anchoring on an entry the caller may not see would let its links be
+		// probed. An unpublished anchor is simply empty, as a missing one is.
+		if (!serveDrafts && entry.status !== "published") return { entries: [] };
+
+		const query: ReferenceQuery =
+			options?.limit === undefined && options?.cursor === undefined
+				? true
+				: { limit: options.limit, cursor: options.cursor };
+
+		const pages = await resolveReferencePages({
+			collection: type,
+			entryGroup: entry.translationGroup,
+			locale: entry.locale,
+			draftRevisionId: entry.draftRevisionId ?? undefined,
+			serveDrafts,
+			selection: { [field]: query },
+		});
+
+		const page = pages[field];
+		if (!page) return { entries: [] };
+		return {
+			entries: page.entries.map((child) => wrapReferencedEntry<D>(page.collection, child)),
+			...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+		};
+	} catch (error) {
+		return { entries: [], error: error instanceof Error ? error : new Error(String(error)) };
+	}
 }
 
 /** Shape of a cached single-entry snapshot. */

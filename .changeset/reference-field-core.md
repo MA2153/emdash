@@ -23,6 +23,40 @@ Publishing re-checks the staged selection against the relation's limits, so a dr
 
 Comparing an entry's live and draft revisions now reports `_references` on both sides, filled in from the published selection for the fields a draft did not stage, so an unchanged reference field does not read as one the draft removed.
 
+#### Reading references from site code
+
+`getEmDashEntry` takes a `references` option naming the fields a page actually renders, by field slug, and returns a page of entries for each:
+
+```ts
+const { entry: post } = await getEmDashEntry("posts", slug, {
+	references: { author: true, related_posts: { limit: 6 } },
+});
+
+const author = post?.references?.author.entries[0];
+for (const related of post?.references?.related_posts.entries ?? []) {
+	// related.id, related.data.title, related.edit
+}
+```
+
+It is opt-in in both directions: a call that passes no `references` issues no extra queries, and a field left out of the selection is not read. A call that does select fields costs one link read per field plus one entry read per _distinct_ target collection, however many entries each field holds — so a page asking for an author and six related posts is two link reads and two entry reads, not eight.
+
+A referenced entry is a `ContentEntry` like any other: the same `id`, the same `data` — dates as `Date`, booleans as booleans, media values resolved — and a working `edit` proxy in visual editing, scoped to the referenced entry so clicking through opens the entry the card is about. Bylines and taxonomy terms are not hydrated onto referenced entries; read those from the entry itself when a card needs them.
+
+Entries come back in the order the editor arranged them for a field on the parent end of its relation. A field on the child end lists whatever points at it, which has no order of its own.
+
+A public render sees published entries only, and sees the published selection. A preview of that entry, or an editor in visual editing, sees unpublished entries and the pending selection staged in the draft — so a preview link shows the references the page will have once it is published.
+
+`getEmDashReferences` walks past the first page using the cursor that page returned, for a field holding more entries than one page shows:
+
+```ts
+const more = await getEmDashReferences("posts", post.id, "related_posts", {
+	cursor,
+	limit: 20,
+});
+```
+
+Both default to 50 entries per field and accept at most 100.
+
 Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
 
 A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.
