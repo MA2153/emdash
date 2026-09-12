@@ -5,14 +5,18 @@ import {
 	ContentTypeEditor,
 	type ContentTypeEditorProps,
 } from "../../src/components/ContentTypeEditor";
-import { fetchRelations } from "../../src/lib/api";
-import type { SchemaCollectionWithFields, SchemaField } from "../../src/lib/api";
+import { fetchCollections, fetchRelations } from "../../src/lib/api";
+import type { SchemaCollection, SchemaCollectionWithFields, SchemaField } from "../../src/lib/api";
 import type { RelationWithUsage } from "../../src/lib/api/relations.js";
 import { render } from "../utils/render";
 
 vi.mock("../../src/lib/api", async () => {
 	const actual = await vi.importActual<typeof import("../../src/lib/api")>("../../src/lib/api");
-	return { ...actual, fetchRelations: vi.fn(async () => []) };
+	return {
+		...actual,
+		fetchRelations: vi.fn(async () => []),
+		fetchCollections: vi.fn(async () => []),
+	};
 });
 
 // Regexes hoisted to module scope to avoid recompilation per call
@@ -394,7 +398,9 @@ describe("ContentTypeEditor", () => {
 					screen.getByText(/the posts field on authors, which lists entries that link to it/),
 				)
 				.toBeInTheDocument();
-			await expect.element(screen.getByText("7 links")).toBeInTheDocument();
+			// Scoped to the dialog: the relations panel behind it counts the same
+			// links.
+			await expect.element(screen.getByRole("dialog").getByText("7 links")).toBeInTheDocument();
 		});
 
 		// The field being deleted is already named in the dialog title; repeating
@@ -713,5 +719,158 @@ describe("ContentTypeEditor", () => {
 
 		// Should show "6 system + 2 custom fields"
 		await expect.element(screen.getByText(SYSTEM_FIELDS_REGEX)).toBeInTheDocument();
+	});
+
+	// ---- Relations panel ----
+
+	describe("relations panel", () => {
+		function makeRelation(overrides: Partial<RelationWithUsage> = {}): RelationWithUsage {
+			return {
+				id: "rel-1",
+				slug: "posts_authors",
+				parentCollection: "posts",
+				childCollection: "authors",
+				parentLabel: "Posts",
+				parentLabelSingular: "Post",
+				childLabel: "Authors",
+				childLabelSingular: "Author",
+				maxChildrenPerParent: 1,
+				maxParentsPerChild: null,
+				boundFields: [{ collectionSlug: "posts", fieldSlug: "author", side: "parent" }],
+				linkCount: 3,
+				...overrides,
+			};
+		}
+
+		const collections = [
+			{ slug: "posts", label: "Posts", labelSingular: "Post" },
+			{ slug: "authors", label: "Authors", labelSingular: "Author" },
+		] as SchemaCollection[];
+
+		async function renderPanel(
+			relations: RelationWithUsage[],
+			props: Partial<ContentTypeEditorProps> = {},
+		) {
+			vi.mocked(fetchRelations).mockResolvedValue(relations);
+			vi.mocked(fetchCollections).mockResolvedValue(collections);
+			return render(<ContentTypeEditor {...defaultProps(props)} collection={makeCollection()} />);
+		}
+
+		/** Kumo's Select is a combobox button over a listbox; the dialog's inert
+		 * overlay blocks Playwright's actionability checks, so drive it through
+		 * the DOM as the other dialog tests do. */
+		async function choose(
+			screen: Awaited<ReturnType<typeof renderPanel>>,
+			label: string,
+			option: string,
+		) {
+			const trigger = screen.getByRole("combobox", { name: label, exact: true });
+			await expect.element(trigger).toBeInTheDocument();
+			trigger.element().click();
+			await vi.waitFor(() => {
+				screen.getByRole("option", { name: option, exact: true }).element().click();
+			});
+		}
+
+		it("lists only the relations this content type is an end of", async () => {
+			const screen = await renderPanel([
+				makeRelation(),
+				makeRelation({
+					id: "rel-2",
+					slug: "pages_media",
+					parentCollection: "pages",
+					childCollection: "media",
+					boundFields: [],
+				}),
+			]);
+
+			await expect.element(screen.getByText("posts_authors")).toBeInTheDocument();
+			await expect.element(screen.getByText("pages_media")).not.toBeInTheDocument();
+		});
+
+		it("names the side this content type plays", async () => {
+			const screen = await renderPanel([
+				makeRelation(),
+				makeRelation({
+					id: "rel-2",
+					slug: "tags_posts",
+					parentCollection: "tags",
+					childCollection: "posts",
+					parentLabel: "Tags",
+					childLabel: "Posts",
+					boundFields: [],
+				}),
+			]);
+
+			await expect.element(screen.getByText("Links to Authors")).toBeInTheDocument();
+			await expect.element(screen.getByText("Linked from Tags")).toBeInTheDocument();
+		});
+
+		it("says when no field on this content type uses a relation", async () => {
+			const screen = await renderPanel([makeRelation({ boundFields: [] })]);
+
+			await expect
+				.element(screen.getByText("No field on this content type uses it yet"))
+				.toBeInTheDocument();
+		});
+
+		it("creates a relation with this content type as the linking end", async () => {
+			const onCreateRelation = vi.fn(async () => ({}));
+			const screen = await renderPanel([], { onCreateRelation });
+
+			await screen.getByRole("button", { name: "Create First Relation" }).click();
+
+			// Prefilled from the content type being edited, and the slug follows
+			// both ends once the other is picked.
+			await expect
+				.element(screen.getByRole("combobox", { name: "Links from", exact: true }))
+				.toHaveTextContent("Posts");
+			await choose(screen, "Links to", "Authors");
+			await expect
+				.element(screen.getByLabelText("Slug", { exact: true }))
+				.toHaveValue("posts_authors");
+
+			await screen.getByLabelText("Name for the linking side (plural)").fill("Posts");
+			await screen.getByLabelText("Name for the linked side (plural)").fill("Authors");
+			// The dialog's inert overlay blocks Playwright's actionability checks, so
+			// submit through the DOM as the other dialog tests do.
+			screen.getByRole("button", { name: "Create Relation" }).element().click();
+
+			await vi.waitFor(() => {
+				expect(onCreateRelation).toHaveBeenCalledWith({
+					slug: "posts_authors",
+					parentCollection: "posts",
+					childCollection: "authors",
+					parentLabel: "Posts",
+					parentLabelSingular: null,
+					childLabel: "Authors",
+					childLabelSingular: null,
+					maxChildrenPerParent: null,
+					maxParentsPerChild: null,
+				});
+			});
+		});
+
+		it("keeps the dialog open and shows the server's message when creating fails", async () => {
+			const onCreateRelation = vi.fn(async () => {
+				throw new Error("A relation with slug 'posts_authors' already exists");
+			});
+			const screen = await renderPanel([], { onCreateRelation });
+
+			await screen.getByRole("button", { name: "Create First Relation" }).click();
+			await choose(screen, "Links to", "Authors");
+			await screen.getByLabelText("Name for the linking side (plural)").fill("Posts");
+			await screen.getByLabelText("Name for the linked side (plural)").fill("Authors");
+			// The dialog's inert overlay blocks Playwright's actionability checks, so
+			// submit through the DOM as the other dialog tests do.
+			screen.getByRole("button", { name: "Create Relation" }).element().click();
+
+			await expect
+				.element(screen.getByText("A relation with slug 'posts_authors' already exists"))
+				.toBeInTheDocument();
+			await expect
+				.element(screen.getByRole("button", { name: "Create Relation" }))
+				.toBeInTheDocument();
+		});
 	});
 });

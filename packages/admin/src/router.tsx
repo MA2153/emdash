@@ -2757,6 +2757,13 @@ function ContentTypesEditPage() {
 		},
 	});
 
+	const createRelationMutation = useMutation({
+		mutationFn: (input: CreateRelationInput) => createRelation(input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+		},
+	});
+
 	const reorderFieldsMutation = useMutation({
 		mutationFn: (fieldSlugs: string[]) => reorderFields(slug, fieldSlugs),
 		onSuccess: () => {
@@ -2786,6 +2793,7 @@ function ContentTypesEditPage() {
 				deleteFieldMutation.mutate({ fieldSlug, alsoDeleteRelation: options?.deleteRelation })
 			}
 			onReorderFields={(fieldSlugs) => reorderFieldsMutation.mutate(fieldSlugs)}
+			onCreateRelation={(input) => createRelationMutation.mutateAsync(input)}
 		/>
 	);
 }

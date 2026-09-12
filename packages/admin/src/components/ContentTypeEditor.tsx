@@ -24,7 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 
-import { fetchRelations } from "../lib/api";
+import { fetchCollections, fetchRelations } from "../lib/api";
 import type {
 	SchemaCollectionWithFields,
 	SchemaField,
@@ -32,12 +32,14 @@ import type {
 	CreateCollectionInput,
 	UpdateCollectionInput,
 } from "../lib/api";
+import type { CreateRelationInput } from "../lib/api/relations.js";
 import { cn } from "../lib/utils";
 import { ArrowPrev } from "./ArrowIcons.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EditorHeader } from "./EditorHeader";
 import { FieldEditor } from "./FieldEditor";
 import { RelationImpact } from "./RelationImpact.js";
+import { RelationsPanel } from "./RelationsPanel.js";
 import { RouterLinkButton } from "./RouterLinkButton.js";
 import { SaveButton } from "./SaveButton";
 
@@ -56,6 +58,8 @@ export interface ContentTypeEditorProps {
 	 * its links, and the field on the other end. */
 	onDeleteField?: (fieldSlug: string, options?: { deleteRelation?: boolean }) => void;
 	onReorderFields?: (fieldSlugs: string[]) => void;
+	/** Resolves once the relation exists; rejects with the server's message. */
+	onCreateRelation?: (input: CreateRelationInput) => Promise<unknown>;
 }
 
 interface SupportOptionDef {
@@ -155,6 +159,7 @@ export function ContentTypeEditor({
 	onUpdateField,
 	onDeleteField,
 	onReorderFields,
+	onCreateRelation,
 }: ContentTypeEditorProps) {
 	const { t } = useLingui();
 	const _navigate = useNavigate();
@@ -331,9 +336,13 @@ export function ContentTypeEditor({
 	const isFromCode = collection?.source === "code";
 	const fields = collection?.fields ?? [];
 
-	const { data: relations = [] } = useQuery({
+	const { data: relations = [], isLoading: relationsLoading } = useQuery({
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
+	});
+	const { data: allCollections = [] } = useQuery({
+		queryKey: ["schema", "collections"],
+		queryFn: fetchCollections,
 	});
 	const targetRelationSlug = deleteFieldTarget?.validation?.relation;
 	const targetRelation = relations.find((rel) => rel.slug === targetRelationSlug);
@@ -626,9 +635,9 @@ export function ContentTypeEditor({
 					</form>
 				</div>
 
-				{/* Fields section - only show for existing collections */}
+				{/* Fields and relations - only shown for existing collections */}
 				{!isNew && (
-					<div className="lg:col-span-2">
+					<div className="lg:col-span-2 space-y-6">
 						<div className="rounded-lg border bg-kumo-base">
 							<div className="flex items-center justify-between p-4 border-b">
 								<div>
@@ -701,6 +710,16 @@ export function ContentTypeEditor({
 								</>
 							)}
 						</div>
+
+						{collection && (
+							<RelationsPanel
+								collectionSlug={collection.slug}
+								relations={relations}
+								collections={allCollections}
+								isLoading={relationsLoading}
+								onCreateRelation={onCreateRelation}
+							/>
+						)}
 					</div>
 				)}
 			</div>
