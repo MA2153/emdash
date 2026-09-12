@@ -1,5 +1,14 @@
-import { Button, Dialog, Input, InputArea, Select, Switch, Tooltip } from "@cloudflare/kumo";
-import { useLingui } from "@lingui/react/macro";
+import {
+	Button,
+	Dialog,
+	Input,
+	InputArea,
+	Link as KumoLink,
+	Select,
+	Switch,
+	Tooltip,
+} from "@cloudflare/kumo";
+import { Trans, useLingui } from "@lingui/react/macro";
 import {
 	TextT,
 	TextAlignLeft,
@@ -219,6 +228,9 @@ export function FieldEditor({
 	const { data: allRelations = [] } = useQuery({
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
+		// The dialog links out to the relation editor in a new tab, so a
+		// relationship created there has to show up on the way back.
+		refetchOnWindowFocus: "always",
 	});
 
 	// Reset state when dialog opens
@@ -692,23 +704,21 @@ export function FieldEditor({
 									</>
 								) : (
 									<>
-										{bindableRelations.length > 0 && (
-											<Select
-												label={t`Relationship`}
-												value={relation}
-												onValueChange={(v) => {
-													setField("relation", v ?? "");
-													setRefError(false);
-												}}
-												items={[
-													{ label: t`Create a new relationship`, value: "" },
-													...bindableRelations.map(({ relation: rel }) => ({
-														label: rel.slug,
-														value: rel.slug,
-													})),
-												]}
-											/>
-										)}
+										<Select
+											label={t`Relationship`}
+											value={relation}
+											onValueChange={(v) => {
+												setField("relation", v ?? "");
+												setRefError(false);
+											}}
+											items={[
+												{ label: t`Quick create a relationship`, value: "" },
+												...bindableRelations.map(({ relation: rel }) => ({
+													label: rel.slug,
+													value: rel.slug,
+												})),
+											]}
+										/>
 
 										{relation ? (
 											<>
@@ -765,6 +775,21 @@ export function FieldEditor({
 													onCheckedChange={(checked) => setField("allowMultiple", checked)}
 													label={<span className="text-sm">{t`Allow multiple references`}</span>}
 												/>
+												<p className="text-xs text-kumo-subtle">
+													<Trans>
+														Quick create names the relationship after this field and this
+														collection, takes how many entries it holds from the switch above, and
+														puts no limit on how many entries link back the other way.{" "}
+														<KumoLink
+															href="/_emdash/admin/content-types/relations/new"
+															target="_blank"
+														>
+															Create the relationship yourself
+														</KumoLink>{" "}
+														to set its slug, the name each side goes by, and both limits, then pick
+														it above.
+													</Trans>
+												</p>
 											</>
 										)}
 									</>

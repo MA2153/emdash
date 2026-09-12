@@ -523,6 +523,20 @@ describe("FieldEditor", () => {
 				.toBeInTheDocument();
 		});
 
+		// Quick create is a choice even with nothing to choose between, because it
+		// is what tells the user a relationship is being made for them and where
+		// to go to make one themselves.
+		it("offers quick create and the relation editor when no relationship is bindable", async () => {
+			const screen = await openWithRelations([]);
+
+			await expect
+				.element(screen.getByRole("combobox", { name: "Relationship" }))
+				.toBeInTheDocument();
+			await expect
+				.element(screen.getByRole("link", { name: "Create the relationship yourself" }))
+				.toHaveAttribute("href", "/_emdash/admin/content-types/relations/new");
+		});
+
 		// Both ends of this relation already have a field, so a third picker over
 		// the same links has nowhere to go.
 		it("leaves out a relationship whose ends are already picked from", async () => {
@@ -535,10 +549,14 @@ describe("FieldEditor", () => {
 				}),
 			]);
 
+			const trigger = screen.getByRole("combobox", { name: "Relationship" });
+			await expect.element(trigger).toBeInTheDocument();
+			trigger.element().click();
+
 			await expect
-				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
+				.element(screen.getByRole("option", { name: "Quick create a relationship" }))
 				.toBeInTheDocument();
-			expect(screen.getByRole("combobox", { name: "Relationship" }).query()).toBeNull();
+			expect(screen.getByRole("option", { name: "posts_authors" }).query()).toBeNull();
 		});
 
 		it("derives the side and sends it with the relationship", async () => {

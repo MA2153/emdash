@@ -14,6 +14,8 @@ A relationship can be created there, ahead of any field that uses it, and its ro
 
 The field dialog offers the relationships this content type can still bind to, ahead of the referenced-collection picker; choosing one takes the referenced collection and the limits from it. The direction is a choice only for a relationship whose two ends are the same content type, and stated read-only everywhere else, with a note on why the linked end offers no reordering: a link's position is scoped to the entry that made it, so only the linking end can order its selection.
 
+The first choice in that picker is Quick create a relationship, which is also what a site with no relationships yet gets. Picking it still makes a relationship, named after the field and its content type, taking its linking-side limit from the Allow multiple references switch and leaving the other side unlimited, and the dialog now says so — and links to the Relations page, in a new tab so the half-filled field survives, for anyone who would rather set the slug, the role names, and the limits themselves and then come back and pick it.
+
 #### Deleting says what goes with it
 
 Deleting a reference field offers to delete the relationship it uses, checked by default, and the dialog names what that takes: the relationship, how many links it holds, and the field on the other content type with the direction it picks from. That last part matters most when the field being deleted is the inverse one — deleting a field on Authors would otherwise silently remove the primary field on Posts. Clearing the checkbox keeps the relationship and its links.
