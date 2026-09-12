@@ -161,7 +161,9 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 			targetCollection:
 				field.validation?.targetCollection ??
 				(typeof field.options?.collection === "string" ? field.options.collection : ""),
-			allowMultiple: field.validation?.multiple ?? true,
+			// An unbound legacy field carries no `multiple`; the API and migration 077
+			// both read a missing one as single, so the switch must not say otherwise.
+			allowMultiple: field.validation?.multiple ?? false,
 			darkVariant: field.options?.darkVariant === true,
 			relation: field.validation?.relation ?? "",
 			relationSide: field.validation?.relationSide ?? "parent",
@@ -187,7 +189,7 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 		maxItems: "",
 		allowedMimeTypes: [],
 		targetCollection: "",
-		allowMultiple: true,
+		allowMultiple: false,
 		darkVariant: false,
 		relation: "",
 		relationSide: "parent",

@@ -12,7 +12,11 @@
 import { readStagedReferences } from "../api/handlers/staged-references.js";
 import { RelationRepository } from "../database/repositories/relation.js";
 import { RevisionRepository } from "../database/repositories/revision.js";
-import { decodeCursor, encodeCursor } from "../database/repositories/types.js";
+import {
+	decodeCursor,
+	encodeCursor,
+	STAGED_CURSOR_MARKER,
+} from "../database/repositories/types.js";
 import { getDb, loadEntriesByGroups, type LoadedEntry } from "../loader.js";
 import { getReferenceFieldMap } from "./field-map.js";
 import type { ReferenceQuery, ReferenceSelection } from "./types.js";
@@ -22,8 +26,11 @@ const DEFAULT_LIMIT = 50;
 /** Hard ceiling, matching the list endpoints. */
 const MAX_LIMIT = 100;
 
-/** Order value stamped into a staged selection's cursor; the anchor is its `id`. */
-const STAGED_CURSOR_MARKER = "staged";
+/** One field's page of translation groups, before the entries are loaded. */
+interface PageOfGroups {
+	groups: string[];
+	nextCursor?: string;
+}
 
 /** One reference field's resolved page, before the query layer wraps the entries. */
 export interface ResolvedReferencePage {
@@ -73,13 +80,19 @@ function pageOptions(query: ReferenceQuery): { limit: number; cursor?: string } 
 function pageStagedGroups(
 	groups: string[],
 	options: { limit: number; cursor?: string },
-): { groups: string[]; nextCursor?: string } {
+): PageOfGroups {
 	let start = 0;
 	if (options.cursor) {
-		const anchor = decodeCursor(options.cursor).id;
-		const index = groups.indexOf(anchor);
-		if (index === -1) return { groups: [] };
-		start = index + 1;
+		const decoded = decodeCursor(options.cursor);
+		// A cursor from the link table anchors on an edge row id, which is not a
+		// group and would match nothing. That happens when a preview session opens
+		// mid-pagination over the published selection, so restart the field rather
+		// than handing back an empty page that reads as "no more".
+		if (decoded.orderValue === STAGED_CURSOR_MARKER) {
+			const index = groups.indexOf(decoded.id);
+			if (index === -1) return { groups: [] };
+			start = index + 1;
+		}
 	}
 	const page = groups.slice(start, start + options.limit);
 	const last = page.at(-1);
@@ -123,28 +136,33 @@ export async function resolveReferencePages(
 			: undefined;
 
 	// Phase one: each field's page of translation groups, in selection order.
-	const pages = new Map<string, { groups: string[]; nextCursor?: string }>();
-	for (const [slug, query] of requested) {
-		const binding = fieldMap.get(slug)!;
-		const page = pageOptions(query);
+	// Concurrent, like phase two — the fields are independent, and awaiting them
+	// in turn would make N fields N sequential round trips.
+	const pages = new Map(
+		await Promise.all(
+			requested.map(async ([slug, query]): Promise<[string, PageOfGroups]> => {
+				const binding = fieldMap.get(slug)!;
+				const page = pageOptions(query);
 
-		const stagedGroups = staged?.[slug];
-		if (stagedGroups) {
-			pages.set(slug, pageStagedGroups(stagedGroups, page));
-			continue;
-		}
+				const stagedGroups = staged?.[slug];
+				if (stagedGroups) return [slug, pageStagedGroups(stagedGroups, page)];
 
-		const links =
-			binding.side === "child"
-				? await relations.getParentsPage(binding.relation, options.entryGroup, page)
-				: await relations.getChildrenPage(binding.relation, options.entryGroup, page);
-		pages.set(slug, {
-			groups: links.items.map((link) =>
-				binding.side === "child" ? link.parentGroup : link.childGroup,
-			),
-			nextCursor: links.nextCursor,
-		});
-	}
+				const links =
+					binding.side === "child"
+						? await relations.getParentsPageById(binding.relationId, options.entryGroup, page)
+						: await relations.getChildrenPageById(binding.relationId, options.entryGroup, page);
+				return [
+					slug,
+					{
+						groups: links.items.map((link) =>
+							binding.side === "child" ? link.parentGroup : link.childGroup,
+						),
+						nextCursor: links.nextCursor,
+					},
+				];
+			}),
+		),
+	);
 
 	// Phase two: one entry read per distinct target collection, however many
 	// fields point at it.

@@ -9,7 +9,15 @@
  * pays for nothing.
  */
 
-import type { Kysely } from "kysely";
+import type {
+	Kysely,
+	KyselyPlugin,
+	PluginTransformQueryArgs,
+	PluginTransformResultArgs,
+	QueryResult,
+	RootOperationNode,
+	UnknownRow,
+} from "kysely";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { handleContentCreate } from "../../../src/api/handlers/content.js";
@@ -35,6 +43,20 @@ vi.mock("astro:content", () => ({
 }));
 
 import { getLiveEntry } from "astro:content";
+
+/** Records the SQL a render issues, so reference resolution's cost is pinned. */
+class QueryRecorder implements KyselyPlugin {
+	statements: string[] = [];
+
+	transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+		this.statements.push(args.node.kind);
+		return args.node;
+	}
+
+	transformResult(args: PluginTransformResultArgs): Promise<QueryResult<UnknownRow>> {
+		return Promise.resolve(args.result);
+	}
+}
 
 describeEachDialect("public reference queries", (dialect) => {
 	let ctx: DialectTestContext;
@@ -269,6 +291,102 @@ describeEachDialect("public reference queries", (dialect) => {
 		);
 		expect(second.entries.map((entry) => entry.id)).toEqual(["page-three"]);
 		expect(second.nextCursor).toBeUndefined();
+	});
+
+	it("costs one field-map read, one link read per field, and one read per target collection", async () => {
+		const page = await createPage("Page One");
+		const post = await createPost("Hello", [page.id]);
+		const postGroup = await groupOf("posts", post.id);
+
+		// A second parent-side field on the same collection, pointing at the same
+		// target, so the extra cost of a second field is isolated from entry reads.
+		await new RelationRepository(db).create({
+			slug: "posts_further_pages",
+			parentCollection: "posts",
+			childCollection: "pages",
+			parentLabel: "Posts",
+			childLabel: "Further pages",
+		});
+		await new SchemaRegistry(db).createField("posts", {
+			slug: "further_pages",
+			label: "Further pages",
+			type: "reference",
+			validation: {
+				relation: "posts_further_pages",
+				relationSide: "parent",
+				targetCollection: "pages",
+			},
+		});
+
+		const recorder = new QueryRecorder();
+		const counted = db.withPlugin(recorder);
+
+		await runWithContext({ editMode: false, db: counted }, () =>
+			resolveReferencePages({
+				collection: "posts",
+				entryGroup: postGroup,
+				locale: "en",
+				serveDrafts: false,
+				selection: { related_pages: true },
+			}),
+		);
+		const oneField = recorder.statements.length;
+
+		recorder.statements = [];
+		await runWithContext({ editMode: false, db: counted }, () =>
+			resolveReferencePages({
+				collection: "posts",
+				entryGroup: postGroup,
+				locale: "en",
+				serveDrafts: false,
+				selection: { related_pages: true, further_pages: true },
+			}),
+		);
+		const twoFields = recorder.statements.length;
+
+		// Field map + one link read + one entry read; the second field adds only
+		// its own link read, since both fields share the map and the target read.
+		expect({ oneField, twoFields }).toEqual({ oneField: 3, twoFields: 4 });
+	});
+
+	it("survives a cursor issued by the other side of the preview boundary", async () => {
+		const pages = [await createPage("Page One"), await createPage("Page Two")];
+		const third = await createPage("Page Three");
+		const post = await createPost(
+			"Hello",
+			pages.map((page) => page.id),
+		);
+		const group = await groupOf("posts", post.id);
+
+		// Stage a change so a preview render pages the staged selection.
+		await runtime.handleContentUpdate("posts", post.id, {
+			references: { related_pages: [pages[0]!.id, pages[1]!.id, third.id] },
+		});
+		const draftRevisionId = (await new ContentRepository(db).findById("posts", post.id))
+			?.draftRevisionId;
+		expect(draftRevisionId).toBeTruthy();
+
+		const preview = await resolvePublic(
+			"posts",
+			group,
+			{ related_pages: { limit: 2 } },
+			{ serveDrafts: true, draftRevisionId },
+		);
+		const stagedCursor = preview.related_pages?.nextCursor;
+		expect(stagedCursor).toBeTruthy();
+
+		// The draft publishes (or the preview session ends) and the same cursor
+		// comes back on a public render, which reads links rather than the draft.
+		const promoted = await runtime.handleContentPublish("posts", post.id);
+		expect(promoted.success).toBe(true);
+
+		const published = await resolvePublic(
+			"posts",
+			group,
+			{ related_pages: { limit: 2, cursor: stagedCursor } },
+			{ serveDrafts: false },
+		);
+		expect(published.related_pages?.entries.map((entry) => entry.slug)).toEqual(["page-three"]);
 	});
 
 	it("returns an empty page for an unknown field", async () => {

@@ -311,6 +311,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 			SET validation = ${JSON.stringify(validation)}
 			WHERE id = ${field.fieldId}
 		`.execute(db);
+
+		// Two long field slugs on one collection can truncate to the same relation
+		// slug; without this the second would bind to the first's relation and
+		// their selections would merge.
+		boundSlugs.add(slug);
 	}
 }
 

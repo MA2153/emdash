@@ -4,6 +4,7 @@ import { ulid } from "ulidx";
 
 import { chunks, SQL_BATCH_SIZE } from "../utils/chunks.js";
 import { currentTimestampValue, tableExists } from "./dialect-helpers.js";
+import { REFERENCE_INSERT_BATCH_SIZE } from "./repositories/relation.js";
 import { validateIdentifier } from "./validate.js";
 
 /** What to copy, and which relation to copy it into. */
@@ -107,6 +108,7 @@ export async function backfillReferenceEdges(
 	}
 
 	const now = currentTimestampValue(db);
+	const rows: Array<{ parentGroup: string; childGroup: string; sortOrder: number }> = [];
 	for (const parentGroup of [...selections.keys()].toSorted()) {
 		const groups: string[] = [];
 		for (const id of selections.get(parentGroup) ?? []) {
@@ -115,15 +117,25 @@ export async function backfillReferenceEdges(
 			if (group && !groups.includes(group)) groups.push(group);
 		}
 		const selected = backfill.maxChildren === null ? groups : groups.slice(0, backfill.maxChildren);
-
 		for (const [sortOrder, childGroup] of selected.entries()) {
-			// oxlint-disable-next-line no-await-in-loop -- one insert per edge; the unique constraint makes a rerun a no-op
-			await sql`
-				INSERT INTO ${sql.ref("_emdash_content_references")}
-					(id, relation_id, parent_group, child_group, sort_order, created_at)
-				VALUES (${ulid()}, ${backfill.relationId}, ${parentGroup}, ${childGroup}, ${sortOrder}, ${now})
-				ON CONFLICT DO NOTHING
-			`.execute(db);
+			rows.push({ parentGroup, childGroup, sortOrder });
 		}
+	}
+
+	// This runs inside the transaction that binds the field, so an editor binding
+	// a field on a large legacy collection waits for it: batch rather than paying
+	// a round trip per edge.
+	for (const batch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
+		const values = batch.map(
+			(row) =>
+				sql`(${ulid()}, ${backfill.relationId}, ${row.parentGroup}, ${row.childGroup}, ${row.sortOrder}, ${now})`,
+		);
+		// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+		await sql`
+			INSERT INTO ${sql.ref("_emdash_content_references")}
+				(id, relation_id, parent_group, child_group, sort_order, created_at)
+			VALUES ${sql.join(values)}
+			ON CONFLICT DO NOTHING
+		`.execute(db);
 	}
 }

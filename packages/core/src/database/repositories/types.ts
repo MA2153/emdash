@@ -231,6 +231,18 @@ export interface FindManyResult<T> {
 	total?: number;
 }
 
+/**
+ * Order value stamped into a cursor over a *staged* reference selection, whose
+ * anchor is a translation group rather than a row in the link table.
+ *
+ * A preview and a public render page the same field from different places, so a
+ * cursor can cross that boundary in either direction — the draft publishes, or
+ * the preview session ends, mid-pagination. Both sides recognise this marker so
+ * they can tell a foreign cursor from a malformed one and restart the field's
+ * page rather than failing or silently emptying it.
+ */
+export const STAGED_CURSOR_MARKER = "staged";
+
 /** Encode a cursor from order value + id */
 export function encodeCursor(orderValue: string, id: string): string {
 	return encodeBase64(JSON.stringify({ orderValue, id }));

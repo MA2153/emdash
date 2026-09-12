@@ -63,7 +63,10 @@ import {
 	validateStagedReferences,
 } from "./staged-references.js";
 import { validateMediaFields } from "./validate-media-fields.js";
-import { validateRequiredReferencesPresent } from "./validate-references.js";
+import {
+	referenceFieldConstraints,
+	validateRequiredReferencesPresent,
+} from "./validate-references.js";
 
 /**
  * Narrow a caught error to one carrying a structured `apiError` discriminant.
@@ -1001,7 +1004,7 @@ export async function handleContentCreate(
 		translationOf?: string;
 		seo?: ContentSeoInput;
 		taxonomies?: Record<string, string[]>;
-		/** Reference fields: relation translation_group → ordered child entry ids. */
+		/** Reference fields: field slug → ordered selected entry ids. */
 		references?: Record<string, string[]>;
 		createdAt?: string | null;
 		publishedAt?: string | null;
@@ -1228,7 +1231,7 @@ export async function handleContentUpdate(
 		_rev?: string;
 		seo?: ContentSeoInput;
 		taxonomies?: Record<string, string[]>;
-		/** Reference fields: relation translation_group → ordered child entry ids. */
+		/** Reference fields: field slug → ordered selected entry ids. */
 		references?: Record<string, string[]>;
 		publishedAt?: string | null;
 	},
@@ -1484,10 +1487,23 @@ export async function handleContentDuplicate(
 			// `data`), so they don't ride along in the row copy — carry the original's
 			// outgoing references onto the duplicate explicitly.
 			if (original?.translationGroup && dup.translationGroup) {
-				await new RelationRepository(trx).copyParentEdges(
-					original.translationGroup,
-					dup.translationGroup,
-				);
+				const relations = new RelationRepository(trx);
+				await relations.copyParentEdges(original.translationGroup, dup.translationGroup);
+
+				// Where a field on this collection binds the *child* end, its
+				// backlinks are the field's value, so a duplicate that dropped them
+				// would lose that field's whole selection. Backlinks no field views
+				// still point only at the original.
+				for (const field of (await referenceFieldConstraints(trx, collection)).values()) {
+					if (field.relationSide !== "child") continue;
+					const parents = await relations.getParents(field.relation, original.translationGroup);
+					if (parents.length === 0) continue;
+					await relations.setParents(
+						field.relation,
+						dup.translationGroup,
+						parents.map((parent) => parent.parentGroup),
+					);
+				}
 			}
 
 			const existingBylines = await bylineRepo.getContentBylines(collection, resolvedId);
@@ -1914,8 +1930,13 @@ export async function handleContentPublish(
 							(await new RevisionRepository(trx).findById(existing.draftRevisionId))?.data,
 						)
 					: undefined;
-			if (stagedReferences) {
-				const valid = await validateStagedReferences(trx, collection, stagedReferences);
+			if (existing?.translationGroup) {
+				const valid = await validateStagedReferences(
+					trx,
+					collection,
+					stagedReferences ?? {},
+					existing.translationGroup,
+				);
 				if (!valid.success) {
 					throw Object.assign(new Error(valid.error.message), {
 						apiError: { code: valid.error.code },

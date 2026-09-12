@@ -195,7 +195,7 @@ export const contentCreateBody = z
 			description:
 				"Taxonomy term assignments as { taxonomyName: [termSlug, ...] }, resolved in the entry's locale.",
 		}),
-		references: z.record(z.string(), z.array(z.string())).optional().meta({
+		references: z.record(z.string(), z.array(z.string()).max(1000)).optional().meta({
 			description:
 				"Reference selections as { fieldSlug: [entryId, ...] }, in display order. Written as content-reference links in the same transaction as the entry. A field bound to the child end of its relation selects the entries pointing at this one, which carry no order.",
 		}),
@@ -222,7 +222,7 @@ export const contentUpdateBody = z
 			description:
 				"Replace taxonomy assignments as { taxonomyName: [termSlug, ...] }. Only named taxonomies are touched; pass an empty array to clear a taxonomy.",
 		}),
-		references: z.record(z.string(), z.array(z.string())).optional().meta({
+		references: z.record(z.string(), z.array(z.string()).max(1000)).optional().meta({
 			description:
 				"Reference selections as { fieldSlug: [entryId, ...] }, in display order. Written as content-reference links in the same transaction as the entry. A field bound to the child end of its relation selects the entries pointing at this one, which carry no order.",
 		}),

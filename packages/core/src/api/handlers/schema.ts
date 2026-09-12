@@ -8,7 +8,10 @@ import { backfillReferenceEdges } from "../../database/reference-backfill.js";
 import { RelationRepository, type Relation } from "../../database/repositories/relation.js";
 import { withTransaction } from "../../database/transaction.js";
 import type { Database } from "../../database/types.js";
-import { invalidateCollectionCache } from "../../object-cache/index.js";
+import {
+	invalidateCollectionCache,
+	invalidateSchemaObjectCache,
+} from "../../object-cache/index.js";
 import {
 	SchemaRegistry,
 	SchemaError,
@@ -87,9 +90,18 @@ export async function createFieldRelation(
 	throw new SchemaError("Could not allocate a unique relation name", "RELATION_NAME_CONFLICT");
 }
 
+/**
+ * Every cache a field change can stale.
+ *
+ * The schema object-cache namespace is bumped here rather than only by the
+ * collection routes: the render path's reference field map lives in that
+ * namespace, so a field created, bound, relabelled or deleted would otherwise
+ * keep resolving against the shape the collection used to have.
+ */
 function invalidateFieldCaches(collectionSlug: string): void {
 	invalidateCollectionCache(collectionSlug);
 	invalidateSchemaCache(collectionSlug);
+	invalidateSchemaObjectCache();
 }
 
 /**
@@ -101,7 +113,7 @@ function invalidateFieldCaches(collectionSlug: string): void {
  * content-list filters and searches from values that no longer change. Clearing
  * both here drops the field index and re-syncs FTS through `updateField`.
  */
-async function bindReferenceField(
+export async function bindReferenceField(
 	db: Kysely<Database>,
 	collectionSlug: string,
 	existing: Field,
@@ -535,8 +547,7 @@ async function createBoundReferenceField(
 		},
 	});
 
-	invalidateCollectionCache(collectionSlug);
-	invalidateSchemaCache(collectionSlug);
+	invalidateFieldCaches(collectionSlug);
 
 	return { success: true, data: { item } };
 }
@@ -593,7 +604,7 @@ export async function handleSchemaFieldCreate(
 			});
 
 			// Content snapshots embed field values; a column change invalidates them.
-			invalidateCollectionCache(collectionSlug);
+			invalidateFieldCaches(collectionSlug);
 
 			return {
 				success: true,
@@ -702,7 +713,7 @@ export async function handleSchemaFieldUpdate(
 				return updated;
 			});
 
-			invalidateCollectionCache(collectionSlug);
+			invalidateFieldCaches(collectionSlug);
 
 			return {
 				success: true,
@@ -717,7 +728,7 @@ export async function handleSchemaFieldUpdate(
 		const bindTarget = existing?.type === "reference" ? input.validation?.targetCollection : null;
 		if (existing && bindTarget) {
 			const item = await bindReferenceField(db, collectionSlug, existing, input, bindTarget);
-			invalidateCollectionCache(collectionSlug);
+			invalidateFieldCaches(collectionSlug);
 			return { success: true, data: { item } };
 		}
 

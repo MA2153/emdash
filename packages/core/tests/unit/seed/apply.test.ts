@@ -549,6 +549,91 @@ describe("applySeed", () => {
 
 			await expect(applySeed(db, seed)).rejects.toThrow(/has no child end on collection "pages"/);
 		});
+
+		it("drops a forward $ref that names a collection seeded later", async () => {
+			const seed = seedWithRelation();
+			seed.collections![0]!.fields.push({
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { relation: "post_authors" },
+			});
+			// `posts` is emitted before `authors`, which is what an export produces
+			// whenever a reference points at a collection later in the file.
+			seed.content = {
+				posts: [{ id: "post-1", slug: "hello", data: { title: "Hello", author: "$ref:author-1" } }],
+				authors: [{ id: "author-1", slug: "ada", data: { name: "Ada" } }],
+			};
+
+			const result = await applySeed(db, seed, { includeContent: true });
+
+			expect(result.content.created).toBe(2);
+		});
+
+		it("binds an existing unbound reference field when a re-applied seed names a target", async () => {
+			const registry = new SchemaRegistry(db);
+			await registry.createCollection({ slug: "posts", label: "Posts" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+			await registry.createCollection({ slug: "authors", label: "Authors" });
+			await registry.createField("authors", { slug: "name", label: "Name", type: "string" });
+			// A reference field from before relations existed: no relation on it.
+			await registry.createField("posts", { slug: "author", label: "Author", type: "reference" });
+
+			const seed: SeedFile = {
+				version: "1",
+				collections: [
+					{
+						slug: "posts",
+						label: "Posts",
+						fields: [
+							{ slug: "title", label: "Title", type: "string" },
+							{
+								slug: "author",
+								label: "Author",
+								type: "reference",
+								validation: { targetCollection: "authors" },
+							},
+						],
+					},
+					{
+						slug: "authors",
+						label: "Authors",
+						fields: [{ slug: "name", label: "Name", type: "string" }],
+					},
+				],
+			};
+
+			await applySeed(db, seed, { onConflict: "update" });
+
+			const field = await registry.getField("posts", "author");
+			expect(field?.validation).toMatchObject({ targetCollection: "authors" });
+			expect(field?.validation?.relation).toEqual(expect.any(String));
+		});
+
+		it("seeds content for a reference field bound to the child side", async () => {
+			const seed = seedWithRelation();
+			seed.collections![1]!.fields.push({
+				slug: "posts",
+				label: "Posts",
+				type: "reference",
+				validation: { relation: "post_authors" },
+			});
+			seed.content = {
+				posts: [{ id: "post-1", slug: "hello", data: { title: "Hello" } }],
+				authors: [{ id: "author-1", slug: "ada", data: { name: "Ada", posts: ["$ref:post-1"] } }],
+			};
+
+			const result = await applySeed(db, seed, { includeContent: true });
+
+			expect(result.content.created).toBe(2);
+			const relation = await new RelationRepository(db).findBySlug("post_authors");
+			const author = await new ContentRepository(db).findBySlug("authors", "ada");
+			const parents = await new RelationRepository(db).getParentsPage(
+				relation!.id,
+				author!.translationGroup!,
+			);
+			expect(parents.items).toHaveLength(1);
+		});
 	});
 
 	describe("taxonomies", () => {

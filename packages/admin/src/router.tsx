@@ -2717,6 +2717,9 @@ function ContentTypesEditPage() {
 				queryKey: ["schema", "collections", slug],
 			});
 			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+			// A reference field creates a relationship server-side, so the list the
+			// next dialog computes its free sides from is stale without this.
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
 		},
 	});
 
@@ -2728,6 +2731,9 @@ function ContentTypesEditPage() {
 				queryKey: ["schema", "collections", slug],
 			});
 			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+			// Binding a field creates a relationship, and a relabel renames a role
+			// on one.
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
 		},
 	});
 

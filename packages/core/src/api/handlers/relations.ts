@@ -612,6 +612,33 @@ async function resolveReferenceSide(
 		groups.push(other.translationGroup);
 	}
 
+	// Cardinality binds both ends, but only one end ever selects: a field on the
+	// parent side that hands a child its second parent breaks
+	// `maxParentsPerChild` even though the parent's own limit is untouched.
+	const farLimit = side === "parent" ? rel.maxParentsPerChild : rel.maxChildrenPerParent;
+	if (farLimit !== null && groups.length > 0) {
+		const counts = await repo.countEdgesByGroup(
+			rel.id,
+			side === "parent" ? "child" : "parent",
+			groups,
+			entry.translationGroup,
+		);
+		for (const [index, group] of groups.entries()) {
+			if ((counts.get(group) ?? 0) + 1 <= farLimit) continue;
+			const farSide = side === "parent" ? "parent" : "child";
+			return {
+				success: false,
+				error: {
+					code: "VALIDATION_ERROR",
+					message:
+						farLimit === 1
+							? `Entry '${selectedIds[index]}' already has a ${farSide} on this relation, which allows one.`
+							: `Entry '${selectedIds[index]}' already has the maximum of ${farLimit} ${farSide} entries on this relation.`,
+				},
+			};
+		}
+	}
+
 	return {
 		success: true,
 		data: { relation: rel.id, side, entryGroup: entry.translationGroup, groups },

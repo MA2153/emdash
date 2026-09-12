@@ -61,7 +61,7 @@ export interface ContentItem {
 	draftRevisionId: string | null;
 	seo?: ContentSeo;
 	/**
-	 * First page of reference-field edges, keyed by relation translation group.
+	 * First page of reference-field edges, keyed by field slug.
 	 * Only present when the server opts into hydration (the editor GET route).
 	 * Each field's entries are stored solely in `_emdash_content_references`;
 	 * the admin sends the desired id lists back in the `references` save key.
@@ -83,7 +83,7 @@ export interface CreateContentInput {
 	bylines?: BylineCreditInput[];
 	locale?: string;
 	translationOf?: string;
-	/** Reference-field edges to write atomically, keyed by relation group. */
+	/** Reference-field edges to write atomically, keyed by field slug. */
 	references?: Record<string, string[]>;
 }
 
@@ -130,7 +130,7 @@ export interface UpdateContentInput {
 	/** Skip revision creation (used by autosave) */
 	skipRevision?: boolean;
 	seo?: ContentSeoInput;
-	/** Reference-field edges to replace atomically, keyed by relation group. */
+	/** Reference-field edges to replace atomically, keyed by field slug. */
 	references?: Record<string, string[]>;
 	/**
 	 * Optimistic-concurrency token from the last read. When present, the

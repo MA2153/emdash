@@ -38,7 +38,7 @@ for (const related of post?.references?.related_posts.entries ?? []) {
 }
 ```
 
-It is opt-in in both directions: a call that passes no `references` issues no extra queries, and a field left out of the selection is not read. A call that does select fields costs one link read per field plus one entry read per _distinct_ target collection, however many entries each field holds — so a page asking for an author and six related posts is two link reads and two entry reads, not eight.
+It is opt-in in both directions: a call that passes no `references` issues no extra queries, and a field left out of the selection is not read. A call that does select fields costs one read of the collection's reference-field map, then one link read per field plus one entry read per _distinct_ target collection, however many entries each field holds — so a page asking for an author and six related posts is one field-map read, two link reads and two entry reads, not eight. The link reads run concurrently, and the field map is cached per request and in the schema object-cache namespace.
 
 Those reads go into the entry's cached snapshot, so a site with an object cache configured pays them on a miss and not on a hit, and publishing a referenced entry drops the snapshots that carry it. The `cacheHint` the call returns names every referenced row the render read and takes the newest modification time across the entry and its references, so passing it to `Astro.cache.set` expires a route-cached page when a referenced entry changes, not only when the entry itself does.
 
@@ -70,7 +70,9 @@ const { entry: post } = await getEmDashEntry("posts", slug, { references: { auth
 
 Re-run `emdash types`, or restart the dev server, to pick the interfaces up. A reference field that is not bound to a relation keeps its `string` key in the data interface, as it keeps its column.
 
-Reference fields enforce required and single-selection constraints for entry saves and direct reference requests. Reference selections are shared across translations, so creating a translation reuses the source entry's selection.
+Reference fields enforce required and selection-limit constraints for entry saves and direct reference requests, on both ends of the relation: a field on the parent side that would hand a selected entry more parents than the relation allows is refused, not only one that selects too many children itself. A collection that keeps drafts re-checks the whole selection at publish rather than only the fields a draft happens to have staged, so a required reference field added to a collection that already holds entries blocks publishing them until it is filled in.
+
+Reference selections are shared across translations, so creating a translation reuses the source entry's selection. Duplicating an entry carries its selections onto the copy, including a field bound to the child end of its relation, whose value _is_ the entries pointing at it. Backlinks no field views still point only at the original.
 
 A reference field stores no column of its own once it is bound to a relation; its selection lives as edges in `_emdash_content_references`. A reference field created before relations existed is not bound to one, so it keeps the column it has and behaves as it always has: the entry id it holds saves, loads, validates against the collection schema, and appears in generated types as a `string`, and the field can still be indexed and used as a content-list filter. Seed files continue to use `$ref:` values, which resolve to an edge for a bound field and to a column value for an unbound one.
 
@@ -89,6 +91,8 @@ A reference field is left alone, and keeps behaving exactly as it did, when:
 To bind one of those fields yourself, open it under Content Types and choose a referenced collection. EmDash creates the relation, copies the column's ids in as links, and clears the field's searchable and indexed flags — after which `fields` filters and site search no longer cover it.
 
 The column is left in place and stops being written. On a site that predates pickers it was a free-text box that could hold anything an editor typed, and only the ids that resolved to an entry became links, so nothing is deleted. Generated types no longer declare the key for a bound field, but a content read still reports the frozen column value in `data` beside the live `references`.
+
+`relations` joins the reserved collection slugs: the admin serves the relations screen at that path, so a collection with that slug could never be opened.
 
 Relations are now first-class schema objects rather than a hidden detail of each reference field. A relation joins two collections under a slug that is unique across the site, and a reference field records which end of that relation it sits on — so the same relation can back a field on either side. A relation carries a label and an optional singular form for each role, plus an optional limit on how many entries each side may hold.
 
@@ -143,5 +147,7 @@ A reference field created through the schema API can name a relation the same wa
 The referenced collection and the selection limits come from the relation, so a `targetCollection` sent alongside a relation is ignored. Naming a relation the collection is not an end of, a side that contradicts the end that matches, or an end another field already picks from is refused — two fields picking from the same end of a relation would write the same links, and the second save would overwrite the first. A field that names only a `targetCollection` still gets a relation created for it, as before.
 
 A field that names a relation binds to it; the side it views follows from which end its collection sits on, and `relationSide` is needed only for a relation whose two ends are the same collection. A field that names only a `targetCollection` still gets a relation created for it. Re-applying a seed updates a relation's labels and limits under `onConflict: "update"`, but a seed naming different collections for an existing relation fails rather than leaving its links pointing into a collection that is no longer an end of it.
+
+Re-applying a seed that names a `targetCollection` for a reference field that predates relations binds that field, creating the relation and copying the column's ids in as links — the same path the admin takes — rather than leaving an upgraded site's field unbound forever. A seed can select from either end: a field bound to the child side takes the entries that point at it. A `$ref:` that names a collection emitted later in the file is skipped with a warning instead of aborting the whole apply.
 
 `emdash export-seed` emits those relations, and `--with-content` emits each entry's links as `$ref:` values on the parent side of the relation, so a site's reference selections survive an export and re-apply. Entry IDs in a reference field with no relation are emitted as `$ref:` too; previously they were emitted as a reference to the source database's row id, which resolved to nothing on apply.

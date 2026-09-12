@@ -352,4 +352,67 @@ describeEachDialect("versioned reference selections", (dialect) => {
 			expect(saved.error.message).toContain("hero_page");
 		}
 	});
+
+	it("refuses to publish a draft that does not satisfy a required field added later", async () => {
+		const id = await publishedPost("Predates the field", []);
+
+		// A required reference field added to a collection that already holds
+		// entries: nothing they have staged mentions it.
+		const registry = new SchemaRegistry(ctx.db);
+		await new RelationRepository(ctx.db).create({
+			slug: "posts_hero_page",
+			parentCollection: "posts",
+			childCollection: "pages",
+			parentLabel: "Posts",
+			childLabel: "Hero page",
+			maxChildrenPerParent: 1,
+		});
+		await registry.createField("posts", {
+			slug: "hero_page",
+			label: "Hero page",
+			type: "reference",
+			required: true,
+			validation: {
+				relation: "posts_hero_page",
+				relationSide: "parent",
+				targetCollection: "pages",
+			},
+		});
+
+		const saved = await runtime.handleContentUpdate("posts", id, { data: { title: "Renamed" } });
+		expect(saved.success).toBe(true);
+
+		const published = await runtime.handleContentPublish("posts", id);
+
+		expect(published.success).toBe(false);
+		if (!published.success) expect(published.error.code).toBe("VALIDATION_ERROR");
+	});
+
+	it("carries a child-side field's selection onto a duplicate", async () => {
+		// `pages` views the same relation from the child end, so the page's own
+		// field selection is the set of posts pointing at it.
+		await new SchemaRegistry(ctx.db).createField("pages", {
+			slug: "linking_posts",
+			label: "Linking posts",
+			type: "reference",
+			validation: {
+				relation: "posts_related_pages",
+				relationSide: "child",
+				targetCollection: "posts",
+			},
+		});
+		const page = await createPage("Linked");
+		await publishedPost("Links to it", [page.id]);
+
+		const copy = await handleContentDuplicate(ctx.db, "pages", page.id);
+		expect(copy.success).toBe(true);
+		if (!copy.success) return;
+
+		const copyItem = await new ContentRepository(ctx.db).findById("pages", copy.data.item.id);
+		const parents = await new RelationRepository(ctx.db).getParentsPage(
+			"posts_related_pages",
+			copyItem!.translationGroup!,
+		);
+		expect(parents.items).toHaveLength(1);
+	});
 });

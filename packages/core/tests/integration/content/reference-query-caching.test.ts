@@ -25,6 +25,7 @@ import {
 	type ObjectCacheBackend,
 } from "../../../src/object-cache/index.js";
 import { getEmDashEntry } from "../../../src/query.js";
+import { getReferenceFieldMap } from "../../../src/references/field-map.js";
 import { runWithContext } from "../../../src/request-context.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
 import { createTestRuntime } from "../../utils/mcp-runtime.js";
@@ -235,5 +236,21 @@ describe("reference pages in the entry cache", () => {
 			}),
 		);
 		expect(result.cacheHint.lastModified?.getTime()).toBe(Math.max(...stamps));
+	});
+
+	it("stops serving a deleted reference field from the cached field map", async () => {
+		const { handleSchemaFieldDelete } = await import("../../../src/api/handlers/schema.js");
+
+		const warm = await runWithContext({ editMode: false, db }, () => getReferenceFieldMap("posts"));
+		expect(warm.has("related_pages")).toBe(true);
+		await flush();
+
+		const deleted = await handleSchemaFieldDelete(db, "posts", "related_pages");
+		expect(deleted.success).toBe(true);
+
+		const after = await runWithContext({ editMode: false, db }, () =>
+			getReferenceFieldMap("posts"),
+		);
+		expect(after.has("related_pages")).toBe(false);
 	});
 });

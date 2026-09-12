@@ -313,6 +313,56 @@ describeEachDialect("reference field constraints", (dialect) => {
 		expect(result.success).toBe(true);
 	});
 
+	it("rejects a selection that exceeds the other end's cardinality", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "pages", label: "Pages", labelSingular: "Page" });
+		await registry.createField("pages", { slug: "title", label: "Title", type: "string" });
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+		// One page belongs to at most one post: the limit lives on the child end,
+		// but only parents ever select.
+		const relation = await new RelationRepository(ctx.db).create({
+			slug: "posts_owned_page",
+			parentCollection: "posts",
+			childCollection: "pages",
+			parentLabel: "Post",
+			childLabel: "Owned page",
+			maxParentsPerChild: 1,
+		});
+		await registry.createField("posts", {
+			slug: "owned_page",
+			label: "Owned page",
+			type: "reference",
+			validation: {
+				relation: relation.slug,
+				relationSide: "parent",
+				targetCollection: "pages",
+			},
+		});
+
+		const page = await createPage("Shared");
+		const first = await handleContentCreate(ctx.db, "posts", {
+			data: { title: "First" },
+			references: { owned_page: [page.id] },
+		});
+		expect(first.success).toBe(true);
+
+		const second = await handleContentCreate(ctx.db, "posts", {
+			data: { title: "Second" },
+			references: { owned_page: [page.id] },
+		});
+
+		expect(second.success).toBe(false);
+		if (!second.success) expect(second.error.code).toBe("VALIDATION_ERROR");
+
+		const parents = await new RelationRepository(ctx.db).getParentsPage(
+			relation.slug,
+			page.translationGroup ?? page.id,
+		);
+		expect(parents.items).toHaveLength(1);
+	});
+
 	it("inherits a source group's references when creating a translation", async () => {
 		await setupConstrainedFields();
 		const child = await createPage("Child");

@@ -68,3 +68,27 @@ it("chunks large child replacements within D1's bound-parameter ceiling", async 
 	expect(stored.map((edge) => edge.childGroup)).toEqual(childGroups);
 	expect(stored.map((edge) => edge.sortOrder)).toEqual(childGroups.map((_, index) => index));
 });
+
+it("chunks copied parent edges within D1's bound-parameter ceiling", async () => {
+	const relation = await repo.create({
+		slug: "copy_related_pages",
+		parentCollection: "posts",
+		childCollection: "pages",
+		parentLabel: "Post",
+		childLabel: "Related page",
+	});
+	const childGroups = Array.from({ length: 40 }, (_, index) => `copy-child-${index}`);
+	await repo.setChildren(relation.id, "source-parent", childGroups);
+
+	captured = [];
+	await repo.copyParentEdges("source-parent", "copy-parent");
+
+	const inserts = referenceInserts();
+	expect(inserts.length).toBeGreaterThan(1);
+	for (const insert of inserts) {
+		expect(insert.parameters.length).toBeLessThanOrEqual(100);
+	}
+
+	const stored = await repo.getChildren(relation.slug, "copy-parent");
+	expect(stored.map((edge) => edge.childGroup)).toEqual(childGroups);
+});

@@ -3,13 +3,19 @@ import { ulid } from "ulidx";
 
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
 import type { Database, RelationTable, ContentReferenceTable } from "../types.js";
-import { decodeCursor, encodeCursor, InvalidCursorError, type FindManyResult } from "./types.js";
+import {
+	decodeCursor,
+	encodeCursor,
+	InvalidCursorError,
+	STAGED_CURSOR_MARKER,
+	type FindManyResult,
+} from "./types.js";
 
 // Each reference-edge row binds six values. Derive the row count so every
 // INSERT stays within D1's 100-parameter statement ceiling.
 const REFERENCE_INSERT_BIND_COLUMNS = 6;
 const D1_MAX_BOUND_PARAMETERS = 100;
-const REFERENCE_INSERT_BATCH_SIZE = Math.floor(
+export const REFERENCE_INSERT_BATCH_SIZE = Math.floor(
 	D1_MAX_BOUND_PARAMETERS / REFERENCE_INSERT_BIND_COLUMNS,
 );
 
@@ -322,7 +328,15 @@ export class RelationRepository {
 	): Promise<FindManyResult<ContentReference>> {
 		const relationId = await this.resolveRelationId(relation);
 		if (!relationId) return { items: [] };
+		return this.getChildrenPageById(relationId, parentGroup, options);
+	}
 
+	/** `getChildrenPage` for a caller that already holds the relation's id. */
+	async getChildrenPageById(
+		relationId: string,
+		parentGroup: string,
+		options: { limit?: number; cursor?: string } = {},
+	): Promise<FindManyResult<ContentReference>> {
 		const limit = Math.min(options.limit || 50, 100);
 
 		let query = this.db
@@ -333,18 +347,42 @@ export class RelationRepository {
 
 		if (options.cursor) {
 			const decoded = decodeCursor(options.cursor);
-			const sortOrder = Number(decoded.orderValue);
-			// `decodeCursor` only guarantees `orderValue` is a string; a hand-crafted
-			// cursor with a non-numeric order value would coerce to NaN and blow up at
-			// the driver bind as a 500. A bad cursor is a client error — surface it as
-			// INVALID_CURSOR (400). Server-issued cursors are always numeric here.
-			if (!Number.isFinite(sortOrder)) throw new InvalidCursorError(options.cursor);
-			query = query.where((eb) =>
-				eb.or([
-					eb("sort_order", ">", sortOrder),
-					eb.and([eb("sort_order", "=", sortOrder), eb("id", ">", decoded.id)]),
-				]),
-			);
+			if (decoded.orderValue === STAGED_CURSOR_MARKER) {
+				// A cursor issued over a draft's pending selection anchors on a
+				// translation group rather than a row here, which is what a render
+				// sees when the draft publishes mid-pagination. Resume after that
+				// group's edge so the walk continues; if the group is no longer
+				// selected there is nothing to resume from, so the page restarts.
+				query = query.where((eb) => {
+					const anchor = () =>
+						eb
+							.selectFrom("_emdash_content_references as anchor")
+							.where("anchor.relation_id", "=", relationId)
+							.where("anchor.parent_group", "=", parentGroup)
+							.where("anchor.child_group", "=", decoded.id);
+					return eb.or([
+						eb.not(eb.exists(anchor().select("anchor.id"))),
+						eb("sort_order", ">", anchor().select("anchor.sort_order")),
+						eb.and([
+							eb("sort_order", "=", anchor().select("anchor.sort_order")),
+							eb("id", ">", anchor().select("anchor.id")),
+						]),
+					]);
+				});
+			} else {
+				const sortOrder = Number(decoded.orderValue);
+				// `decodeCursor` only guarantees `orderValue` is a string; a hand-crafted
+				// cursor with a non-numeric order value would coerce to NaN and blow up at
+				// the driver bind as a 500. A bad cursor is a client error — surface it as
+				// INVALID_CURSOR (400). Server-issued cursors are always numeric here.
+				if (!Number.isFinite(sortOrder)) throw new InvalidCursorError(options.cursor);
+				query = query.where((eb) =>
+					eb.or([
+						eb("sort_order", ">", sortOrder),
+						eb.and([eb("sort_order", "=", sortOrder), eb("id", ">", decoded.id)]),
+					]),
+				);
+			}
 		}
 
 		const rows = await query
@@ -513,20 +551,57 @@ export class RelationRepository {
 		if (rows.length === 0) return;
 
 		const now = new Date().toISOString();
-		await this.db
-			.insertInto("_emdash_content_references")
-			.values(
-				rows.map((row) => ({
-					id: ulid(),
-					relation_id: row.relation_id,
-					parent_group: toParentGroup,
-					child_group: row.child_group,
-					sort_order: row.sort_order,
-					created_at: now,
-				})),
-			)
-			.onConflict((oc) => oc.doNothing())
-			.execute();
+		const copies = rows.map((row) => ({
+			id: ulid(),
+			relation_id: row.relation_id,
+			parent_group: toParentGroup,
+			child_group: row.child_group,
+			sort_order: row.sort_order,
+			created_at: now,
+		}));
+		for (const rowBatch of chunks(copies, REFERENCE_INSERT_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
+			await this.db
+				.insertInto("_emdash_content_references")
+				.values(rowBatch)
+				.onConflict((oc) => oc.doNothing())
+				.execute();
+		}
+	}
+
+	/**
+	 * How many edges each of `groups` already holds at one end of a relation,
+	 * ignoring edges whose opposite end is `excludeOppositeGroup`.
+	 *
+	 * The exclusion is what lets a re-save of an unchanged selection pass: the
+	 * selecting entry's own edges are not counted against the limit it is about
+	 * to re-establish. Groups with no edges are absent from the map.
+	 */
+	async countEdgesByGroup(
+		relationId: string,
+		side: "parent" | "child",
+		groups: string[],
+		excludeOppositeGroup: string,
+	): Promise<Map<string, number>> {
+		const column = side === "parent" ? "parent_group" : "child_group";
+		const opposite = side === "parent" ? "child_group" : "parent_group";
+
+		const counts = new Map<string, number>();
+		for (const groupBatch of chunks([...new Set(groups)], SQL_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+			const rows = await this.db
+				.selectFrom("_emdash_content_references")
+				.select((eb) => [column, eb.fn.countAll().as("count")])
+				.where("relation_id", "=", relationId)
+				.where(column, "in", groupBatch)
+				.where(opposite, "!=", excludeOppositeGroup)
+				.groupBy(column)
+				.execute();
+			for (const row of rows) {
+				counts.set(row[column], Number(row.count));
+			}
+		}
+		return counts;
 	}
 
 	/**
@@ -544,7 +619,15 @@ export class RelationRepository {
 	): Promise<FindManyResult<ContentReference>> {
 		const relationId = await this.resolveRelationId(relation);
 		if (!relationId) return { items: [] };
+		return this.getParentsPageById(relationId, childGroup, options);
+	}
 
+	/** `getParentsPage` for a caller that already holds the relation's id. */
+	async getParentsPageById(
+		relationId: string,
+		childGroup: string,
+		options: { limit?: number; cursor?: string } = {},
+	): Promise<FindManyResult<ContentReference>> {
 		const limit = Math.min(options.limit || 50, 100);
 
 		let query = this.db
@@ -555,7 +638,25 @@ export class RelationRepository {
 
 		if (options.cursor) {
 			const decoded = decodeCursor(options.cursor);
-			query = query.where("id", ">", decoded.id);
+			if (decoded.orderValue === STAGED_CURSOR_MARKER) {
+				// The mirror of `getChildrenPageById`: a staged cursor anchors on a
+				// translation group, which compared against `id` would page from an
+				// arbitrary point. Resume after that group's edge, or restart when the
+				// group is no longer selected.
+				query = query.where((eb) => {
+					const anchor = eb
+						.selectFrom("_emdash_content_references as anchor")
+						.where("anchor.relation_id", "=", relationId)
+						.where("anchor.child_group", "=", childGroup)
+						.where("anchor.parent_group", "=", decoded.id);
+					return eb.or([
+						eb.not(eb.exists(anchor.select("anchor.id"))),
+						eb("id", ">", anchor.select("anchor.id")),
+					]);
+				});
+			} else {
+				query = query.where("id", ">", decoded.id);
+			}
 		}
 
 		const rows = await query

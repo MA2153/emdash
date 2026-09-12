@@ -9,8 +9,9 @@
  * limits.
  */
 
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
+import { jsonExtractExpr } from "../database/dialect-helpers.js";
 import type { Database } from "../database/types.js";
 import { getDb } from "../loader.js";
 import { cachedQuery, CacheNamespace } from "../object-cache/index.js";
@@ -23,6 +24,12 @@ export interface ReferenceFieldBinding {
 	slug: string;
 	/** Relation slug the field binds to. */
 	relation: string;
+	/**
+	 * The relation's id, read in the same statement as the binding. Rendering
+	 * pages the link table by id, so carrying it here is what keeps a field's
+	 * cost at one link read rather than a slug lookup and then the read.
+	 */
+	relationId: string;
 	/** Which end of the relation this field's own collection sits on. */
 	side: "parent" | "child";
 	/** The collection at the other end. */
@@ -37,15 +44,23 @@ async function loadBindings(
 	db: Kysely<Database>,
 	collection: string,
 ): Promise<ReferenceFieldBinding[]> {
-	let rows: { slug: string; validation: string | null }[];
+	// The relation's id joins in here rather than being looked up per field at
+	// render time: the field stores a slug, but the link table is keyed by id.
+	const relationSlug = jsonExtractExpr(db, "validation", "relation");
+	let rows: { slug: string; validation: string | null; relation_id: string | null }[];
 	try {
-		rows = await db
-			.selectFrom("_emdash_fields")
-			.innerJoin("_emdash_collections", "_emdash_collections.id", "_emdash_fields.collection_id")
-			.select(["_emdash_fields.slug", "_emdash_fields.validation"])
-			.where("_emdash_collections.slug", "=", collection)
-			.where("_emdash_fields.type", "=", "reference")
-			.execute();
+		const result = await sql<{
+			slug: string;
+			validation: string | null;
+			relation_id: string | null;
+		}>`
+			SELECT f.slug AS slug, f.validation AS validation, r.id AS relation_id
+			FROM ${sql.ref("_emdash_fields")} AS f
+			INNER JOIN ${sql.ref("_emdash_collections")} AS c ON c.id = f.collection_id
+			LEFT JOIN ${sql.ref("_emdash_relations")} AS r ON r.slug = ${sql.raw(relationSlug)}
+			WHERE c.slug = ${collection} AND f.type = 'reference'
+		`.execute(db);
+		rows = result.rows;
 	} catch (error) {
 		if (isMissingTableError(error)) return [];
 		throw error;
@@ -63,11 +78,14 @@ async function loadBindings(
 		if (!isRecord(parsed)) continue;
 		const { relation, targetCollection } = parsed;
 		// A field with neither is unbound: it keeps its own column, and its value
-		// is already in `data`. There is nothing to resolve.
+		// is already in `data`. There is nothing to resolve. Nor is there when the
+		// named relation is gone — the join leaves no id to page by.
 		if (typeof relation !== "string" || typeof targetCollection !== "string") continue;
+		if (!row.relation_id) continue;
 		bindings.push({
 			slug: row.slug,
 			relation,
+			relationId: row.relation_id,
 			targetCollection,
 			side: parsed.relationSide === "child" ? "child" : "parent",
 		});

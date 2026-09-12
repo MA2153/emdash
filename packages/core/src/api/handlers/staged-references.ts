@@ -4,7 +4,11 @@ import { RelationRepository } from "../../database/repositories/relation.js";
 import type { Database } from "../../database/types.js";
 import type { ApiResult } from "../types.js";
 import { writeReferenceSelection } from "./relations.js";
-import { referenceFieldConstraints, validateReferenceSelection } from "./validate-references.js";
+import {
+	referenceFieldConstraints,
+	validateReferenceSelection,
+	type ReferenceFieldConstraints,
+} from "./validate-references.js";
 
 /**
  * Where a collection that keeps drafts stages a pending reference selection: in
@@ -57,22 +61,41 @@ export function mergeStagedReferences(
 	return { ...readStagedReferences(base), ...incoming };
 }
 
+/** One bound field's live selection as translation groups. */
+async function liveFieldSelection(
+	repo: RelationRepository,
+	field: ReferenceFieldConstraints,
+	entryGroup: string,
+): Promise<string[]> {
+	const links =
+		field.relationSide === "child"
+			? await repo.getParents(field.relation, entryGroup)
+			: await repo.getChildren(field.relation, entryGroup);
+	return links.map((link) => (field.relationSide === "child" ? link.parentGroup : link.childGroup));
+}
+
 /**
- * Re-check a staged selection against the relation's current cardinality.
+ * Re-check what publication is about to make live against the relation's current
+ * cardinality.
  *
  * A draft can sit unpublished across a schema edit that makes its field required
  * or narrows the relation's limits, and it is publication — not the save that
- * staged it — that has to hold the line.
+ * staged it — that has to hold the line. So this walks the collection's bound
+ * fields rather than the staged keys: a field added as required after the entry
+ * was written appears in no existing draft, and iterating `staged` would never
+ * reach it. A field the draft does stage needs no link read.
  */
 export async function validateStagedReferences(
 	db: Kysely<Database>,
 	collection: string,
 	staged: StagedReferences,
+	entryGroup: string,
 ): Promise<ApiResult<true>> {
-	const constraints = await referenceFieldConstraints(db, collection);
-	for (const [fieldSlug, groups] of Object.entries(staged)) {
-		const field = constraints.get(fieldSlug);
-		if (!field) continue;
+	const repo = new RelationRepository(db);
+	for (const field of (await referenceFieldConstraints(db, collection)).values()) {
+		const groups = Object.hasOwn(staged, field.slug)
+			? (staged[field.slug] ?? [])
+			: await liveFieldSelection(repo, field, entryGroup);
 		const valid = validateReferenceSelection(field, groups);
 		if (!valid.success) return valid;
 	}
@@ -94,13 +117,7 @@ export async function liveReferenceSelection(
 	const repo = new RelationRepository(db);
 	const selection: StagedReferences = {};
 	for (const field of (await referenceFieldConstraints(db, collection)).values()) {
-		const links =
-			field.relationSide === "child"
-				? await repo.getParents(field.relation, entryGroup)
-				: await repo.getChildren(field.relation, entryGroup);
-		selection[field.slug] = links.map((link) =>
-			field.relationSide === "child" ? link.parentGroup : link.childGroup,
-		);
+		selection[field.slug] = await liveFieldSelection(repo, field, entryGroup);
 	}
 	return selection;
 }

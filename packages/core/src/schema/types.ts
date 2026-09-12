@@ -459,6 +459,9 @@ export const RESERVED_COLLECTION_SLUGS = [
 	// Shadowed by the static POST /schema/collections/reorder route: a
 	// collection with this slug could never be addressed at its own URL.
 	"reorder",
+	// Shadowed by the static /content-types/relations admin route, for the same
+	// reason: a collection with this slug would be unreachable in the admin.
+	"relations",
 ];
 
 /**

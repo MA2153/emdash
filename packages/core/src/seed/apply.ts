@@ -10,8 +10,8 @@ import type { Kysely } from "kysely";
 import mime from "mime/lite";
 import { ulid } from "ulidx";
 
-import { setReferenceChildren } from "../api/handlers/relations.js";
-import { createFieldRelation } from "../api/handlers/schema.js";
+import { setReferenceSelection } from "../api/handlers/relations.js";
+import { bindReferenceField, createFieldRelation } from "../api/handlers/schema.js";
 import { BylineRepository } from "../database/repositories/byline.js";
 import { ContentRepository } from "../database/repositories/content.js";
 import { MediaRepository } from "../database/repositories/media.js";
@@ -555,6 +555,7 @@ export async function applySeed(
 			for (const [collectionSlug, entries] of Object.entries(seed.content)) {
 				const collectionRoutable =
 					(await schemaRegistry.getCollection(collectionSlug))?.routable !== false;
+				const referenceFields = await referenceFieldsOf(schemaRegistry, collectionSlug);
 				for (const entry of entries) {
 					const entrySlug =
 						typeof entry.slug === "string" && entry.slug.trim().length > 0 ? entry.slug : null;
@@ -586,9 +587,9 @@ export async function applySeed(
 							);
 							// Reference fields are storage-less — route their resolved values to
 							// edges and keep them out of the column/revision data.
-							const { columnData, edges } = await splitReferenceFields(
-								db,
+							const { columnData, edges } = splitReferenceFields(
 								collectionSlug,
+								referenceFields,
 								resolvedData,
 							);
 
@@ -680,9 +681,9 @@ export async function applySeed(
 					const resolvedData = await resolveReferences(entry.data, seedIdMap, mediaContext, result);
 					// Reference fields are storage-less — route their resolved values to
 					// edges and keep them out of the column/revision data.
-					const { columnData, edges } = await splitReferenceFields(
-						db,
+					const { columnData, edges } = splitReferenceFields(
 						collectionSlug,
+						referenceFields,
 						resolvedData,
 					);
 
@@ -1331,6 +1332,37 @@ async function upsertSeedField(
 	const bound = resolveSeedFieldRelation(collectionSlug, field, knownRelations);
 
 	if (existing) {
+		const update = {
+			label: field.label,
+			type: field.type,
+			required: field.required || false,
+			unique: field.unique || false,
+			searchable: field.searchable || false,
+			indexed: field.indexed || false,
+			defaultValue: field.defaultValue,
+			widget: field.widget,
+			options: field.options,
+		};
+
+		// A reference field from before relations existed has no relation to
+		// preserve, so a seed naming a target binds it the way the admin does
+		// rather than leaving it unbound forever.
+		if (
+			!bound &&
+			field.type === "reference" &&
+			!existing.validation?.relation &&
+			typeof field.validation?.targetCollection === "string"
+		) {
+			await bindReferenceField(
+				db,
+				collectionSlug,
+				existing,
+				{ ...update, validation: field.validation },
+				field.validation.targetCollection,
+			);
+			return;
+		}
+
 		// A field naming a relation binds to that one. Otherwise keep whatever
 		// relation the field is already bound to: a seed's field validation omits
 		// the server-assigned keys and would orphan the relation row.
@@ -1345,18 +1377,7 @@ async function upsertSeedField(
 					}
 				: field.validation;
 		const registry = new SchemaRegistry(db);
-		await registry.updateField(collectionSlug, field.slug, {
-			label: field.label,
-			type: field.type,
-			required: field.required || false,
-			unique: field.unique || false,
-			searchable: field.searchable || false,
-			indexed: field.indexed || false,
-			defaultValue: field.defaultValue,
-			validation,
-			widget: field.widget,
-			options: field.options,
-		});
+		await registry.updateField(collectionSlug, field.slug, { ...update, validation });
 		return;
 	}
 
@@ -1424,38 +1445,50 @@ async function upsertSeedField(
  * relation. A reference field with no relation still owns its column, so its
  * resolved id is written there like any other string.
  */
-async function splitReferenceFields(
-	db: Kysely<Database>,
+/** One collection's reference fields by slug, read once per collection: the
+ * schema phase has finished by the time content is applied. */
+async function referenceFieldsOf(
+	registry: SchemaRegistry,
 	collectionSlug: string,
-	data: Record<string, unknown>,
-): Promise<{
-	columnData: Record<string, unknown>;
-	edges: Array<{ relationGroup: string; childIds: string[] }>;
-}> {
-	const registry = new SchemaRegistry(db);
+): Promise<Map<string, Field>> {
 	const collection = await registry.getCollectionWithFields(collectionSlug);
-	const referenceFields = new Map(
+	return new Map(
 		(collection?.fields ?? []).filter((f) => f.type === "reference").map((f) => [f.slug, f]),
 	);
+}
+
+function splitReferenceFields(
+	collectionSlug: string,
+	referenceFields: Map<string, Field>,
+	data: Record<string, unknown>,
+): {
+	columnData: Record<string, unknown>;
+	edges: Array<{ fieldSlug: string; childIds: string[] }>;
+} {
 	if (referenceFields.size === 0) return { columnData: data, edges: [] };
 
 	const columnData: Record<string, unknown> = {};
-	const edges: Array<{ relationGroup: string; childIds: string[] }> = [];
+	const edges: Array<{ fieldSlug: string; childIds: string[] }> = [];
 	for (const [key, value] of Object.entries(data)) {
 		const field = referenceFields.get(key);
-		if (!field) {
+		if (!field?.validation?.relation) {
 			columnData[key] = value;
 			continue;
 		}
-		const relationGroup = field.validation?.relation;
-		if (!relationGroup) {
-			columnData[key] = value;
-			continue;
+		const childIds: string[] = [];
+		for (const candidate of Array.isArray(value) ? value : [value]) {
+			if (typeof candidate !== "string" || candidate.length === 0) continue;
+			// `seedIdMap` fills forward-only, so a reference pointing at a collection
+			// emitted later in the file arrives here unresolved.
+			if (candidate.startsWith("$ref:")) {
+				console.warn(
+					`content.${collectionSlug}: reference "${candidate}" in field "${key}" did not resolve (not yet created or missing). Skipping.`,
+				);
+				continue;
+			}
+			childIds.push(candidate);
 		}
-		const childIds = (Array.isArray(value) ? value : [value]).filter(
-			(v): v is string => typeof v === "string" && v.length > 0,
-		);
-		edges.push({ relationGroup, childIds });
+		edges.push({ fieldSlug: key, childIds });
 	}
 	return { columnData, edges };
 }
@@ -1470,16 +1503,10 @@ async function applyContentReferences(
 	trx: Kysely<Database>,
 	collectionSlug: string,
 	contentId: string,
-	edges: Array<{ relationGroup: string; childIds: string[] }>,
+	edges: Array<{ fieldSlug: string; childIds: string[] }>,
 ): Promise<void> {
-	for (const { relationGroup, childIds } of edges) {
-		const result = await setReferenceChildren(
-			trx,
-			collectionSlug,
-			contentId,
-			relationGroup,
-			childIds,
-		);
+	for (const { fieldSlug, childIds } of edges) {
+		const result = await setReferenceSelection(trx, collectionSlug, contentId, fieldSlug, childIds);
 		if (!result.success) {
 			throw new Error(
 				`content.${collectionSlug}: failed to write references for "${contentId}": ${result.error.message}`,

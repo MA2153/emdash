@@ -432,7 +432,7 @@ export function ContentEditor({
 	// would wipe them.
 	const [bylinesTouched, setBylinesTouched] = React.useState(false);
 
-	// Staged reference-field selections, keyed by relation translation group.
+	// Staged reference-field selections, keyed by field slug.
 	// Seeded from the hydrated first page; the picker fills titles for
 	// newly added rows. Edges save inside the content payload — never via edge
 	// POSTs.
@@ -631,15 +631,15 @@ export function ContentEditor({
 	const isContentSaveBlocked =
 		isContentOperationPending || hasUnsupportedPortableTextMarks || readOnly;
 
-	// Replace a relation group's staged current selection (add/remove/reorder).
-	// Upserts the group so a field with no hydrated rows can take its first pick.
+	// Replace a reference field's staged current selection (add/remove/reorder).
+	// Upserts the field so one with no hydrated rows can take its first pick.
 	const handleReferenceCurrentChange = React.useCallback(
-		(group: string, rows: ReferenceEntryRow[]) => {
+		(fieldSlug: string, rows: ReferenceEntryRow[]) => {
 			setReferenceState((prev) => {
-				const existing = prev[group];
+				const existing = prev[fieldSlug];
 				return {
 					...prev,
-					[group]: existing
+					[fieldSlug]: existing
 						? { ...existing, current: rows }
 						: { baseline: [], current: rows, loading: false },
 				};
@@ -1734,14 +1734,14 @@ interface FieldRendererProps {
 	onBlockSidebarClose?: () => void;
 	/** Admin manifest for resolving sandboxed field widget elements */
 	manifest?: import("../lib/api/client.js").AdminManifest | null;
-	/** Staged reference selections for all relation groups (reference fields). */
+	/** Staged reference selections for every reference field, by field slug. */
 	referenceState?: Record<string, ReferenceGroupState>;
-	/** Replace a relation group's staged current selection. */
-	onReferenceChange?: (group: string, rows: ReferenceEntryRow[]) => void;
+	/** Replace a reference field's staged current selection. */
+	onReferenceChange?: (fieldSlug: string, rows: ReferenceEntryRow[]) => void;
 	/** Page the rest of a relation's hydrated set. */
 	onLoadMoreReferences?: (group: string) => void;
-	/** Clear a relation group's load error so paging resumes from the same cursor. */
-	onRetryReferences?: (group: string) => void;
+	/** Clear a reference field's load error so paging resumes from the same cursor. */
+	onRetryReferences?: (fieldSlug: string) => void;
 	/** Locale of the editing entry; threaded to reference pickers. */
 	entryLocale?: string | null;
 	/** Render the value without accepting edits. */
