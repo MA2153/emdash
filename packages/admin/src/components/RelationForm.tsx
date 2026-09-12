@@ -210,7 +210,9 @@ export function RelationFormFields({
 
 	const isGrid = layout === "grid";
 	const Heading = isGrid ? "h2" : "h3";
-	const headingClass = isGrid ? "font-semibold" : "text-sm font-semibold";
+	const headingClass = isGrid
+		? "font-semibold"
+		: "text-xs font-medium uppercase tracking-wider text-kumo-subtle";
 	const panelClass = isGrid ? "rounded-lg border bg-kumo-base p-4 space-y-4" : "space-y-4";
 
 	return (
@@ -218,22 +220,26 @@ export function RelationFormFields({
 			<div className={panelClass}>
 				<Heading className={headingClass}>{t`Content types`}</Heading>
 
-				<Select
-					label={t`Links from`}
-					value={state.parentCollection}
-					onValueChange={(v) => setEnd("parent", v ?? "")}
-					items={collectionItems}
-					placeholder={t`Select a content type`}
-					disabled={!isNew}
-				/>
-				<Select
-					label={t`Links to`}
-					value={state.childCollection}
-					onValueChange={(v) => setEnd("child", v ?? "")}
-					items={collectionItems}
-					placeholder={t`Select a content type`}
-					disabled={!isNew}
-				/>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<Select
+						label={t`Links from`}
+						className="w-full"
+						value={state.parentCollection}
+						onValueChange={(v) => setEnd("parent", v ?? "")}
+						items={collectionItems}
+						placeholder={t`Select a content type`}
+						disabled={!isNew}
+					/>
+					<Select
+						label={t`Links to`}
+						className="w-full"
+						value={state.childCollection}
+						onValueChange={(v) => setEnd("child", v ?? "")}
+						items={collectionItems}
+						placeholder={t`Select a content type`}
+						disabled={!isNew}
+					/>
+				</div>
 				<div>
 					<Input
 						label={t`Slug`}
@@ -259,30 +265,32 @@ export function RelationFormFields({
 					{t`What each side is called. These name the picker and the "Referenced by" panel.`}
 				</p>
 
-				<Input
-					label={t`Name for the linking side (plural)`}
-					value={state.parentLabel}
-					onChange={(e) => set("parentLabel", e.target.value)}
-					placeholder={state.parentCollection ? labelFor(state.parentCollection) : t`Posts`}
-				/>
-				<Input
-					label={t`Name for the linking side (singular)`}
-					value={state.parentLabelSingular}
-					onChange={(e) => set("parentLabelSingular", e.target.value)}
-					placeholder={state.parentCollection ? singularFor(state.parentCollection) : t`Post`}
-				/>
-				<Input
-					label={t`Name for the linked side (plural)`}
-					value={state.childLabel}
-					onChange={(e) => set("childLabel", e.target.value)}
-					placeholder={state.childCollection ? labelFor(state.childCollection) : t`Authors`}
-				/>
-				<Input
-					label={t`Name for the linked side (singular)`}
-					value={state.childLabelSingular}
-					onChange={(e) => set("childLabelSingular", e.target.value)}
-					placeholder={state.childCollection ? singularFor(state.childCollection) : t`Author`}
-				/>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<Input
+						label={t`Linking side (plural)`}
+						value={state.parentLabel}
+						onChange={(e) => set("parentLabel", e.target.value)}
+						placeholder={state.parentCollection ? labelFor(state.parentCollection) : t`Posts`}
+					/>
+					<Input
+						label={t`Linking side (singular)`}
+						value={state.parentLabelSingular}
+						onChange={(e) => set("parentLabelSingular", e.target.value)}
+						placeholder={state.parentCollection ? singularFor(state.parentCollection) : t`Post`}
+					/>
+					<Input
+						label={t`Linked side (plural)`}
+						value={state.childLabel}
+						onChange={(e) => set("childLabel", e.target.value)}
+						placeholder={state.childCollection ? labelFor(state.childCollection) : t`Authors`}
+					/>
+					<Input
+						label={t`Linked side (singular)`}
+						value={state.childLabelSingular}
+						onChange={(e) => set("childLabelSingular", e.target.value)}
+						placeholder={state.childCollection ? singularFor(state.childCollection) : t`Author`}
+					/>
+				</div>
 			</div>
 
 			<div className={isGrid ? `${panelClass} lg:col-span-2` : panelClass}>
@@ -291,7 +299,7 @@ export function RelationFormFields({
 					{t`Both reference fields bound to this relation share these limits, so the two sides cannot disagree about the same links.`}
 				</p>
 
-				<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:grid-rows-[auto_auto] sm:gap-y-2">
 					<LimitControl
 						label={t`Each ${linkingSideName} links to`}
 						oneLabel={t`One`}
@@ -336,25 +344,34 @@ function LimitControl({
 	onLimitChange,
 }: LimitControlProps) {
 	const { t } = useLingui();
+	const labelId = React.useId();
 
+	// The label sits in the parent grid's own row so that a label wrapping onto
+	// a second line still leaves the two selects on one line.
 	return (
-		<div className="space-y-2">
-			<Select
-				label={label}
-				value={mode}
-				onValueChange={(v) => onModeChange(v ?? "many")}
-				items={{ one: oneLabel, many: manyLabel, limit: t`At most…` }}
-			/>
-			{mode === "limit" && (
-				<Input
-					type="number"
-					min={2}
-					label={t`Maximum`}
-					value={limit}
-					onChange={(e) => onLimitChange(e.target.value)}
-					placeholder="5"
+		<div className="grid gap-2 sm:row-span-2 sm:grid-rows-subgrid">
+			<span id={labelId} className="text-base font-medium text-kumo-default">
+				{label}
+			</span>
+			<div className="space-y-2">
+				<Select
+					aria-labelledby={labelId}
+					className="w-full"
+					value={mode}
+					onValueChange={(v) => onModeChange(v ?? "many")}
+					items={{ one: oneLabel, many: manyLabel, limit: t`At most…` }}
 				/>
-			)}
+				{mode === "limit" && (
+					<Input
+						type="number"
+						min={2}
+						label={t`Maximum`}
+						value={limit}
+						onChange={(e) => onLimitChange(e.target.value)}
+						placeholder="5"
+					/>
+				)}
+			</div>
 		</div>
 	);
 }

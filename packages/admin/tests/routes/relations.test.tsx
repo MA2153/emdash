@@ -159,7 +159,7 @@ describe("RelationEditor", () => {
 			<RelationEditor relation={relation()} collections={collections} onSave={onSave} />,
 		);
 
-		const childLabel = screen.getByLabelText("Name for the linked side (plural)");
+		const childLabel = screen.getByLabelText("Linked side (plural)");
 		await childLabel.fill("Writers");
 		await screen.getByRole("button", { name: /Save/ }).click();
 
@@ -194,8 +194,8 @@ describe("RelationEditor", () => {
 
 		await selectOption(screen, "Links from", "Posts");
 		await selectOption(screen, "Links to", "Authors");
-		await screen.getByLabelText("Name for the linking side (plural)").fill("Posts");
-		await screen.getByLabelText("Name for the linked side (plural)").fill("Authors");
+		await screen.getByLabelText("Linking side (plural)").fill("Posts");
+		await screen.getByLabelText("Linked side (plural)").fill("Authors");
 		await screen.getByRole("button", { name: /Save/ }).click();
 
 		await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));

@@ -830,8 +830,8 @@ describe("ContentTypeEditor", () => {
 				.element(screen.getByLabelText("Slug", { exact: true }))
 				.toHaveValue("posts_authors");
 
-			await screen.getByLabelText("Name for the linking side (plural)").fill("Posts");
-			await screen.getByLabelText("Name for the linked side (plural)").fill("Authors");
+			await screen.getByLabelText("Linking side (plural)").fill("Posts");
+			await screen.getByLabelText("Linked side (plural)").fill("Authors");
 			// The dialog's inert overlay blocks Playwright's actionability checks, so
 			// submit through the DOM as the other dialog tests do.
 			screen.getByRole("button", { name: "Create Relation" }).element().click();
@@ -859,8 +859,8 @@ describe("ContentTypeEditor", () => {
 
 			await screen.getByRole("button", { name: "Create First Relation" }).click();
 			await choose(screen, "Links to", "Authors");
-			await screen.getByLabelText("Name for the linking side (plural)").fill("Posts");
-			await screen.getByLabelText("Name for the linked side (plural)").fill("Authors");
+			await screen.getByLabelText("Linking side (plural)").fill("Posts");
+			await screen.getByLabelText("Linked side (plural)").fill("Authors");
 			// The dialog's inert overlay blocks Playwright's actionability checks, so
 			// submit through the DOM as the other dialog tests do.
 			screen.getByRole("button", { name: "Create Relation" }).element().click();

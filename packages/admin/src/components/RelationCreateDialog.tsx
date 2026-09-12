@@ -63,18 +63,21 @@ export function RelationCreateDialog({
 
 	return (
 		<Dialog.Root open={open} onOpenChange={onOpenChange}>
-			<Dialog className="p-6 max-w-2xl" size="lg">
-				<div className="flex items-start justify-between gap-4 mb-4">
-					<div>
-						<Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
+			<Dialog
+				size="lg"
+				className="flex max-h-[min(88dvh,46rem)] flex-col overflow-hidden p-0"
+				style={{ width: "min(94vw, 40rem)" }}
+			>
+				<div className="flex shrink-0 items-start justify-between gap-4 border-b border-kumo-line px-6 py-5">
+					<div className="min-w-0">
+						<Dialog.Title className="text-lg font-semibold leading-tight tracking-tight">
 							{t`New Relation`}
 						</Dialog.Title>
-						<p className="mt-2 text-sm text-kumo-subtle">
+						<Dialog.Description className="mt-1 text-sm leading-5 text-kumo-subtle">
 							{t`A relation defines how two content types link. Reference fields on either side then pick entries through it.`}
-						</p>
+						</Dialog.Description>
 					</div>
 					<Dialog.Close
-						aria-label={t`Close`}
 						render={(props) => (
 							<Button {...props} variant="ghost" shape="square" aria-label={t`Close`}>
 								<X className="h-4 w-4" />
@@ -83,25 +86,27 @@ export function RelationCreateDialog({
 					/>
 				</div>
 
-				<form onSubmit={handleSubmit}>
-					<div className="max-h-[60vh] overflow-y-auto pe-1">
+				<form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+					<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
 						<RelationFormFields form={form} collections={collections} isNew layout="stack" />
 					</div>
 
-					<DialogError message={error} className="mt-4" />
+					<div className="shrink-0 border-t border-kumo-line px-6 py-4">
+						<DialogError message={error} className="mb-3" />
 
-					<div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end sm:space-x-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => onOpenChange(false)}
-							disabled={isSaving}
-						>
-							{t`Cancel`}
-						</Button>
-						<Button type="submit" disabled={!form.canSave || isSaving}>
-							{isSaving ? t`Creating...` : t`Create Relation`}
-						</Button>
+						<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => onOpenChange(false)}
+								disabled={isSaving}
+							>
+								{t`Cancel`}
+							</Button>
+							<Button type="submit" disabled={!form.canSave || isSaving}>
+								{isSaving ? t`Creating...` : t`Create Relation`}
+							</Button>
+						</div>
 					</div>
 				</form>
 			</Dialog>
