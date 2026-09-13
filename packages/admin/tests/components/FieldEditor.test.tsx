@@ -534,7 +534,7 @@ describe("FieldEditor", () => {
 				.toBeInTheDocument();
 			await expect
 				.element(screen.getByRole("link", { name: "Create the relationship yourself" }))
-				.toHaveAttribute("href", "/_emdash/admin/content-types/relations/new");
+				.toHaveAttribute("href", "/_emdash/admin/content-types/relations");
 		});
 
 		// Both ends of this relation already have a field, so a third picker over
@@ -565,7 +565,7 @@ describe("FieldEditor", () => {
 
 			await choose(screen, "Relationship", "posts_authors");
 			await expect
-				.element(screen.getByText("This field picks entries this one links to."))
+				.element(screen.getByText(/This field will show the Authors this Post links to/))
 				.toBeInTheDocument();
 
 			screen.getByRole("button", { name: "Update Field" }).element().click();
@@ -589,7 +589,7 @@ describe("FieldEditor", () => {
 
 			await choose(screen, "Relationship", "posts_authors");
 			await expect
-				.element(screen.getByText("This field lists entries that link to this one."))
+				.element(screen.getByText(/This field will show the Post linking to this Author/))
 				.toBeInTheDocument();
 
 			screen.getByRole("button", { name: "Update Field" }).element().click();
@@ -750,6 +750,144 @@ describe("FieldEditor", () => {
 			expect(onSave).toHaveBeenCalledWith(
 				expect.objectContaining({ options: { showPreview: true } }),
 			);
+		});
+	});
+
+	// ---- A new reference field ----
+
+	// The relationship comes first: it decides what the field points at, how
+	// many entries it holds, and what it is called.
+	describe("a new reference field", () => {
+		function relation(overrides: Partial<RelationWithUsage> = {}): RelationWithUsage {
+			return {
+				id: "rel-1",
+				slug: "chapters_lessons",
+				parentCollection: "chapters",
+				childCollection: "lessons",
+				parentLabel: "Chapters",
+				parentLabelSingular: "Chapter",
+				childLabel: "Lessons",
+				childLabelSingular: null,
+				maxChildrenPerParent: null,
+				maxParentsPerChild: null,
+				boundFields: [],
+				linkCount: 0,
+				...overrides,
+			};
+		}
+
+		/** Opens the dialog on a new field and picks the reference type. */
+		async function openReferenceField(
+			relations: RelationWithUsage[],
+			props: Partial<React.ComponentProps<typeof FieldEditor>> = {},
+		) {
+			vi.mocked(fetchRelations).mockResolvedValue(relations);
+			vi.mocked(fetchCollections).mockResolvedValue([
+				{ slug: "chapters", label: "Chapters", labelSingular: "Chapter" },
+				{ slug: "lessons", label: "Lessons" },
+			] as Awaited<ReturnType<typeof fetchCollections>>);
+			const screen = await render(
+				<FieldEditor {...defaultProps} collectionSlug="chapters" {...props} />,
+			);
+			screen
+				.getByRole("button", { name: /^Reference/ })
+				.element()
+				.click();
+			await expect
+				.element(screen.getByRole("combobox", { name: "Relationship" }))
+				.toBeInTheDocument();
+			return screen;
+		}
+
+		async function choose(
+			screen: Awaited<ReturnType<typeof openReferenceField>>,
+			label: string,
+			option: string,
+		) {
+			const trigger = screen.getByRole("combobox", { name: label, exact: true });
+			await expect.element(trigger).toBeInTheDocument();
+			trigger.element().click();
+			await vi.waitFor(() => {
+				screen.getByRole("option", { name: option, exact: true }).element().click();
+			});
+			await vi.waitFor(() => {
+				if (trigger.element().getAttribute("aria-expanded") !== "false") {
+					throw new Error(`The ${label} list is still open`);
+				}
+			});
+		}
+
+		it("asks for the relationship before the field itself", async () => {
+			const screen = await openReferenceField([relation()]);
+
+			expect(screen.getByLabelText("Label").query()).toBeNull();
+
+			await choose(screen, "Relationship", "chapters_lessons");
+
+			await expect.element(screen.getByLabelText("Label")).toBeInTheDocument();
+		});
+
+		it("names the field after the side it picks", async () => {
+			const onSave = vi.fn();
+			const screen = await openReferenceField([relation()], { onSave });
+
+			await choose(screen, "Relationship", "chapters_lessons");
+
+			await expect.element(screen.getByLabelText("Label")).toHaveValue("Lessons");
+			await expect.element(screen.getByLabelText("Slug", { exact: true })).toHaveValue("lessons");
+
+			screen.getByRole("button", { name: "Add Field" }).element().click();
+
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({
+					slug: "lessons",
+					label: "Lessons",
+					validation: expect.objectContaining({
+						relation: "chapters_lessons",
+						relationSide: "parent",
+					}),
+				}),
+			);
+		});
+
+		// The singular of the linked side is not recorded here, so it is
+		// singularized the way a collection's is.
+		it("says what each side of the relationship will show", async () => {
+			const screen = await openReferenceField([
+				relation({ parentCollection: "chapters", childCollection: "chapters" }),
+			]);
+
+			await choose(screen, "Relationship", "chapters_lessons");
+			await expect
+				.element(screen.getByText(/This field will show the Lessons this Chapter links to/))
+				.toBeInTheDocument();
+
+			await choose(screen, "This field picks", "Entries that link to this one");
+			await expect
+				.element(screen.getByText(/This field will show the Chapter linking to this Lesson/))
+				.toBeInTheDocument();
+			await expect.element(screen.getByLabelText("Label")).toHaveValue("Chapters");
+		});
+
+		// A field whose relationship does not exist yet makes it here, rather
+		// than being sent to another page half-filled.
+		it("creates the relationship it needs and comes back with it picked", async () => {
+			const onCreateRelation = vi.fn(async () => relation());
+			const screen = await openReferenceField([], { onCreateRelation });
+
+			await choose(screen, "Relationship", "Create relation");
+			screen.getByRole("button", { name: "Next" }).element().click();
+
+			await expect.element(screen.getByText("New Relation")).toBeInTheDocument();
+			await choose(screen, "Links to", "Lessons");
+			await screen.getByLabelText("Linked side (plural)").fill("Lessons");
+			screen.getByRole("button", { name: "Create Relation" }).element().click();
+
+			await vi.waitFor(() => expect(onCreateRelation).toHaveBeenCalledTimes(1));
+			await expect
+				.element(screen.getByRole("combobox", { name: "Relationship" }))
+				.toHaveTextContent("chapters_lessons");
+			await expect.element(screen.getByLabelText("Label")).toHaveValue("Lessons");
 		});
 	});
 

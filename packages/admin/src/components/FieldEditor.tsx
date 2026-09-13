@@ -35,9 +35,20 @@ import * as React from "react";
 
 import { fetchCollections, fetchRelations } from "../lib/api";
 import type { FieldType, CreateFieldInput, SchemaField } from "../lib/api";
-import type { RelationSide, RelationWithUsage } from "../lib/api/relations.js";
+import type {
+	CreateRelationInput,
+	RelationDef,
+	RelationSide,
+	RelationWithUsage,
+} from "../lib/api/relations.js";
+import { singularize } from "../lib/singularize.js";
 import { cn } from "../lib/utils";
 import { AllowedTypesEditor } from "./AllowedTypesEditor";
+import {
+	RELATION_DIALOG_CLASS,
+	RELATION_DIALOG_STYLE,
+	RelationFormPanel,
+} from "./RelationFormPanel.js";
 
 // ============================================================================
 // Constants
@@ -63,6 +74,10 @@ const INDEXABLE_FIELD_TYPES = new Set<FieldType>([
 	"slug",
 ]);
 
+/** Stands for "make a new relationship" in the relationship picker. Not a slug:
+ * a relationship named this cannot exist, since slugs cannot hold `:`. */
+const CREATE_RELATION = "create:relation";
+
 /**
  * Which ends of `relation` a field on `collection` could still bind to.
  *
@@ -75,6 +90,35 @@ function freeSidesFor(relation: RelationWithUsage, collection: string): Relation
 	if (relation.parentCollection === collection && !taken.has("parent")) sides.push("parent");
 	if (relation.childCollection === collection && !taken.has("child")) sides.push("child");
 	return sides;
+}
+
+function slugifyLabel(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(SLUG_INVALID_CHARS_REGEX, "_")
+		.replace(SLUG_LEADING_TRAILING_REGEX, "");
+}
+
+/**
+ * A picker is called what the side it picks is called: a field over the linked
+ * end of Chapters → Lessons is "Lessons", and the inverse one is "Chapters".
+ * A label the user typed stands.
+ */
+function nameAfterRelation(
+	state: FieldFormState,
+	relation: RelationWithUsage | undefined,
+	side: RelationSide,
+): FieldFormState {
+	if (!relation || state.labelEdited) return state;
+	const label = side === "parent" ? relation.childLabel : relation.parentLabel;
+	return { ...state, label, slug: slugifyLabel(label) };
+}
+
+/** What one side of a relation calls a single entry. */
+function sideSingular(relation: RelationWithUsage, side: RelationSide): string {
+	return side === "parent"
+		? relation.parentLabelSingular || singularize(relation.parentLabel)
+		: relation.childLabelSingular || singularize(relation.childLabel);
 }
 
 function isSearchableFieldType(type: FieldType | null): type is FieldType {
@@ -98,6 +142,9 @@ export interface FieldEditorProps {
 	/** The collection the field belongs to. Reference fields need it to work out
 	 * which relations they can bind to, and from which end. */
 	collectionSlug?: string;
+	/** Lets a new reference field make the relationship it needs without
+	 * leaving the dialog. Resolves with the relationship it created. */
+	onCreateRelation?: (input: CreateRelationInput) => Promise<RelationDef>;
 }
 
 interface FieldTypeConfig {
@@ -115,7 +162,9 @@ interface RepeaterSubFieldState {
 }
 
 interface FieldFormState {
-	step: "type" | "config";
+	/** `relation` is the relationship being made for a reference field, which
+	 * the dialog returns from once it exists. */
+	step: "type" | "config" | "relation";
 	selectedType: FieldType | null;
 	slug: string;
 	label: string;
@@ -136,9 +185,12 @@ interface FieldFormState {
 	targetCollection: string;
 	allowMultiple: boolean;
 	darkVariant: boolean;
-	/** Relation slug to bind to, or `""` for "create a new one". */
+	/** Relation slug to bind to, `""` for "create a new one" on an existing
+	 * field, or `CREATE_RELATION` for a new field on its way to making one. */
 	relation: string;
 	relationSide: RelationSide;
+	/** A label the user typed, which the relationship must not overwrite. */
+	labelEdited: boolean;
 }
 
 function getInitialFormState(field?: SchemaField): FieldFormState {
@@ -176,6 +228,7 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 			darkVariant: field.options?.darkVariant === true,
 			relation: field.validation?.relation ?? "",
 			relationSide: field.validation?.relationSide ?? "parent",
+			labelEdited: true,
 		};
 	}
 	return {
@@ -202,6 +255,7 @@ function getInitialFormState(field?: SchemaField): FieldFormState {
 		darkVariant: false,
 		relation: "",
 		relationSide: "parent",
+		labelEdited: false,
 	};
 }
 
@@ -215,29 +269,41 @@ export function FieldEditor({
 	onSave,
 	isSaving,
 	collectionSlug,
+	onCreateRelation,
 }: FieldEditorProps) {
 	const { t } = useLingui();
 	const [formState, setFormState] = React.useState(() => getInitialFormState(field));
 	const [refError, setRefError] = React.useState(false);
+	// The relationship this dialog just made. The relations query refetches
+	// after it, but the picker names it before that answer arrives.
+	const [createdRelation, setCreatedRelation] = React.useState<RelationWithUsage | null>(null);
 
 	const { data: collections = [] } = useQuery({
 		queryKey: ["collections"],
 		queryFn: fetchCollections,
 	});
 
-	const { data: allRelations = [] } = useQuery({
+	const { data: fetchedRelations = [] } = useQuery({
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
-		// The dialog links out to the relation editor in a new tab, so a
-		// relationship created there has to show up on the way back.
+		// A relationship made in another tab has to show up on the way back.
 		refetchOnWindowFocus: "always",
 	});
+
+	const allRelations = React.useMemo(
+		() =>
+			createdRelation && !fetchedRelations.some((rel) => rel.slug === createdRelation.slug)
+				? [...fetchedRelations, createdRelation]
+				: fetchedRelations,
+		[fetchedRelations, createdRelation],
+	);
 
 	// Reset state when dialog opens
 	React.useEffect(() => {
 		if (open) {
 			setFormState(getInitialFormState(field));
 			setRefError(false);
+			setCreatedRelation(null);
 		}
 	}, [open, field]);
 
@@ -276,6 +342,15 @@ export function FieldEditor({
 			? selectedRelation.relation.childCollection
 			: selectedRelation.relation.parentCollection
 		: "";
+	const boundRelation = allRelations.find((rel) => rel.slug === field?.validation?.relation);
+
+	// A new reference field is defined by its relationship, so the rest of the
+	// dialog waits for one: the relationship is what names the field.
+	const referenceNeedsRelation = selectedType === "reference" && !field;
+	const showFieldDetails = !referenceNeedsRelation || Boolean(selectedRelation);
+	const isCreatingRelation = referenceNeedsRelation && relation === CREATE_RELATION;
+	const isRelationStep = step === "relation";
+	const boundToRelation = Boolean(relation) && relation !== CREATE_RELATION;
 
 	// Build field types inside the component so t`` works
 	const FIELD_TYPES: FieldTypeConfig[] = [
@@ -379,27 +454,55 @@ export function FieldEditor({
 
 	// Auto-generate slug from label
 	const handleLabelChange = (value: string) => {
-		setField("label", value);
-		if (!field) {
+		setFormState((prev) => ({
+			...prev,
+			label: value,
+			labelEdited: true,
 			// Only auto-generate for new fields
-			setField(
-				"slug",
-				value
-					.toLowerCase()
-					.replace(SLUG_INVALID_CHARS_REGEX, "_")
-					.replace(SLUG_LEADING_TRAILING_REGEX, ""),
-			);
-		}
+			...(field ? {} : { slug: slugifyLabel(value) }),
+		}));
 	};
 
 	const handleTypeSelect = (type: FieldType) => {
 		setFormState((prev) => ({ ...prev, selectedType: type, step: "config" }));
 	};
 
+	const handleRelationChange = (value: string) => {
+		setRefError(false);
+		setFormState((prev) => {
+			const candidate = bindableRelations.find((c) => c.relation.slug === value);
+			const side = candidate?.sides[0] ?? "parent";
+			return nameAfterRelation(
+				{ ...prev, relation: value, relationSide: side },
+				candidate?.relation,
+				side,
+			);
+		});
+	};
+
+	const handleSideChange = (side: RelationSide) => {
+		setFormState((prev) =>
+			nameAfterRelation({ ...prev, relationSide: side }, selectedRelation?.relation, side),
+		);
+	};
+
+	/** Back from the relationship the dialog just made, with it picked. */
+	const handleRelationCreated = (created: RelationWithUsage) => {
+		setCreatedRelation(created);
+		const side = freeSidesFor(created, collectionSlug ?? "")[0] ?? "parent";
+		setFormState((prev) =>
+			nameAfterRelation(
+				{ ...prev, step: "config", relation: created.slug, relationSide: side },
+				created,
+				side,
+			),
+		);
+	};
+
 	const handleSave = () => {
 		if (!selectedType || !slug || !label) return;
 
-		if (selectedType === "reference" && !relation && !targetCollection) {
+		if (selectedType === "reference" && !boundToRelation && !targetCollection) {
 			setRefError(true);
 			return;
 		}
@@ -451,7 +554,7 @@ export function FieldEditor({
 		}
 
 		if (selectedType === "reference") {
-			if (relation) {
+			if (boundToRelation) {
 				// The relation owns the target and the limits; sending a target
 				// collection too would let the two disagree.
 				validation.relation = relation;
@@ -488,6 +591,36 @@ export function FieldEditor({
 	};
 
 	const typeConfig = FIELD_TYPES.find((fieldType) => fieldType.type === selectedType);
+
+	// The relationship step is the relation dialog, in this dialog's frame:
+	// same header, same scroll area, same actions as defining one anywhere else.
+	if (isRelationStep && onCreateRelation) {
+		return (
+			<Dialog.Root open={open} onOpenChange={onOpenChange}>
+				<Dialog size="lg" className={RELATION_DIALOG_CLASS} style={RELATION_DIALOG_STYLE}>
+					<RelationFormPanel
+						collections={collections}
+						defaultParentCollection={collectionSlug}
+						onSubmit={async (input) => {
+							const created = await onCreateRelation(input);
+							handleRelationCreated({ ...created, boundFields: [], linkCount: 0 });
+						}}
+						cancelLabel={t`Back`}
+						onCancel={() => setField("step", "config")}
+						headerAction={
+							<Dialog.Close
+								render={(props) => (
+									<Button {...props} variant="ghost" shape="square" aria-label={t`Close`}>
+										<X className="h-4 w-4" />
+									</Button>
+								)}
+							/>
+						}
+					/>
+				</Dialog>
+			</Dialog.Root>
+		);
+	}
 
 	return (
 		<Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -560,57 +693,122 @@ export function FieldEditor({
 							</div>
 						)}
 
-						{/* Basic info */}
-						<div className="grid grid-cols-2 gap-4">
-							<Input
-								label={t`Label`}
-								value={label}
-								onChange={(e) => handleLabelChange(e.target.value)}
-								placeholder={t`Field Label`}
-							/>
-							<div>
-								<Input
-									label={t`Slug`}
-									value={slug}
-									onChange={(e) => setField("slug", e.target.value)}
-									placeholder="field_slug"
-									disabled={!!field}
+						{/* The relationship a new reference field views, chosen before the
+						    field itself: it decides what the field is called, what it
+						    points at, and how many entries it holds. */}
+						{referenceNeedsRelation && (
+							<div className="flex flex-col gap-4">
+								<h4 className="font-medium text-sm">{t`Reference`}</h4>
+
+								<Select
+									label={t`Relationship`}
+									value={relation}
+									onValueChange={(v) => handleRelationChange(v ?? "")}
+									items={[
+										...bindableRelations.map(({ relation: rel }) => ({
+											label: rel.slug,
+											value: rel.slug,
+										})),
+										...(onCreateRelation
+											? [{ label: t`Create relation`, value: CREATE_RELATION }]
+											: []),
+									]}
+									placeholder={t`Select a relationship`}
+									error={refError ? t`A relationship is required` : undefined}
 								/>
-								{field && (
-									<p className="text-xs text-kumo-subtle mt-2">
-										{t`Field slugs cannot be changed after creation`}
-									</p>
+
+								{selectedRelation && (
+									<>
+										<Select
+											label={t`Referenced collection`}
+											value={boundTarget}
+											onValueChange={() => undefined}
+											items={collections.map((c) => ({ label: c.label, value: c.slug }))}
+											disabled
+										/>
+										{sideIsAChoice && (
+											<div className="flex items-end gap-1.5">
+												<Select
+													label={t`This field picks`}
+													value={effectiveSide}
+													onValueChange={(v) =>
+														handleSideChange(v === "child" ? "child" : "parent")
+													}
+													items={{
+														parent: t`Entries this one links to`,
+														child: t`Entries that link to this one`,
+													}}
+												/>
+												<SideTooltip />
+											</div>
+										)}
+										<div className="flex items-center gap-1.5">
+											<SideNote relation={selectedRelation.relation} side={effectiveSide} />
+											{!sideIsAChoice && <SideTooltip />}
+										</div>
+										<p className="text-xs text-kumo-subtle">
+											{t`The relationship decides the referenced collection and how many entries this field accepts.`}
+										</p>
+									</>
 								)}
 							</div>
-						</div>
+						)}
 
-						{/* Toggles */}
-						<div className="flex items-center space-x-6">
-							<Switch
-								checked={required}
-								onCheckedChange={(checked) => setField("required", checked)}
-								label={<span className="text-sm">{t`Required`}</span>}
-							/>
-							<Switch
-								checked={unique}
-								onCheckedChange={(checked) => setField("unique", checked)}
-								label={<span className="text-sm">{t`Unique`}</span>}
-							/>
-							{isSearchableFieldType(selectedType) && (
-								<Switch
-									checked={searchable}
-									onCheckedChange={(checked) => setField("searchable", checked)}
-									label={<span className="text-sm">{t`Searchable`}</span>}
-								/>
-							)}
-							{isIndexableFieldType(selectedType) && (
-								<Switch
-									checked={indexed}
-									onCheckedChange={(checked) => setField("indexed", checked)}
-									label={<span className="text-sm">{t`Indexed`}</span>}
-								/>
-							)}
-						</div>
+						{showFieldDetails && (
+							<>
+								{/* Basic info */}
+								<div className="grid grid-cols-2 gap-4">
+									<Input
+										label={t`Label`}
+										value={label}
+										onChange={(e) => handleLabelChange(e.target.value)}
+										placeholder={t`Field Label`}
+									/>
+									<div>
+										<Input
+											label={t`Slug`}
+											value={slug}
+											onChange={(e) => setField("slug", e.target.value)}
+											placeholder="field_slug"
+											disabled={!!field}
+										/>
+										{field && (
+											<p className="text-xs text-kumo-subtle mt-2">
+												{t`Field slugs cannot be changed after creation`}
+											</p>
+										)}
+									</div>
+								</div>
+
+								{/* Toggles */}
+								<div className="flex items-center space-x-6">
+									<Switch
+										checked={required}
+										onCheckedChange={(checked) => setField("required", checked)}
+										label={<span className="text-sm">{t`Required`}</span>}
+									/>
+									<Switch
+										checked={unique}
+										onCheckedChange={(checked) => setField("unique", checked)}
+										label={<span className="text-sm">{t`Unique`}</span>}
+									/>
+									{isSearchableFieldType(selectedType) && (
+										<Switch
+											checked={searchable}
+											onCheckedChange={(checked) => setField("searchable", checked)}
+											label={<span className="text-sm">{t`Searchable`}</span>}
+										/>
+									)}
+									{isIndexableFieldType(selectedType) && (
+										<Switch
+											checked={indexed}
+											onCheckedChange={(checked) => setField("indexed", checked)}
+											label={<span className="text-sm">{t`Indexed`}</span>}
+										/>
+									)}
+								</div>
+							</>
+						)}
 
 						{/* Type-specific validation */}
 						{(selectedType === "string" || selectedType === "text" || selectedType === "slug") && (
@@ -675,7 +873,7 @@ export function FieldEditor({
 							/>
 						)}
 
-						{selectedType === "reference" && (
+						{selectedType === "reference" && field && (
 							<div className="flex flex-col gap-4">
 								<h4 className="font-medium text-sm">{t`Reference`}</h4>
 
@@ -697,7 +895,10 @@ export function FieldEditor({
 											items={collections.map((c) => ({ label: c.label, value: c.slug }))}
 											disabled
 										/>
-										<SideNote side={field?.validation?.relationSide ?? "parent"} />
+										<SideNote
+											relation={boundRelation}
+											side={field?.validation?.relationSide ?? "parent"}
+										/>
 										<p className="text-xs text-kumo-subtle">
 											{t`The relationship and the referenced collection cannot be changed after creation. How many entries this field accepts is set on the relationship.`}
 										</p>
@@ -707,10 +908,7 @@ export function FieldEditor({
 										<Select
 											label={t`Relationship`}
 											value={relation}
-											onValueChange={(v) => {
-												setField("relation", v ?? "");
-												setRefError(false);
-											}}
+											onValueChange={(v) => handleRelationChange(v ?? "")}
 											items={[
 												{ label: t`Quick create a relationship`, value: "" },
 												...bindableRelations.map(({ relation: rel }) => ({
@@ -729,12 +927,14 @@ export function FieldEditor({
 													items={collections.map((c) => ({ label: c.label, value: c.slug }))}
 													disabled
 												/>
-												{sideIsAChoice ? (
+												{sideIsAChoice && (
 													<div className="flex items-end gap-1.5">
 														<Select
 															label={t`This field picks`}
 															value={effectiveSide}
-															onValueChange={(v) => setField("relationSide", v ?? "parent")}
+															onValueChange={(v) =>
+																handleSideChange(v === "child" ? "child" : "parent")
+															}
 															items={{
 																parent: t`Entries this one links to`,
 																child: t`Entries that link to this one`,
@@ -742,12 +942,11 @@ export function FieldEditor({
 														/>
 														<SideTooltip />
 													</div>
-												) : (
-													<div className="flex items-center gap-1.5">
-														<SideNote side={effectiveSide} />
-														<SideTooltip />
-													</div>
 												)}
+												<div className="flex items-center gap-1.5">
+													<SideNote relation={selectedRelation?.relation} side={effectiveSide} />
+													{!sideIsAChoice && <SideTooltip />}
+												</div>
 												<p className="text-xs text-kumo-subtle">
 													{t`The relationship decides the referenced collection and how many entries this field accepts.`}
 												</p>
@@ -780,10 +979,7 @@ export function FieldEditor({
 														Quick create names the relationship after this field and this
 														collection, takes how many entries it holds from the switch above, and
 														puts no limit on how many entries link back the other way.{" "}
-														<KumoLink
-															href="/_emdash/admin/content-types/relations/new"
-															target="_blank"
-														>
+														<KumoLink href="/_emdash/admin/content-types/relations" target="_blank">
 															Create the relationship yourself
 														</KumoLink>{" "}
 														to set its slug, the name each side goes by, and both limits, then pick
@@ -941,17 +1137,21 @@ export function FieldEditor({
 						<Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
 							{t`Cancel`}
 						</Button>
-						<Button
-							onClick={handleSave}
-							disabled={
-								!slug ||
-								!label ||
-								isSaving ||
-								(selectedType === "repeater" && formState.subFields.length === 0)
-							}
-						>
-							{isSaving ? t`Saving...` : field ? t`Update Field` : t`Add Field`}
-						</Button>
+						{isCreatingRelation ? (
+							<Button onClick={() => setField("step", "relation")}>{t`Next`}</Button>
+						) : (
+							<Button
+								onClick={handleSave}
+								disabled={
+									!slug ||
+									!label ||
+									isSaving ||
+									(selectedType === "repeater" && formState.subFields.length === 0)
+								}
+							>
+								{isSaving ? t`Saving...` : field ? t`Update Field` : t`Add Field`}
+							</Button>
+						)}
 					</div>
 				)}
 			</Dialog>
@@ -959,15 +1159,39 @@ export function FieldEditor({
 	);
 }
 
-/** States which end of a relation a field picks from, for a side the user did
- * not choose. */
-function SideNote({ side }: { side: RelationSide }) {
+/**
+ * States what the field will hold, in the names the relation gives its two
+ * sides: "the Lessons this Chapter links to", or "the Chapter linking to this
+ * Lesson". Falls back to the generic wording until a relation is known.
+ */
+function SideNote({ relation, side }: { relation?: RelationWithUsage; side: RelationSide }) {
 	const { t } = useLingui();
+
+	if (!relation) {
+		return (
+			<p className="text-sm">
+				{side === "parent"
+					? t`This field picks entries this one links to.`
+					: t`This field lists entries that link to this one.`}
+			</p>
+		);
+	}
+
+	const linkingSide = sideSingular(relation, "parent");
+	const linkedSide = sideSingular(relation, "child");
+
 	return (
 		<p className="text-sm">
-			{side === "parent"
-				? t`This field picks entries this one links to.`
-				: t`This field lists entries that link to this one.`}
+			{side === "parent" ? (
+				<Trans>
+					This field will show the <strong>{relation.childLabel}</strong> this {linkingSide} links
+					to
+				</Trans>
+			) : (
+				<Trans>
+					This field will show the <strong>{linkingSide}</strong> linking to this {linkedSide}
+				</Trans>
+			)}
 		</p>
 	);
 }

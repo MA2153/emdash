@@ -818,20 +818,20 @@ describe("ContentTypeEditor", () => {
 			const onCreateRelation = vi.fn(async () => ({}));
 			const screen = await renderPanel([], { onCreateRelation });
 
-			await screen.getByRole("button", { name: "Create First Relation" }).click();
+			await screen.getByRole("button", { name: "New Relation" }).click();
 
-			// Prefilled from the content type being edited, and the slug follows
-			// both ends once the other is picked.
+			// Prefilled from the content type being edited, whose labels name the
+			// linking side; the slug follows both roles once the other end is
+			// picked.
 			await expect
 				.element(screen.getByRole("combobox", { name: "Links from", exact: true }))
 				.toHaveTextContent("Posts");
+			await expect.element(screen.getByLabelText("Linking side (plural)")).toHaveValue("Posts");
 			await choose(screen, "Links to", "Authors");
 			await expect
 				.element(screen.getByLabelText("Slug", { exact: true }))
 				.toHaveValue("posts_authors");
 
-			await screen.getByLabelText("Linking side (plural)").fill("Posts");
-			await screen.getByLabelText("Linked side (plural)").fill("Authors");
 			// The dialog's inert overlay blocks Playwright's actionability checks, so
 			// submit through the DOM as the other dialog tests do.
 			screen.getByRole("button", { name: "Create Relation" }).element().click();
@@ -842,13 +842,43 @@ describe("ContentTypeEditor", () => {
 					parentCollection: "posts",
 					childCollection: "authors",
 					parentLabel: "Posts",
-					parentLabelSingular: null,
+					parentLabelSingular: "Post",
 					childLabel: "Authors",
-					childLabelSingular: null,
+					childLabelSingular: "Author",
 					maxChildrenPerParent: null,
 					maxParentsPerChild: null,
 				});
 			});
+		});
+
+		it("edits a relation from the content type it is an end of", async () => {
+			const onUpdateRelation = vi.fn(async () => ({}));
+			const screen = await renderPanel([makeRelation()], { onUpdateRelation });
+
+			await screen.getByRole("button", { name: "Edit posts_authors" }).click();
+			await screen.getByLabelText("Linked side (plural)").fill("Writers");
+			screen.getByRole("button", { name: "Save Relation" }).element().click();
+
+			await vi.waitFor(() => {
+				expect(onUpdateRelation).toHaveBeenCalledWith(
+					"rel-1",
+					expect.objectContaining({ childLabel: "Writers" }),
+				);
+			});
+		});
+
+		it("deletes a relation once the dialog says what goes with it", async () => {
+			const onDeleteRelation = vi.fn();
+			const screen = await renderPanel([makeRelation()], { onDeleteRelation });
+
+			await screen.getByRole("button", { name: "Delete posts_authors" }).click();
+
+			await expect
+				.element(screen.getByText(/the author field on posts, which picks entries it links to/))
+				.toBeInTheDocument();
+			screen.getByRole("button", { name: "Delete", exact: true }).element().click();
+
+			expect(onDeleteRelation).toHaveBeenCalledWith("rel-1");
 		});
 
 		it("keeps the dialog open and shows the server's message when creating fails", async () => {
@@ -857,10 +887,8 @@ describe("ContentTypeEditor", () => {
 			});
 			const screen = await renderPanel([], { onCreateRelation });
 
-			await screen.getByRole("button", { name: "Create First Relation" }).click();
+			await screen.getByRole("button", { name: "New Relation" }).click();
 			await choose(screen, "Links to", "Authors");
-			await screen.getByLabelText("Linking side (plural)").fill("Posts");
-			await screen.getByLabelText("Linked side (plural)").fill("Authors");
 			// The dialog's inert overlay blocks Playwright's actionability checks, so
 			// submit through the DOM as the other dialog tests do.
 			screen.getByRole("button", { name: "Create Relation" }).element().click();

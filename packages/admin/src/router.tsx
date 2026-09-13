@@ -54,8 +54,6 @@ import { PluginSettings } from "./components/PluginSettings";
 import { Redirects } from "./components/Redirects";
 import { RegistryBrowse } from "./components/RegistryBrowse";
 import { RegistryPluginDetail } from "./components/RegistryPluginDetail";
-import { RelationDangerZone } from "./components/RelationDangerZone";
-import { RelationEditor } from "./components/RelationEditor";
 import { RelationList } from "./components/RelationList";
 import { SandboxedPluginPage } from "./components/SandboxedPluginPage";
 import { SectionEditor } from "./components/SectionEditor";
@@ -2528,12 +2526,47 @@ const relationsListRoute = createRoute({
 
 function RelationsListPage() {
 	const { data: relations, isLoading, error } = useRelationsQuery();
+	const { data: collections = [] } = useQuery({
+		queryKey: ["schema", "collections"],
+		queryFn: fetchCollections,
+	});
+	const queryClient = useQueryClient();
+
+	// Deleting a relation takes the reference fields bound to it, on both of
+	// the content types it joins.
+	const invalidateRelations = () => {
+		void queryClient.invalidateQueries({ queryKey: ["relations"] });
+		void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
+		void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+	};
+
+	const createMutation = useMutation({
+		mutationFn: (input: CreateRelationInput) => createRelation(input),
+		onSuccess: invalidateRelations,
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: ({ id, input }: { id: string; input: UpdateRelationInput }) =>
+			updateRelation(id, input),
+		onSuccess: invalidateRelations,
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => deleteRelation(id),
+		onSuccess: invalidateRelations,
+	});
 
 	return (
 		<RelationList
 			relations={relations ?? []}
+			collections={collections}
 			isLoading={isLoading}
 			error={error ? error.message : undefined}
+			onCreateRelation={(input) => createMutation.mutateAsync(input)}
+			onUpdateRelation={(id, input) => updateMutation.mutateAsync({ id, input })}
+			onDeleteRelation={(id) => deleteMutation.mutate(id)}
+			isDeleting={deleteMutation.isPending}
+			deleteError={deleteMutation.error}
 		/>
 	);
 }
@@ -2543,111 +2576,6 @@ function useRelationsQuery() {
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
 	});
-}
-
-const relationsNewRoute = createRoute({
-	getParentRoute: () => adminLayoutRoute,
-	path: "/content-types/relations/new",
-	component: RelationsNewPage,
-});
-
-function RelationsNewPage() {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
-
-	const { data: collections = [] } = useQuery({
-		queryKey: ["schema", "collections"],
-		queryFn: fetchCollections,
-	});
-
-	const createMutation = useMutation({
-		mutationFn: (input: CreateRelationInput) => createRelation(input),
-		onSuccess: (relation) => {
-			void queryClient.invalidateQueries({ queryKey: ["relations"] });
-			void navigate({
-				to: "/content-types/relations/$slug",
-				params: { slug: relation.slug },
-			});
-		},
-	});
-
-	return (
-		<RelationEditor
-			isNew
-			collections={collections}
-			isSaving={createMutation.isPending}
-			error={createMutation.error ? createMutation.error.message : undefined}
-			onSave={(input) => createMutation.mutate(input as CreateRelationInput)}
-		/>
-	);
-}
-
-const relationsEditRoute = createRoute({
-	getParentRoute: () => adminLayoutRoute,
-	path: "/content-types/relations/$slug",
-	component: RelationsEditPage,
-});
-
-function RelationsEditPage() {
-	const { slug } = useParams({ from: "/_admin/content-types/relations/$slug" });
-	const queryClient = useQueryClient();
-	const { t } = useLingui();
-
-	// The list carries the same `RelationWithUsage` shape the editor needs, and
-	// the relation endpoints address a relation by id while the URL names it by
-	// slug — so one list read answers both.
-	const { data: relations, isLoading, error } = useRelationsQuery();
-	const relation = relations?.find((r) => r.slug === slug);
-
-	const updateMutation = useMutation({
-		mutationFn: (input: UpdateRelationInput) => {
-			if (!relation) throw new Error("Relation not loaded");
-			return updateRelation(relation.id, input);
-		},
-		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ["relations"] });
-		},
-	});
-
-	const { data: collections = [] } = useQuery({
-		queryKey: ["schema", "collections"],
-		queryFn: fetchCollections,
-	});
-
-	const navigate = useNavigate();
-	const deleteMutation = useMutation({
-		mutationFn: (id: string) => deleteRelation(id),
-		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ["relations"] });
-			// The fields bound to the relation went with it, on both collections.
-			void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
-			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
-			void navigate({ to: "/content-types/relations" });
-		},
-	});
-
-	if (error) return <ErrorScreen error={error.message} />;
-	if (isLoading) return <LoadingScreen />;
-	if (!relation) return <ErrorScreen error={t`Relation not found`} />;
-
-	return (
-		<RelationEditor
-			key={relation.id}
-			relation={relation}
-			collections={collections}
-			isSaving={updateMutation.isPending}
-			error={updateMutation.error ? updateMutation.error.message : undefined}
-			onSave={(input) => updateMutation.mutate(input)}
-			footer={
-				<RelationDangerZone
-					relation={relation}
-					onDelete={() => deleteMutation.mutate(relation.id)}
-					isDeleting={deleteMutation.isPending}
-					error={deleteMutation.error}
-				/>
-			}
-		/>
-	);
 }
 
 const contentTypesEditRoute = createRoute({
@@ -2764,6 +2692,26 @@ function ContentTypesEditPage() {
 		},
 	});
 
+	const updateRelationMutation = useMutation({
+		mutationFn: ({ id, input }: { id: string; input: UpdateRelationInput }) =>
+			updateRelation(id, input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+		},
+	});
+
+	const deleteRelationMutation = useMutation({
+		mutationFn: (id: string) => deleteRelation(id),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+			// The fields bound to the relation went with it, on both of the
+			// content types it joined.
+			void queryClient.invalidateQueries({ queryKey: ["schema", "collections"] });
+			void queryClient.invalidateQueries({ queryKey: ["schema", "collections", slug] });
+			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
+		},
+	});
+
 	const reorderFieldsMutation = useMutation({
 		mutationFn: (fieldSlugs: string[]) => reorderFields(slug, fieldSlugs),
 		onSuccess: () => {
@@ -2794,6 +2742,10 @@ function ContentTypesEditPage() {
 			}
 			onReorderFields={(fieldSlugs) => reorderFieldsMutation.mutate(fieldSlugs)}
 			onCreateRelation={(input) => createRelationMutation.mutateAsync(input)}
+			onUpdateRelation={(id, input) => updateRelationMutation.mutateAsync({ id, input })}
+			onDeleteRelation={(id) => deleteRelationMutation.mutate(id)}
+			isDeletingRelation={deleteRelationMutation.isPending}
+			deleteRelationError={deleteRelationMutation.error}
 		/>
 	);
 }
@@ -2851,8 +2803,6 @@ const adminRoutes = adminLayoutRoute.addChildren([
 	contentTypesListRoute,
 	contentTypesNewRoute,
 	relationsListRoute,
-	relationsNewRoute,
-	relationsEditRoute,
 	contentTypesEditRoute,
 	mediaRoute,
 	commentsRoute,

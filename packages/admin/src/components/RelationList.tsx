@@ -7,23 +7,50 @@
  * behind, and this page is the only way to reach it again.
  */
 
+import { Button } from "@cloudflare/kumo";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { ArrowRight, Pencil, Plus } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { ArrowRight, Pencil, Plus, Trash } from "@phosphor-icons/react";
+import * as React from "react";
 
-import type { RelationWithUsage } from "../lib/api/relations.js";
+import type { SchemaCollection } from "../lib/api";
+import type {
+	CreateRelationInput,
+	RelationWithUsage,
+	UpdateRelationInput,
+} from "../lib/api/relations.js";
 import { ArrowPrev } from "./ArrowIcons.js";
+import { RelationDeleteDialog } from "./RelationDeleteDialog.js";
+import { RelationDialog } from "./RelationDialog.js";
 import { RouterLinkButton } from "./RouterLinkButton.js";
 
 export interface RelationListProps {
 	relations: RelationWithUsage[];
+	collections: SchemaCollection[];
 	isLoading?: boolean;
 	error?: string;
+	onCreateRelation: (input: CreateRelationInput) => Promise<unknown>;
+	onUpdateRelation: (id: string, input: UpdateRelationInput) => Promise<unknown>;
+	onDeleteRelation: (id: string) => void;
+	isDeleting?: boolean;
+	deleteError?: unknown;
 }
 
-export function RelationList({ relations, isLoading, error }: RelationListProps) {
+export function RelationList({
+	relations,
+	collections,
+	isLoading,
+	error,
+	onCreateRelation,
+	onUpdateRelation,
+	onDeleteRelation,
+	isDeleting,
+	deleteError,
+}: RelationListProps) {
 	const { t } = useLingui();
+	const [createOpen, setCreateOpen] = React.useState(false);
+	const [editing, setEditing] = React.useState<RelationWithUsage | null>(null);
+	const [deleting, setDeleting] = React.useState<RelationWithUsage | null>(null);
 
 	return (
 		<div className="space-y-4">
@@ -43,9 +70,9 @@ export function RelationList({ relations, isLoading, error }: RelationListProps)
 						</p>
 					</div>
 				</div>
-				<RouterLinkButton to="/content-types/relations/new" icon={<Plus />}>
+				<Button icon={<Plus />} onClick={() => setCreateOpen(true)}>
 					{t`New Relation`}
-				</RouterLinkButton>
+				</Button>
 			</div>
 
 			{error && (
@@ -85,35 +112,70 @@ export function RelationList({ relations, isLoading, error }: RelationListProps)
 						) : relations.length === 0 ? (
 							<tr>
 								<td colSpan={5} className="px-4 py-8 text-center text-kumo-subtle">
-									{t`No relations yet.`}{" "}
-									<Link to="/content-types/relations/new" className="text-kumo-link underline">
-										{t`Create your first relation`}
-									</Link>
+									{t`No relations yet.`}
 								</td>
 							</tr>
 						) : (
-							relations.map((relation) => <RelationRow key={relation.id} relation={relation} />)
+							relations.map((relation) => (
+								<RelationRow
+									key={relation.id}
+									relation={relation}
+									onEdit={() => setEditing(relation)}
+									onDelete={() => setDeleting(relation)}
+								/>
+							))
 						)}
 					</tbody>
 				</table>
 			</div>
+
+			<RelationDialog
+				open={createOpen}
+				onOpenChange={setCreateOpen}
+				collections={collections}
+				onSubmit={onCreateRelation}
+			/>
+
+			{editing && (
+				<RelationDialog
+					key={editing.id}
+					open
+					onOpenChange={(open) => !open && setEditing(null)}
+					collections={collections}
+					relation={editing}
+					onSubmit={(input) => onUpdateRelation(editing.id, input)}
+				/>
+			)}
+
+			<RelationDeleteDialog
+				relation={deleting}
+				onClose={() => setDeleting(null)}
+				onConfirm={(relation) => {
+					onDeleteRelation(relation.id);
+					setDeleting(null);
+				}}
+				isDeleting={isDeleting}
+				error={deleteError}
+			/>
 		</div>
 	);
 }
 
-function RelationRow({ relation }: { relation: RelationWithUsage }) {
+function RelationRow({
+	relation,
+	onEdit,
+	onDelete,
+}: {
+	relation: RelationWithUsage;
+	onEdit: () => void;
+	onDelete: () => void;
+}) {
 	const { t } = useLingui();
 
 	return (
 		<tr className="hover:bg-kumo-tint/25">
 			<td className="px-4 py-3">
-				<Link
-					to="/content-types/relations/$slug"
-					params={{ slug: relation.slug }}
-					className="font-medium hover:text-kumo-link"
-				>
-					<code className="text-sm">{relation.slug}</code>
-				</Link>
+				<code className="text-sm font-medium">{relation.slug}</code>
 			</td>
 			<td className="px-4 py-3">
 				<div className="flex items-center gap-2 text-sm">
@@ -148,15 +210,23 @@ function RelationRow({ relation }: { relation: RelationWithUsage }) {
 			<td className="px-4 py-3 text-sm text-kumo-subtle">
 				{plural(relation.linkCount, { one: "# link", other: "# links" })}
 			</td>
-			<td className="px-4 py-3 text-end">
-				<RouterLinkButton
-					to="/content-types/relations/$slug"
-					params={{ slug: relation.slug }}
-					aria-label={t`Edit ${relation.slug}`}
-					variant="ghost"
-					shape="square"
-					icon={<Pencil />}
-				/>
+			<td className="px-4 py-3">
+				<div className="flex items-center justify-end gap-1">
+					<Button
+						onClick={onEdit}
+						aria-label={t`Edit ${relation.slug}`}
+						variant="ghost"
+						shape="square"
+						icon={<Pencil />}
+					/>
+					<Button
+						onClick={onDelete}
+						aria-label={t`Delete ${relation.slug}`}
+						variant="ghost"
+						shape="square"
+						icon={<Trash className="text-kumo-danger" />}
+					/>
+				</div>
 			</td>
 		</tr>
 	);

@@ -1,6 +1,6 @@
 /**
- * The relations admin surface: the list, the editor, and the routing that
- * reaches them.
+ * The relations admin surface: the list, the dialog that defines a relation,
+ * and the routing that reaches them.
  *
  * `/content-types/relations` sits under the collection editor's own
  * `/content-types/$slug`, so the routing assertions here are the ones that
@@ -17,8 +17,6 @@ import {
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RelationDangerZone } from "../../src/components/RelationDangerZone";
-import { RelationEditor } from "../../src/components/RelationEditor";
 import { RelationList } from "../../src/components/RelationList";
 import type { SchemaCollection } from "../../src/lib/api";
 import type { RelationWithUsage } from "../../src/lib/api/relations.js";
@@ -46,11 +44,22 @@ function relation(overrides: Partial<RelationWithUsage> = {}): RelationWithUsage
 
 const collections = [
 	{ slug: "posts", label: "Posts", labelSingular: "Post" },
-	{ slug: "authors", label: "Authors", labelSingular: "Author" },
+	{ slug: "authors", label: "Authors" },
 ] as SchemaCollection[];
 
-/** Render `element` inside a router that owns the relation route shapes, so
- * `<Link>` targets resolve the way they do in the admin. */
+function listProps(overrides: Partial<React.ComponentProps<typeof RelationList>> = {}) {
+	return {
+		relations: [relation()],
+		collections,
+		onCreateRelation: vi.fn(async () => ({})),
+		onUpdateRelation: vi.fn(async () => ({})),
+		onDeleteRelation: vi.fn(),
+		...overrides,
+	};
+}
+
+/** Render `element` inside a router, so `<Link>` targets resolve the way they
+ * do in the admin. */
 async function renderWithRoutes(element: React.ReactNode) {
 	const rootRoute = createRootRoute({ component: Outlet });
 	const indexRoute = createRoute({
@@ -63,48 +72,53 @@ async function renderWithRoutes(element: React.ReactNode) {
 		path: "/content-types/relations",
 		component: () => <div>Relations list</div>,
 	});
-	const newRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/content-types/relations/new",
-		component: () => <div>New relation</div>,
-	});
-	const editRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/content-types/relations/$slug",
-		component: () => <div>Edit relation</div>,
-	});
 	const contentTypesRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/content-types",
 		component: () => <div>Content types</div>,
 	});
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([
-			indexRoute,
-			contentTypesRoute,
-			listRoute,
-			newRoute,
-			editRoute,
-		]),
+		routeTree: rootRoute.addChildren([indexRoute, contentTypesRoute, listRoute]),
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
 	const screen = await render(<RouterProvider router={router} />);
 	return { router, screen };
 }
 
-/** Kumo's Select is a combobox button over a listbox, not a native select. */
-async function selectOption(
-	screen: Awaited<ReturnType<typeof renderWithRoutes>>["screen"],
-	label: string,
-	option: string,
-) {
-	await screen.getByLabelText(label, { exact: true }).click();
-	await screen.getByRole("option", { name: option, exact: true }).click();
+type Screen = Awaited<ReturnType<typeof renderWithRoutes>>["screen"];
+
+/** Kumo's Select is a combobox button over a listbox, not a native select; the
+ * dialog's inert overlay blocks Playwright's actionability checks, so drive it
+ * through the DOM as the other dialog tests do. */
+async function selectOption(screen: Screen, label: string, option: string) {
+	const trigger = screen.getByRole("combobox", { name: label, exact: true });
+	await expect.element(trigger).toBeInTheDocument();
+	trigger.element().click();
+	// Scoped to this select's own list: a list on its way out still answers a
+	// role query, and clicking it would set the select it belongs to.
+	await vi.waitFor(() => {
+		const listId = trigger.element().getAttribute("aria-controls");
+		const list = listId ? document.getElementById(listId) : null;
+		const choice = [...(list?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].find(
+			(el) => el.textContent?.trim() === option,
+		);
+		if (!choice) throw new Error(`No "${option}" option open under ${label}`);
+		choice.click();
+	});
+	await vi.waitFor(() => {
+		if (trigger.element().getAttribute("aria-expanded") !== "false") {
+			throw new Error(`The ${label} list is still open`);
+		}
+	});
 }
 
 describe("RelationList", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
 	it("shows each relation's ends, bound fields and link count", async () => {
-		const { screen } = await renderWithRoutes(<RelationList relations={[relation()]} />);
+		const { screen } = await renderWithRoutes(<RelationList {...listProps()} />);
 
 		await expect.element(screen.getByText("posts_authors")).toBeInTheDocument();
 		await expect.element(screen.getByText("posts.author")).toBeInTheDocument();
@@ -115,11 +129,13 @@ describe("RelationList", () => {
 	it("says which end a child-side field picks from", async () => {
 		const { screen } = await renderWithRoutes(
 			<RelationList
-				relations={[
-					relation({
-						boundFields: [{ collectionSlug: "authors", fieldSlug: "posts", side: "child" }],
-					}),
-				]}
+				{...listProps({
+					relations: [
+						relation({
+							boundFields: [{ collectionSlug: "authors", fieldSlug: "posts", side: "child" }],
+						}),
+					],
+				})}
 			/>,
 		);
 
@@ -130,82 +146,99 @@ describe("RelationList", () => {
 	// is unreachable and undeletable.
 	it("lists a relation with no bound fields", async () => {
 		const { screen } = await renderWithRoutes(
-			<RelationList relations={[relation({ boundFields: [], linkCount: 0 })]} />,
+			<RelationList {...listProps({ relations: [relation({ boundFields: [], linkCount: 0 })] })} />,
 		);
 
 		await expect.element(screen.getByText("posts_authors")).toBeInTheDocument();
 		await expect.element(screen.getByText("No fields")).toBeInTheDocument();
 	});
 
-	it("navigates to a relation from its slug", async () => {
-		const { router, screen } = await renderWithRoutes(<RelationList relations={[relation()]} />);
+	// Editing a relation is a dialog over the list, not a page of its own: the
+	// list is where the relation was found and where the roles land.
+	it("edits a relation's roles in a dialog", async () => {
+		const onUpdateRelation = vi.fn(async () => ({}));
+		const { screen } = await renderWithRoutes(
+			<RelationList {...listProps({ onUpdateRelation })} />,
+		);
 
-		screen.getByRole("link", { name: "posts_authors", exact: true }).element().click();
+		await screen.getByRole("button", { name: "Edit posts_authors" }).click();
+
+		await expect.element(screen.getByLabelText("Slug", { exact: true })).toBeDisabled();
+		await screen.getByLabelText("Linked side (plural)").fill("Writers");
+		screen.getByRole("button", { name: "Save Relation" }).element().click();
 
 		await vi.waitFor(() => {
-			expect(router.state.location.pathname).toBe("/content-types/relations/posts_authors");
-		});
-	});
-});
-
-describe("RelationEditor", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it("saves the roles and limits of an existing relation", async () => {
-		const onSave = vi.fn();
-		const { screen } = await renderWithRoutes(
-			<RelationEditor relation={relation()} collections={collections} onSave={onSave} />,
-		);
-
-		const childLabel = screen.getByLabelText("Linked side (plural)");
-		await childLabel.fill("Writers");
-		await screen.getByRole("button", { name: /Save/ }).click();
-
-		await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-		expect(onSave.mock.calls[0]?.[0]).toEqual({
-			parentLabel: "Posts",
-			parentLabelSingular: "Post",
-			childLabel: "Writers",
-			childLabelSingular: "Author",
-			maxChildrenPerParent: 1,
-			maxParentsPerChild: null,
+			expect(onUpdateRelation).toHaveBeenCalledWith("rel-1", {
+				parentLabel: "Posts",
+				parentLabelSingular: "Post",
+				childLabel: "Writers",
+				childLabelSingular: "Author",
+				maxChildrenPerParent: 1,
+				maxParentsPerChild: null,
+			});
 		});
 	});
 
-	// The two ends key every stored link; changing one would repoint them at
-	// content of the wrong type.
-	it("locks the ends and the slug of an existing relation", async () => {
+	// The delete cascades to the fields on both ends, so the dialog says so
+	// before it runs rather than reporting it afterwards.
+	it("names what a delete takes before it runs", async () => {
+		const onDeleteRelation = vi.fn();
 		const { screen } = await renderWithRoutes(
-			<RelationEditor relation={relation()} collections={collections} onSave={vi.fn()} />,
+			<RelationList {...listProps({ onDeleteRelation })} />,
 		);
 
-		await expect.element(screen.getByLabelText("Slug")).toBeDisabled();
-		await expect.element(screen.getByLabelText("Links from", { exact: true })).toBeDisabled();
-		await expect.element(screen.getByLabelText("Links to", { exact: true })).toBeDisabled();
+		await screen.getByRole("button", { name: "Delete posts_authors" }).click();
+
+		await expect
+			.element(screen.getByText(/the author field on posts, which picks entries it links to/))
+			.toBeInTheDocument();
+		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
+
+		expect(onDeleteRelation).toHaveBeenCalledWith("rel-1");
 	});
 
-	it("sends the two ends and a slug when creating", async () => {
-		const onSave = vi.fn();
+	it("creates a relation from the list", async () => {
+		const onCreateRelation = vi.fn(async () => ({}));
 		const { screen } = await renderWithRoutes(
-			<RelationEditor isNew collections={collections} onSave={onSave} />,
+			<RelationList {...listProps({ relations: [], onCreateRelation })} />,
 		);
 
+		await screen.getByRole("button", { name: "New Relation" }).click();
 		await selectOption(screen, "Links from", "Posts");
 		await selectOption(screen, "Links to", "Authors");
-		await screen.getByLabelText("Linking side (plural)").fill("Posts");
-		await screen.getByLabelText("Linked side (plural)").fill("Authors");
-		await screen.getByRole("button", { name: /Save/ }).click();
+		screen.getByRole("button", { name: "Create Relation" }).element().click();
 
-		await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-		expect(onSave.mock.calls[0]?.[0]).toMatchObject({
-			slug: "posts_authors",
-			parentCollection: "posts",
-			childCollection: "authors",
-			parentLabel: "Posts",
-			childLabel: "Authors",
+		await vi.waitFor(() => {
+			expect(onCreateRelation).toHaveBeenCalledWith({
+				slug: "posts_authors",
+				parentCollection: "posts",
+				childCollection: "authors",
+				parentLabel: "Posts",
+				parentLabelSingular: "Post",
+				childLabel: "Authors",
+				childLabelSingular: "Author",
+				maxChildrenPerParent: null,
+				maxParentsPerChild: null,
+			});
 		});
+	});
+
+	// The roles come from the content types, and the slug from the roles — so a
+	// renamed side renames the relation with it.
+	it("names the relation after the roles rather than the content types", async () => {
+		const onCreateRelation = vi.fn(async () => ({}));
+		const { screen } = await renderWithRoutes(
+			<RelationList {...listProps({ relations: [], onCreateRelation })} />,
+		);
+
+		await screen.getByRole("button", { name: "New Relation" }).click();
+		await selectOption(screen, "Links from", "Posts");
+		await selectOption(screen, "Links to", "Authors");
+		await screen.getByLabelText("Linked side (plural)").fill("Writers");
+
+		await expect
+			.element(screen.getByLabelText("Slug", { exact: true }))
+			.toHaveValue("posts_writers");
 	});
 });
 
@@ -213,7 +246,7 @@ describe("relation routes", () => {
 	// `/content-types/relations` sits inside `/content-types/$slug`'s space. If
 	// the dynamic route ever wins, the page becomes a collection editor for a
 	// collection named "relations" — a 404 the user cannot act on.
-	it("prefers the relations routes over the collection editor", () => {
+	it("prefers the relations route over the collection editor", () => {
 		const router = createAdminRouter(createTestQueryClient());
 
 		const matchIds = (pathname: string) =>
@@ -221,42 +254,6 @@ describe("relation routes", () => {
 				?.routeId;
 
 		expect(matchIds("/content-types/relations")).toBe("/_admin/content-types/relations");
-		expect(matchIds("/content-types/relations/new")).toBe("/_admin/content-types/relations/new");
-		expect(matchIds("/content-types/relations/posts_authors")).toBe(
-			"/_admin/content-types/relations/$slug",
-		);
 		expect(matchIds("/content-types/posts")).toBe("/_admin/content-types/$slug");
-	});
-});
-
-describe("RelationDangerZone", () => {
-	// The relation delete cascades to the fields on both ends, so the dialog
-	// says so before it runs rather than reporting it afterwards.
-	it("names what the delete takes before it runs", async () => {
-		const { screen } = await renderWithRoutes(
-			<RelationDangerZone relation={relation()} onDelete={vi.fn()} />,
-		);
-
-		await screen.getByRole("button", { name: "Delete relationship", exact: true }).click();
-
-		await expect.element(screen.getByText("This removes:")).toBeInTheDocument();
-		await expect
-			.element(screen.getByText(/the author field on posts, which picks entries it links to/))
-			.toBeInTheDocument();
-		await expect.element(screen.getByText("12 links")).toBeInTheDocument();
-	});
-
-	// Bound fields are not a refusal: the dialog names them and the delete
-	// removes them.
-	it("deletes a relationship that fields are still bound to", async () => {
-		const onDelete = vi.fn();
-		const { screen } = await renderWithRoutes(
-			<RelationDangerZone relation={relation()} onDelete={onDelete} />,
-		);
-
-		await screen.getByRole("button", { name: "Delete relationship", exact: true }).click();
-		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
-
-		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
 });

@@ -32,7 +32,11 @@ import type {
 	CreateCollectionInput,
 	UpdateCollectionInput,
 } from "../lib/api";
-import type { CreateRelationInput } from "../lib/api/relations.js";
+import type {
+	CreateRelationInput,
+	RelationDef,
+	UpdateRelationInput,
+} from "../lib/api/relations.js";
 import { cn } from "../lib/utils";
 import { ArrowPrev } from "./ArrowIcons.js";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -58,8 +62,14 @@ export interface ContentTypeEditorProps {
 	 * its links, and the field on the other end. */
 	onDeleteField?: (fieldSlug: string, options?: { deleteRelation?: boolean }) => void;
 	onReorderFields?: (fieldSlugs: string[]) => void;
-	/** Resolves once the relation exists; rejects with the server's message. */
-	onCreateRelation?: (input: CreateRelationInput) => Promise<unknown>;
+	/** Resolves with the new relation; rejects with the server's message. */
+	onCreateRelation?: (input: CreateRelationInput) => Promise<RelationDef>;
+	/** Resolves once the relation is saved; rejects with the server's message. */
+	onUpdateRelation?: (id: string, input: UpdateRelationInput) => Promise<unknown>;
+	/** Also removes the relation's links and the reference fields bound to it. */
+	onDeleteRelation?: (id: string) => void;
+	isDeletingRelation?: boolean;
+	deleteRelationError?: unknown;
 }
 
 interface SupportOptionDef {
@@ -160,6 +170,10 @@ export function ContentTypeEditor({
 	onDeleteField,
 	onReorderFields,
 	onCreateRelation,
+	onUpdateRelation,
+	onDeleteRelation,
+	isDeletingRelation,
+	deleteRelationError,
 }: ContentTypeEditorProps) {
 	const { t } = useLingui();
 	const _navigate = useNavigate();
@@ -718,6 +732,10 @@ export function ContentTypeEditor({
 								collections={allCollections}
 								isLoading={relationsLoading}
 								onCreateRelation={onCreateRelation}
+								onUpdateRelation={onUpdateRelation}
+								onDeleteRelation={onDeleteRelation}
+								isDeletingRelation={isDeletingRelation}
+								deleteRelationError={deleteRelationError}
 							/>
 						)}
 					</div>
@@ -732,6 +750,7 @@ export function ContentTypeEditor({
 				onSave={handleFieldSave}
 				isSaving={fieldSaving}
 				collectionSlug={collection?.slug}
+				onCreateRelation={onCreateRelation}
 			/>
 
 			<ConfirmDialog

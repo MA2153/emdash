@@ -3,20 +3,24 @@
  *
  * A relation is schema that lives outside the collection — the relations list
  * owns the full view — but the collection editor is where someone asks "what
- * does this link to?", so the ones it is an end of are answered here.
+ * does this link to?", so the ones it is an end of are answered here, and can
+ * be created, renamed and deleted without leaving the content type.
  */
 
 import { Button } from "@cloudflare/kumo";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { ArrowRight, LinkSimple, Pencil, Plus } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { ArrowRight, LinkSimple, Pencil, Plus, Trash } from "@phosphor-icons/react";
 import * as React from "react";
 
 import type { SchemaCollection } from "../lib/api";
-import type { CreateRelationInput, RelationWithUsage } from "../lib/api/relations.js";
-import { RelationCreateDialog } from "./RelationCreateDialog";
-import { RouterLinkButton } from "./RouterLinkButton.js";
+import type {
+	CreateRelationInput,
+	RelationWithUsage,
+	UpdateRelationInput,
+} from "../lib/api/relations.js";
+import { RelationDeleteDialog } from "./RelationDeleteDialog.js";
+import { RelationDialog } from "./RelationDialog.js";
 
 export interface RelationsPanelProps {
 	/** The content type being edited — the end these relations are read from. */
@@ -26,6 +30,10 @@ export interface RelationsPanelProps {
 	collections: SchemaCollection[];
 	isLoading?: boolean;
 	onCreateRelation?: (input: CreateRelationInput) => Promise<unknown>;
+	onUpdateRelation?: (id: string, input: UpdateRelationInput) => Promise<unknown>;
+	onDeleteRelation?: (id: string) => void;
+	isDeletingRelation?: boolean;
+	deleteRelationError?: unknown;
 }
 
 export function RelationsPanel({
@@ -34,9 +42,15 @@ export function RelationsPanel({
 	collections,
 	isLoading,
 	onCreateRelation,
+	onUpdateRelation,
+	onDeleteRelation,
+	isDeletingRelation,
+	deleteRelationError,
 }: RelationsPanelProps) {
 	const { t } = useLingui();
 	const [createOpen, setCreateOpen] = React.useState(false);
+	const [editing, setEditing] = React.useState<RelationWithUsage | null>(null);
+	const [deleting, setDeleting] = React.useState<RelationWithUsage | null>(null);
 
 	const participating = relations.filter(
 		(relation) =>
@@ -71,27 +85,52 @@ export function RelationsPanel({
 					<p className="text-sm">
 						{t`Create one to let entries here link to entries in another content type.`}
 					</p>
-					{onCreateRelation && (
-						<Button className="mt-4" icon={<Plus />} onClick={() => setCreateOpen(true)}>
-							{t`Create First Relation`}
-						</Button>
-					)}
 				</div>
 			) : (
 				<div className="divide-y divide-kumo-line">
 					{participating.map((relation) => (
-						<RelationRow key={relation.id} relation={relation} collectionSlug={collectionSlug} />
+						<RelationRow
+							key={relation.id}
+							relation={relation}
+							collectionSlug={collectionSlug}
+							onEdit={onUpdateRelation ? () => setEditing(relation) : undefined}
+							onDelete={onDeleteRelation ? () => setDeleting(relation) : undefined}
+						/>
 					))}
 				</div>
 			)}
 
 			{onCreateRelation && (
-				<RelationCreateDialog
+				<RelationDialog
 					open={createOpen}
 					onOpenChange={setCreateOpen}
 					collections={collections}
 					defaultParentCollection={collectionSlug}
-					onCreate={onCreateRelation}
+					onSubmit={onCreateRelation}
+				/>
+			)}
+
+			{onUpdateRelation && editing && (
+				<RelationDialog
+					key={editing.id}
+					open
+					onOpenChange={(open) => !open && setEditing(null)}
+					collections={collections}
+					relation={editing}
+					onSubmit={(input) => onUpdateRelation(editing.id, input)}
+				/>
+			)}
+
+			{onDeleteRelation && (
+				<RelationDeleteDialog
+					relation={deleting}
+					onClose={() => setDeleting(null)}
+					onConfirm={(relation) => {
+						onDeleteRelation(relation.id);
+						setDeleting(null);
+					}}
+					isDeleting={isDeletingRelation}
+					error={deleteRelationError}
 				/>
 			)}
 		</div>
@@ -101,9 +140,13 @@ export function RelationsPanel({
 function RelationRow({
 	relation,
 	collectionSlug,
+	onEdit,
+	onDelete,
 }: {
 	relation: RelationWithUsage;
 	collectionSlug: string;
+	onEdit?: () => void;
+	onDelete?: () => void;
 }) {
 	const { t } = useLingui();
 
@@ -115,13 +158,7 @@ function RelationRow({
 		<div className="flex items-center gap-4 px-4 py-3 hover:bg-kumo-tint/25">
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-					<Link
-						to="/content-types/relations/$slug"
-						params={{ slug: relation.slug }}
-						className="font-medium hover:text-kumo-link"
-					>
-						<code className="text-sm">{relation.slug}</code>
-					</Link>
+					<code className="text-sm font-medium">{relation.slug}</code>
 					<span className="flex items-center gap-1.5 text-sm text-kumo-subtle">
 						{relation.parentCollection}
 						<ArrowRight className="h-3 w-3 rtl:-scale-x-100" aria-hidden="true" />
@@ -154,14 +191,24 @@ function RelationRow({
 				{plural(relation.linkCount, { one: "# link", other: "# links" })}
 			</span>
 
-			<RouterLinkButton
-				to="/content-types/relations/$slug"
-				params={{ slug: relation.slug }}
-				aria-label={t`Edit ${relation.slug}`}
-				variant="ghost"
-				shape="square"
-				icon={<Pencil />}
-			/>
+			{onEdit && (
+				<Button
+					onClick={onEdit}
+					aria-label={t`Edit ${relation.slug}`}
+					variant="ghost"
+					shape="square"
+					icon={<Pencil />}
+				/>
+			)}
+			{onDelete && (
+				<Button
+					onClick={onDelete}
+					aria-label={t`Delete ${relation.slug}`}
+					variant="ghost"
+					shape="square"
+					icon={<Trash className="text-kumo-danger" />}
+				/>
+			)}
 		</div>
 	);
 }
