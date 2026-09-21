@@ -84,4 +84,25 @@ describe("ContentPickerModal", () => {
 
 		await expect.element(screen.getByRole("checkbox", { name: "Jane Doe" })).toBeDisabled();
 	});
+
+	it("says the list could not be loaded rather than that the collection is empty", async () => {
+		mockFetchContentList.mockRejectedValue(new Error("Internal Server Error"));
+
+		const screen = await render(
+			<ContentPickerModal
+				open
+				onOpenChange={() => {}}
+				collection="posts"
+				multiple
+				selectedIds={new Set()}
+				onConfirm={() => {}}
+			/>,
+		);
+
+		// "No content in this collection" would send an editor off to create an
+		// entry that is already there.
+		await expect.element(screen.getByText("Couldn't load content.")).toBeInTheDocument();
+		await expect.element(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+		expect(screen.getByText("No content in this collection").query()).toBeNull();
+	});
 });

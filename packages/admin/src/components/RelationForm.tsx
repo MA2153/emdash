@@ -44,6 +44,15 @@ function limitValue(mode: LimitMode, custom: string): number | null {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+/**
+ * Whether a limit is ready to save. "At most…" with nothing typed in it is not:
+ * it reads as `null`, which the API takes as any number — the opposite of what
+ * choosing a maximum means.
+ */
+function limitComplete(mode: LimitMode, custom: string): boolean {
+	return mode !== "limit" || (limitValue(mode, custom) ?? 0) >= 2;
+}
+
 function customLimit(value: number | null | undefined): string {
 	return value && value !== 1 ? String(value) : "";
 }
@@ -185,15 +194,20 @@ export function useRelationForm(options: UseRelationFormOptions): RelationForm {
 	optionsRef.current = options;
 	const reset = React.useCallback(() => setState(initialState(optionsRef.current)), []);
 
+	const limitsComplete =
+		limitComplete(state.childrenMode, state.childrenLimit) &&
+		limitComplete(state.parentsMode, state.parentsLimit);
+
 	const canSave = isNew
 		? Boolean(
 				state.slug &&
 				state.parentCollection &&
 				state.childCollection &&
 				state.parentLabel &&
-				state.childLabel,
+				state.childLabel &&
+				limitsComplete,
 			)
-		: Boolean(state.parentLabel && state.childLabel);
+		: Boolean(state.parentLabel && state.childLabel && limitsComplete);
 
 	const isDirty =
 		isNew ||

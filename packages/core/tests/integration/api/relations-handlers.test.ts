@@ -15,6 +15,7 @@ import {
 	GET as listRelations,
 	POST as createRelation,
 } from "../../../src/astro/routes/api/relations/index.js";
+import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import { setI18nConfig } from "../../../src/i18n/config.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
@@ -230,6 +231,45 @@ describeEachDialect("relations definition handlers", (dialect) => {
 		expect(await registry.getField("post", "author")).toBeNull();
 		const edges = await ctx.db.selectFrom("_emdash_content_references").selectAll().execute();
 		expect(edges).toHaveLength(0);
+	});
+
+	it("a delete refused for having content leaves the relations it would have taken", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "author", label: "Authors", labelSingular: "Author" });
+
+		const created = await handleRelationCreate(ctx.db, {
+			slug: "post_author",
+			parentCollection: "post",
+			childCollection: "author",
+			parentLabel: "Posts",
+			childLabel: "Author",
+		});
+		if (!created.success) return;
+		const relations = new RelationRepository(ctx.db);
+		await relations.addReference(created.data.relation.id, "pg", "cg");
+		await registry.createField("post", {
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			validation: { relation: "post_author", relationSide: "parent", targetCollection: "author" },
+		});
+
+		await new ContentRepository(ctx.db).create({
+			type: "author",
+			slug: "ada",
+			status: "draft",
+			data: {},
+		});
+
+		const refused = await handleSchemaCollectionDelete(ctx.db, "author");
+		expect(refused.success).toBe(false);
+		if (refused.success) return;
+		expect(refused.error.code).toBe("COLLECTION_HAS_CONTENT");
+
+		expect(await relations.findBySlug("post_author")).not.toBeNull();
+		expect(await registry.getField("post", "author")).not.toBeNull();
+		const edges = await ctx.db.selectFrom("_emdash_content_references").selectAll().execute();
+		expect(edges).toHaveLength(1);
 	});
 });
 

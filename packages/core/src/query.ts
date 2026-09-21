@@ -282,6 +282,12 @@ export type ReferencePages = Record<string, ReferencePage>;
 export interface ReferenceResult<T = Record<string, unknown>> extends ReferencePage<T> {
 	/** Set only for actual errors; an unknown field or entry is an empty page. */
 	error?: Error;
+	/**
+	 * The rows this page read, for a route that caches the page it renders.
+	 * `getEmDashEntry({ references })` folds the first page's hint into the
+	 * entry's; a route that walks past it has to tag what it reads itself.
+	 */
+	cacheHint?: CacheHint;
 }
 
 /** Cache hint returned by the content loader for route caching */
@@ -1412,7 +1418,12 @@ export async function getEmDashReferences<D = Record<string, unknown>>(
 		const { resolveReferencePages } = await import("./references/resolve.js");
 
 		const db = await getDb();
-		const entry = await new ContentRepository(db).findByIdOrSlug(type, id, locale);
+		const addressed = splitLocalePrefixedId(id, locale);
+		const entry = await new ContentRepository(db).findByIdOrSlug(
+			type,
+			addressed.id,
+			addressed.locale,
+		);
 		if (!entry?.translationGroup) return { entries: [] };
 
 		// Preview tokens are entry-scoped, so a token minted for another entry
@@ -1440,13 +1451,44 @@ export async function getEmDashReferences<D = Record<string, unknown>>(
 
 		const page = pages[field];
 		if (!page) return { entries: [] };
+
+		const tags: string[] = [];
+		let lastModified: Date | undefined;
+		for (const child of page.entries) {
+			tags.push(...child.cacheHint.tags);
+			const modified = child.cacheHint.lastModified;
+			if (modified && (!lastModified || modified > lastModified)) lastModified = modified;
+		}
+
 		return {
 			entries: page.entries.map((child) => wrapReferencedEntry<D>(page.collection, child)),
 			...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+			cacheHint: { tags, ...(lastModified ? { lastModified } : {}) },
 		};
 	} catch (error) {
 		return { entries: [], error: error instanceof Error ? error : new Error(String(error)) };
 	}
+}
+
+/**
+ * Take a locale prefix off an entry id, and read it as the locale to look in.
+ *
+ * Wherever i18n prefixes a locale's URLs, an entry is addressed as `fr/about`
+ * rather than `about` — that is the id the loader builds and the id a render
+ * holds, including for a referenced entry. Rows are stored under the bare slug,
+ * so the prefix has to become the locale instead. A first segment that is not a
+ * configured locale is part of the identifier and stays put.
+ */
+function splitLocalePrefixedId(
+	id: string,
+	locale: string | undefined,
+): { id: string; locale: string | undefined } {
+	const slash = id.indexOf("/");
+	if (slash === -1) return { id, locale };
+
+	const prefix = id.slice(0, slash);
+	if (!getI18nConfig()?.locales.includes(prefix)) return { id, locale };
+	return { id: id.slice(slash + 1), locale: prefix };
 }
 
 /** Shape of a cached single-entry snapshot. */

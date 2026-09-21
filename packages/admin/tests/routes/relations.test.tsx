@@ -53,7 +53,7 @@ function listProps(overrides: Partial<React.ComponentProps<typeof RelationList>>
 		collections,
 		onCreateRelation: vi.fn(async () => ({})),
 		onUpdateRelation: vi.fn(async () => ({})),
-		onDeleteRelation: vi.fn(),
+		onDeleteRelation: vi.fn(async () => ({})),
 		...overrides,
 	};
 }
@@ -179,10 +179,37 @@ describe("RelationList", () => {
 		});
 	});
 
+	it("will not save an 'At most…' limit with no number in it", async () => {
+		const onUpdateRelation = vi.fn(async () => ({}));
+		const { screen } = await renderWithRoutes(
+			<RelationList {...listProps({ onUpdateRelation })} />,
+		);
+
+		await screen.getByRole("button", { name: "Edit posts_authors" }).click();
+
+		// Kumo's Select is a combobox button over a listbox, and the dialog's inert
+		// overlay blocks Playwright's actionability checks — drive it through the
+		// DOM, as the other dialog tests do.
+		const trigger = screen.getByRole("combobox", { name: "Each Post links to", exact: true });
+		await expect.element(trigger).toBeInTheDocument();
+		trigger.element().click();
+		await vi.waitFor(() => {
+			screen.getByRole("option", { name: "At most…", exact: true }).element().click();
+		});
+
+		// Blank means the editor has not said how many yet. Saving it as "any
+		// number" is the opposite of what they picked.
+		await expect.element(screen.getByLabelText("Maximum")).toHaveValue(null);
+		await expect.element(screen.getByRole("button", { name: "Save Relation" })).toBeDisabled();
+
+		await screen.getByLabelText("Maximum").fill("3");
+		await expect.element(screen.getByRole("button", { name: "Save Relation" })).toBeEnabled();
+	});
+
 	// The delete cascades to the fields on both ends, so the dialog says so
 	// before it runs rather than reporting it afterwards.
 	it("names what a delete takes before it runs", async () => {
-		const onDeleteRelation = vi.fn();
+		const onDeleteRelation = vi.fn(async () => ({}));
 		const { screen } = await renderWithRoutes(
 			<RelationList {...listProps({ onDeleteRelation })} />,
 		);
@@ -195,6 +222,24 @@ describe("RelationList", () => {
 		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
 
 		expect(onDeleteRelation).toHaveBeenCalledWith("rel-1");
+	});
+
+	it("keeps the dialog up when the delete fails, with the error and a retry", async () => {
+		const onDeleteRelation = vi.fn(() => Promise.reject(new Error("Relation is in use")));
+		const { screen } = await renderWithRoutes(
+			<RelationList
+				{...listProps({ onDeleteRelation, deleteError: new Error("Relation is in use") })}
+			/>,
+		);
+
+		await screen.getByRole("button", { name: "Delete posts_authors" }).click();
+		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
+		await expect.element(screen.getByText("Relation is in use")).toBeInTheDocument();
+
+		// A dialog that closed on the rejected delete would take its own error
+		// message with it and leave nothing to try again from.
+		screen.getByRole("button", { name: "Delete", exact: true }).element().click();
+		await vi.waitFor(() => expect(onDeleteRelation).toHaveBeenCalledTimes(2));
 	});
 
 	it("creates a relation from the list", async () => {

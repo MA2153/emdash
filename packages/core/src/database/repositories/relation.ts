@@ -1,4 +1,4 @@
-import type { Kysely, Selectable } from "kysely";
+import { sql, type Kysely, type Selectable } from "kysely";
 import { ulid } from "ulidx";
 
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
@@ -219,16 +219,68 @@ export class RelationRepository {
 		return (result.numDeletedRows ?? 0n) > 0n;
 	}
 
+	/**
+	 * Insert one edge only while the end it lands on is still under its limit,
+	 * deciding and writing in a single statement.
+	 *
+	 * A count read before the insert answers for a moment that has passed by the
+	 * time the row goes in: two requests can both read a free slot and both fill
+	 * it, and the unique edge constraint does not catch it because they are
+	 * different pairs. Folding the count into the insert's `WHERE` makes the
+	 * decision and the write one thing, on D1 as much as anywhere. Returns false
+	 * when the limit refused the row.
+	 */
+	private async insertEdgeWithinLimit(
+		row: {
+			id: string;
+			relation_id: string;
+			parent_group: string;
+			child_group: string;
+			sort_order: number;
+			created_at: string;
+		},
+		limitedSide: "parent" | "child",
+		limit: number,
+	): Promise<boolean> {
+		const column = limitedSide === "parent" ? "parent_group" : "child_group";
+		const group = limitedSide === "parent" ? row.parent_group : row.child_group;
+		const result = await sql`
+			INSERT INTO ${sql.ref("_emdash_content_references")}
+				(id, relation_id, parent_group, child_group, sort_order, created_at)
+			SELECT ${row.id}, ${row.relation_id}, ${row.parent_group}, ${row.child_group},
+			       ${row.sort_order}, ${row.created_at}
+			WHERE (
+				SELECT COUNT(*) FROM ${sql.ref("_emdash_content_references")}
+				WHERE relation_id = ${row.relation_id} AND ${sql.ref(column)} = ${group}
+			) < ${limit}
+		`.execute(this.db);
+		return (result.numAffectedRows ?? 0n) > 0n;
+	}
+
 	/** Normalize a relation id OR slug to its id. Returns null for an unknown
 	 * relation (edge methods then no-op, matching
 	 * `TaxonomyRepository.attachToEntry`). */
 	private async resolveRelationId(idOrSlug: string): Promise<string | null> {
+		return (await this.resolveRelationLimits(idOrSlug))?.id ?? null;
+	}
+
+	/** The same lookup, carrying the limits an edge write has to hold to. */
+	private async resolveRelationLimits(idOrSlug: string): Promise<{
+		id: string;
+		maxChildrenPerParent: number | null;
+		maxParentsPerChild: number | null;
+	} | null> {
 		const row = await this.db
 			.selectFrom("_emdash_relations")
-			.select(["id"])
+			.select(["id", "max_children_per_parent", "max_parents_per_child"])
 			.where((eb) => eb.or([eb("id", "=", idOrSlug), eb("slug", "=", idOrSlug)]))
 			.executeTakeFirst();
-		return row?.id ?? null;
+		if (!row) return null;
+		return {
+			id: row.id,
+			maxChildrenPerParent: row.max_children_per_parent,
+			maxParentsPerChild: row.max_parents_per_child,
+		};
 	}
 
 	private rowToReference(row: Selectable<ContentReferenceTable>): ContentReference {
@@ -436,31 +488,53 @@ export class RelationRepository {
 	 * children serially never hits it. A D1-portable fix isn't available (no
 	 * multi-statement transactions), so concurrent replace-all on one parent is
 	 * unsupported by design rather than guarded here.
+	 *
+	 * Returns the child groups `maxParentsPerChild` refused — empty unless the
+	 * relation limits that end and something else has taken the slot since the
+	 * caller resolved its selection. Under such a limit each edge goes in through
+	 * {@link insertEdgeWithinLimit} instead of a batch, because a limit enforced
+	 * only by a count before the write is one two requests can both walk past.
 	 */
-	async setChildren(relation: string, parentGroup: string, childGroups: string[]): Promise<void> {
-		const relationId = await this.resolveRelationId(relation);
-		if (!relationId) return;
+	async setChildren(
+		relation: string,
+		parentGroup: string,
+		childGroups: string[],
+	): Promise<string[]> {
+		const rel = await this.resolveRelationLimits(relation);
+		if (!rel) return [];
 
 		await this.db
 			.deleteFrom("_emdash_content_references")
-			.where("relation_id", "=", relationId)
+			.where("relation_id", "=", rel.id)
 			.where("parent_group", "=", parentGroup)
 			.execute();
 
 		// Collapse duplicates so positional sort_order has no gaps.
 		const uniqueChildGroups = [...new Set(childGroups)];
-		if (uniqueChildGroups.length === 0) return;
+		if (uniqueChildGroups.length === 0) return [];
 
 		const now = new Date().toISOString();
 		const rows = uniqueChildGroups.map((childGroup, index) => ({
 			id: ulid(),
-			relation_id: relationId,
+			relation_id: rel.id,
 			parent_group: parentGroup,
 			child_group: childGroup,
 			sort_order: index,
 			created_at: now,
 		}));
+
+		if (rel.maxParentsPerChild !== null) {
+			const rejected: string[] = [];
+			for (const row of rows) {
+				// oxlint-disable-next-line no-await-in-loop -- one statement per edge is what makes the limit hold
+				const written = await this.insertEdgeWithinLimit(row, "child", rel.maxParentsPerChild);
+				if (!written) rejected.push(row.child_group);
+			}
+			return rejected;
+		}
+
 		for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
 			await this.db
 				.insertInto("_emdash_content_references")
 				.values(rowBatch)
@@ -470,6 +544,7 @@ export class RelationRepository {
 				.onConflict((oc) => oc.doNothing())
 				.execute();
 		}
+		return [];
 	}
 
 	/**
@@ -484,10 +559,18 @@ export class RelationRepository {
 	 * side, so each new edge takes the next position among that parent's existing
 	 * children rather than a position in this child's list. A child-side field
 	 * therefore has no order of its own; `getParents` reads by `id`.
+	 *
+	 * Returns the parent groups `maxChildrenPerParent` refused, the mirror of what
+	 * `setChildren` returns.
 	 */
-	async setParents(relation: string, childGroup: string, parentGroups: string[]): Promise<void> {
-		const relationId = await this.resolveRelationId(relation);
-		if (!relationId) return;
+	async setParents(
+		relation: string,
+		childGroup: string,
+		parentGroups: string[],
+	): Promise<string[]> {
+		const rel = await this.resolveRelationLimits(relation);
+		if (!rel) return [];
+		const relationId = rel.id;
 
 		await this.db
 			.deleteFrom("_emdash_content_references")
@@ -496,7 +579,7 @@ export class RelationRepository {
 			.execute();
 
 		const uniqueParentGroups = [...new Set(parentGroups)];
-		if (uniqueParentGroups.length === 0) return;
+		if (uniqueParentGroups.length === 0) return [];
 
 		// One query for every new parent's highest position, so appending stays a
 		// fixed number of round trips rather than one per parent.
@@ -524,6 +607,17 @@ export class RelationRepository {
 			sort_order: nextSortOrder.get(parentGroup) ?? 0,
 			created_at: now,
 		}));
+
+		if (rel.maxChildrenPerParent !== null) {
+			const rejected: string[] = [];
+			for (const row of rows) {
+				// oxlint-disable-next-line no-await-in-loop -- one statement per edge is what makes the limit hold
+				const written = await this.insertEdgeWithinLimit(row, "parent", rel.maxChildrenPerParent);
+				if (!written) rejected.push(row.parent_group);
+			}
+			return rejected;
+		}
+
 		for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
 			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
 			await this.db
@@ -532,6 +626,7 @@ export class RelationRepository {
 				.onConflict((oc) => oc.doNothing())
 				.execute();
 		}
+		return [];
 	}
 
 	/**
@@ -581,22 +676,25 @@ export class RelationRepository {
 		relationId: string,
 		side: "parent" | "child",
 		groups: string[],
-		excludeOppositeGroup: string,
+		excludeOppositeGroup: string | null,
 	): Promise<Map<string, number>> {
 		const column = side === "parent" ? "parent_group" : "child_group";
 		const opposite = side === "parent" ? "child_group" : "parent_group";
 
 		const counts = new Map<string, number>();
 		for (const groupBatch of chunks([...new Set(groups)], SQL_BATCH_SIZE)) {
-			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
-			const rows = await this.db
+			let query = this.db
 				.selectFrom("_emdash_content_references")
 				.select((eb) => [column, eb.fn.countAll().as("count")])
 				.where("relation_id", "=", relationId)
-				.where(column, "in", groupBatch)
-				.where(opposite, "!=", excludeOppositeGroup)
-				.groupBy(column)
-				.execute();
+				.where(column, "in", groupBatch);
+			// An entry with no group of its own yet holds no links to discount, and
+			// `!= NULL` is never true — it would silently count nothing at all.
+			if (excludeOppositeGroup !== null) {
+				query = query.where(opposite, "!=", excludeOppositeGroup);
+			}
+			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+			const rows = await query.groupBy(column).execute();
 			for (const row of rows) {
 				counts.set(row[column], Number(row.count));
 			}

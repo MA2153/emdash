@@ -66,7 +66,6 @@ import { ImageDetailPanel } from "./editor/ImageDetailPanel";
 import type { ImageAttributes } from "./editor/ImageDetailPanel";
 import type { BlockSidebarPanel } from "./PortableTextEditor";
 import { PublicationDateDialog } from "./PublishingDateTimeEditor.js";
-import { ReferencesSidebar } from "./ReferencesSidebar.js";
 import { RevisionHistory } from "./RevisionHistory";
 import { SandboxedContentEditorPanel } from "./SandboxedContentEditorPanel.js";
 import { SaveButton } from "./SaveButton";
@@ -1155,12 +1154,6 @@ export const ContentSettingsPanel = React.memo(function ContentSettingsPanel({
 							defaultLocale={i18n?.defaultLocale}
 							canManageTaxonomies={(currentUser?.role ?? 0) >= ROLE_EDITOR}
 						/>
-					</SortableContentSettingsSection>
-				)}
-
-				{item && !isNew && (
-					<SortableContentSettingsSection id="references" label={t`Referenced by`}>
-						<ReferencesSidebar className="p-4" collection={collection} entryId={item.id} />
 					</SortableContentSettingsSection>
 				)}
 

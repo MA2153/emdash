@@ -5,7 +5,11 @@ import {
 	handleContentGet,
 	handleContentUpdate,
 } from "../../../src/api/handlers/content.js";
-import { handleReferenceChildrenSet } from "../../../src/api/handlers/relations.js";
+import {
+	resolveReferenceSelection,
+	setReferenceSelection,
+	writeReferenceSelection,
+} from "../../../src/api/handlers/relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import type { ContentItem } from "../../../src/database/repositories/types.js";
@@ -200,8 +204,8 @@ describeEachDialect("reference field constraints", (dialect) => {
 		expect(references.items.map((item) => item.childGroup)).toEqual([child.translationGroup]);
 	});
 
-	it("rejects multiple children on a single-reference field through the edge endpoint", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+	it("rejects multiple children on a single-reference field", async () => {
+		await setupConstrainedFields();
 		const first = await createPage("First");
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
@@ -210,11 +214,11 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
-		const result = await handleReferenceChildrenSet(
+		const result = await setReferenceSelection(
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.slug,
+			"featured_page",
 			[first.id, second.id],
 		);
 
@@ -222,8 +226,8 @@ describeEachDialect("reference field constraints", (dialect) => {
 		if (!result.success) expect(result.error.code).toBe("VALIDATION_ERROR");
 	});
 
-	it("accepts one child on a single-reference field through the edge endpoint", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+	it("accepts one child on a single-reference field", async () => {
+		const { requiredSingle, relationRepo } = await setupConstrainedFields();
 		const first = await createPage("First");
 		const second = await createPage("Second");
 		const parent = await handleContentCreate(ctx.db, "posts", {
@@ -232,20 +236,22 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
-		const result = await handleReferenceChildrenSet(
+		const result = await setReferenceSelection(
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.slug,
+			"featured_page",
 			[second.id],
 		);
 
 		expect(result.success).toBe(true);
-		if (result.success) expect(result.data.children.map((child) => child.id)).toEqual([second.id]);
+		if (!result.success) return;
+		const page = await relationRepo.getChildrenPage(requiredSingle.slug, result.data.entryGroup);
+		expect(page.items.map((edge) => edge.childGroup)).toEqual([second.translationGroup]);
 	});
 
-	it("rejects clearing a required reference through the edge endpoint", async () => {
-		const { requiredSingle } = await setupConstrainedFields();
+	it("rejects clearing a required reference", async () => {
+		await setupConstrainedFields();
 		const child = await createPage("Child");
 		const parent = await handleContentCreate(ctx.db, "posts", {
 			data: { title: "Parent" },
@@ -253,11 +259,11 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		if (!parent.success) throw new Error("Parent setup failed");
 
-		const result = await handleReferenceChildrenSet(
+		const result = await setReferenceSelection(
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			requiredSingle.slug,
+			"featured_page",
 			[],
 		);
 
@@ -286,11 +292,13 @@ describeEachDialect("reference field constraints", (dialect) => {
 		expect(accepted.success, JSON.stringify(accepted)).toBe(true);
 	});
 
-	it("leaves a relation without a backing reference field unconstrained", async () => {
+	it("refuses a selection for a field the collection does not have", async () => {
 		const registry = new SchemaRegistry(ctx.db);
 		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
 		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
-		const relation = await new RelationRepository(ctx.db).create({
+		// A relation nothing views: with every write addressed by field slug, there
+		// is no way to write into it and nothing to validate against.
+		await new RelationRepository(ctx.db).create({
 			slug: "loose_related_posts",
 			parentCollection: "posts",
 			childCollection: "posts",
@@ -299,18 +307,18 @@ describeEachDialect("reference field constraints", (dialect) => {
 		});
 		const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
 		const first = await handleContentCreate(ctx.db, "posts", { data: { title: "First" } });
-		const second = await handleContentCreate(ctx.db, "posts", { data: { title: "Second" } });
-		if (!parent.success || !first.success || !second.success) throw new Error("Setup failed");
+		if (!parent.success || !first.success) throw new Error("Setup failed");
 
-		const result = await handleReferenceChildrenSet(
+		const result = await setReferenceSelection(
 			ctx.db,
 			"posts",
 			parent.data.item.id,
-			relation.slug,
-			[first.data.item.id, second.data.item.id],
+			"loose_related_posts",
+			[first.data.item.id],
 		);
 
-		expect(result.success).toBe(true);
+		expect(result.success).toBe(false);
+		if (!result.success) expect(result.error.code).toBe("VALIDATION_ERROR");
 	});
 
 	it("rejects a selection that exceeds the other end's cardinality", async () => {
@@ -361,6 +369,66 @@ describeEachDialect("reference field constraints", (dialect) => {
 			page.translationGroup ?? page.id,
 		);
 		expect(parents.items).toHaveLength(1);
+	});
+
+	it("refuses a selection that was claimed between resolving it and writing it", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "pages", label: "Pages", labelSingular: "Page" });
+		await registry.createField("pages", { slug: "title", label: "Title", type: "string" });
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+		const relation = await new RelationRepository(ctx.db).create({
+			slug: "posts_owned_page",
+			parentCollection: "posts",
+			childCollection: "pages",
+			parentLabel: "Post",
+			childLabel: "Owned page",
+			maxParentsPerChild: 1,
+		});
+		await registry.createField("posts", {
+			slug: "owned_page",
+			label: "Owned page",
+			type: "reference",
+			validation: {
+				relation: relation.slug,
+				relationSide: "parent",
+				targetCollection: "pages",
+			},
+		});
+
+		const page = await createPage("Shared");
+		const first = await handleContentCreate(ctx.db, "posts", { data: { title: "First" } });
+		const second = await handleContentCreate(ctx.db, "posts", { data: { title: "Second" } });
+		if (!first.success || !second.success) throw new Error("Setup failed");
+
+		// Resolved while the page is still free, so the count this save read says
+		// the slot is available.
+		const resolved = await resolveReferenceSelection(
+			ctx.db,
+			"posts",
+			second.data.item.id,
+			"owned_page",
+			[page.id],
+		);
+		expect(resolved.success).toBe(true);
+		if (!resolved.success) return;
+
+		// Another save takes the slot before the first one's write lands — the
+		// window two concurrent requests race through.
+		const claimed = await handleContentUpdate(ctx.db, "posts", first.data.item.id, {
+			references: { owned_page: [page.id] },
+		});
+		expect(claimed.success).toBe(true);
+
+		await expect(writeReferenceSelection(ctx.db, resolved.data)).rejects.toThrow();
+
+		const parents = await new RelationRepository(ctx.db).getParentsPage(
+			relation.slug,
+			page.translationGroup ?? page.id,
+		);
+		expect(parents.items).toHaveLength(1);
+		expect(parents.items[0]?.parentGroup).toBe(first.data.item.translationGroup);
 	});
 
 	it("inherits a source group's references when creating a translation", async () => {

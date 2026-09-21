@@ -249,7 +249,8 @@ describeEachDialect("RelationRepository", (dialect) => {
 	});
 
 	it("setChildren no-ops for an unknown relation", async () => {
-		await expect(repo.setChildren("unknown-relation", "p1", ["a"])).resolves.toBeUndefined();
+		// Nothing was written, and nothing was refused by a limit either.
+		await expect(repo.setChildren("unknown-relation", "p1", ["a"])).resolves.toEqual([]);
 		expect(await repo.getChildren("unknown-relation", "p1")).toEqual([]);
 	});
 
@@ -297,7 +298,7 @@ describeEachDialect("RelationRepository", (dialect) => {
 		await repo.setParents(rel.id, "c1", ["p1", "p1"]);
 		expect(await repo.getParents(rel.id, "c1")).toHaveLength(1);
 
-		await expect(repo.setParents("unknown-relation", "c1", ["p1"])).resolves.toBeUndefined();
+		await expect(repo.setParents("unknown-relation", "c1", ["p1"])).resolves.toEqual([]);
 	});
 
 	it("clearReferencesForGroup removes edges where the group is parent OR child", async () => {

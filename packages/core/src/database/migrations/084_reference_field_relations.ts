@@ -21,12 +21,16 @@ import { validateIdentifier } from "../validate.js";
  *
  * Writing `validation.relation` is the completion fence: a rerun sees it and
  * skips the field, so a lost D1 response cannot wire a field twice. Relation
- * creation and the edge copy are each idempotent on their own — the relation's
- * slug is derived from the field, so a rerun finds it by name before inserting,
- * and the edge table's unique constraint absorbs a repeated copy.
+ * creation and the edge copy are each idempotent on their own — the relation is
+ * created under the field's own id, so a rerun recognizes its own half-finished
+ * work and anything else at that slug as somebody else's, and the edge table's
+ * unique constraint absorbs a repeated copy.
  *
- * A field the migration skips keeps behaving exactly as it did; an editor can
- * bind it later by setting a target collection in the schema editor.
+ * A field is left unbound when its target cannot be resolved, when it is indexed
+ * or searchable, when its relation slug is taken, and when its locale rows
+ * disagree about what it selects. Such a field keeps behaving exactly as it did;
+ * an editor can bind it later by setting a target collection in the schema
+ * editor.
  *
  * The edge copy below is duplicated from `backfillReferenceEdges`, which the
  * schema handler runs for that manual binding, and it batches with a local
@@ -102,27 +106,32 @@ function parseColumnIds(value: unknown): string[] {
 }
 
 /**
- * Copy one field's column values in as edges.
+ * What one field's column holds, per translation group, or `null` when its
+ * locale rows disagree.
  *
- * Both ends of an edge are translation groups, so the locale siblings of one
- * entry contribute to the same parent group. They are read in a fixed order and
- * their ids deduped, and the result is capped at the relation's limit — a
- * single-reference field whose locale rows point at different entries keeps the
- * first rather than storing a selection the relation forbids.
+ * A link belongs to the group, not to one locale's row of it, so a field whose
+ * locale rows made different choices has no selection this can carry over: the
+ * union would hand each locale the other's entries, and keeping one locale's
+ * answer would throw the other's away. Neither is the selection the site has, so
+ * such a field is left unbound with its column intact, for an editor to settle
+ * and bind by hand.
+ *
+ * A row that chose nothing does not disagree with one that did — it is the same
+ * group's single answer, arrived at once.
  */
-async function backfillEdges(
+async function readColumnSelections(
 	db: Kysely<unknown>,
 	field: LegacyReferenceField,
-	relationId: string,
-	maxChildren: number | null,
-): Promise<void> {
+): Promise<Map<string, string[]> | null> {
 	const parentTable = `ec_${field.collectionSlug}`;
 	const childTable = `ec_${field.targetCollection}`;
 	validateIdentifier(parentTable, "content table name");
 	validateIdentifier(childTable, "content table name");
 	validateIdentifier(field.fieldSlug, "content field name");
 
-	if (!(await tableExists(db, parentTable)) || !(await tableExists(db, childTable))) return;
+	if (!(await tableExists(db, parentTable)) || !(await tableExists(db, childTable))) {
+		return new Map();
+	}
 
 	const entries = await sql<{ translation_group: string | null; value: unknown }>`
 		SELECT translation_group, ${sql.ref(field.fieldSlug)} AS value
@@ -131,16 +140,34 @@ async function backfillEdges(
 		ORDER BY locale, id
 	`.execute(db);
 
-	// Parent group -> the child entry ids it selects, in order, deduped.
+	// Parent group -> the child entry ids it selects, in order.
 	const selections = new Map<string, string[]>();
 	for (const entry of entries.rows) {
 		if (!entry.translation_group) continue;
-		const existing = selections.get(entry.translation_group) ?? [];
-		for (const id of parseColumnIds(entry.value)) {
-			if (!existing.includes(id)) existing.push(id);
+		const ids = parseColumnIds(entry.value);
+		if (ids.length === 0) continue;
+
+		const existing = selections.get(entry.translation_group);
+		if (!existing) {
+			selections.set(entry.translation_group, ids);
+			continue;
 		}
-		selections.set(entry.translation_group, existing);
+		if (existing.length !== ids.length || existing.some((id, index) => id !== ids[index])) {
+			return null;
+		}
 	}
+	return selections;
+}
+
+/** Copy one field's column values in as edges. */
+async function backfillEdges(
+	db: Kysely<unknown>,
+	field: LegacyReferenceField,
+	relationId: string,
+	maxChildren: number | null,
+	selections: Map<string, string[]>,
+): Promise<void> {
+	const childTable = `ec_${field.targetCollection}`;
 	if (selections.size === 0) return;
 
 	const childIds = [...new Set([...selections.values()].flat())];
@@ -166,6 +193,8 @@ async function backfillEdges(
 			// An id whose entry is gone is dropped; its value stays in the column.
 			if (group && !groups.includes(group)) groups.push(group);
 		}
+		// The locale rows agree by now, so this only cuts a column that held more
+		// ids than the field's own shape allows.
 		const selected = maxChildren === null ? groups : groups.slice(0, maxChildren);
 
 		for (const [sortOrder, childGroup] of selected.entries()) {
@@ -251,37 +280,30 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 		const maxChildren = field.allowMultiple ? null : 1;
 		const slug = `${field.collectionSlug}_${field.fieldSlug}`.slice(0, 63);
 
-		// The slug is `{collection}_{field}` with no collision suffix, so a rerun
-		// knows the relation it would have created by name. `createFieldRelation`
-		// suffixes on collision, but a suffix picked from whatever slugs were free
-		// at the time is not something a restart can recompute: a lost response
-		// after the insert would leave the suffixed relation behind and allocate
-		// the next one. A field whose slug is taken by a relation of some other
-		// shape is left unbound instead, and an editor can bind it by hand.
+		// Read the column before anything is written: a field whose locale rows
+		// disagree has no selection to carry over and must stay unbound, relation
+		// and all.
+		// oxlint-disable-next-line no-await-in-loop -- one field at a time so a partial run stays restartable
+		const selections = await readColumnSelections(db, field);
+		if (selections === null) continue;
+
+		// The relation this field would get takes the field's own id, which makes
+		// a restart able to recognize its own work: a lost response after the
+		// insert leaves a relation this rerun finds by id and finishes, while a
+		// relation at the same slug that some other id owns is somebody else's and
+		// the field is left unbound for an editor to bind by hand. The slug carries
+		// no collision suffix for the same reason — a suffix picked from whatever
+		// was free at the time is not something a restart can recompute.
 		// oxlint-disable-next-line no-await-in-loop -- each field's relation must exist before its edges
-		const existing = await sql<{
-			id: string;
-			parent_collection: string;
-			child_collection: string;
-			max_children_per_parent: number | null;
-		}>`
-			SELECT id, parent_collection, child_collection, max_children_per_parent
-			FROM ${sql.ref("_emdash_relations")}
-			WHERE slug = ${slug}
+		const existing = await sql<{ id: string }>`
+			SELECT id FROM ${sql.ref("_emdash_relations")} WHERE slug = ${slug}
 		`.execute(db);
 
-		let relationId: string;
+		const relationId = field.fieldId;
 		const claimed = existing.rows[0];
 		if (claimed) {
-			const matchesField =
-				claimed.parent_collection === field.collectionSlug &&
-				claimed.child_collection === field.targetCollection &&
-				claimed.max_children_per_parent === maxChildren &&
-				!boundSlugs.has(slug);
-			if (!matchesField) continue;
-			relationId = claimed.id;
+			if (claimed.id !== relationId || boundSlugs.has(slug)) continue;
 		} else {
-			relationId = ulid();
 			// oxlint-disable-next-line no-await-in-loop -- one relation per field
 			await sql`
 				INSERT INTO ${sql.ref("_emdash_relations")}
@@ -295,7 +317,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 		}
 
 		// oxlint-disable-next-line no-await-in-loop -- edges depend on the relation above
-		await backfillEdges(db, field, relationId, maxChildren);
+		await backfillEdges(db, field, relationId, maxChildren, selections);
 
 		const validation = {
 			...field.validation,

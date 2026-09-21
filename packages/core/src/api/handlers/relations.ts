@@ -8,11 +8,17 @@ import {
 	type Relation,
 	type UpdateRelationInput,
 } from "../../database/repositories/relation.js";
+import { RevisionRepository } from "../../database/repositories/revision.js";
 import { InvalidCursorError } from "../../database/repositories/types.js";
 import type { ContentItem } from "../../database/repositories/types.js";
 import { withTransaction } from "../../database/transaction.js";
 import type { Database } from "../../database/types.js";
 import { invalidateCollectionCache } from "../../object-cache/index.js";
+import {
+	pageStagedGroups,
+	readStagedReferences,
+	type PageOfGroups,
+} from "../../references/staged.js";
 import { requestCached } from "../../request-cache.js";
 import { invalidateSchemaCache } from "../../schema/index.js";
 import { SchemaRegistry } from "../../schema/registry.js";
@@ -21,6 +27,7 @@ import {
 	constraintsForRelationSide,
 	referenceFieldConstraints,
 	validateReferenceSelection,
+	type ReferenceFieldConstraints,
 } from "./validate-references.js";
 
 /** Map an edge-read failure: a bad pagination cursor is a 400 client error,
@@ -476,6 +483,42 @@ async function resolveGroupSelection(
 /** Pagination inputs for the edge read endpoints. */
 export type PageOptions = { limit?: number; cursor?: string };
 
+/**
+ * The page of a pending selection this end stages, when there is one.
+ *
+ * These routes address a relation and a side; a staged selection is keyed by the
+ * field slug the entry API takes it under, so the field viewing this end is what
+ * connects them. Returns undefined when the caller may not see drafts, the entry
+ * has no draft, or the draft stages nothing for this field — all of which mean
+ * the published links are the answer.
+ */
+async function stagedPageFor(
+	db: Kysely<Database>,
+	options: {
+		collection: string;
+		relationSlug: string;
+		side: "parent" | "child";
+		draftRevisionId: string | null | undefined;
+		includeDrafts: boolean;
+		page: PageOptions;
+	},
+): Promise<PageOfGroups | undefined> {
+	if (!options.includeDrafts || !options.draftRevisionId) return undefined;
+
+	const field = constraintsForRelationSide(
+		await referenceFieldConstraints(db, options.collection),
+		options.relationSlug,
+		options.side,
+	);
+	if (!field) return undefined;
+
+	const revision = await new RevisionRepository(db).findById(options.draftRevisionId);
+	const groups = readStagedReferences(revision?.data)?.[field.slug];
+	if (!groups) return undefined;
+
+	return pageStagedGroups(groups, options.page);
+}
+
 export async function handleReferenceChildrenGet(
 	db: Kysely<Database>,
 	collection: string,
@@ -509,6 +552,31 @@ export async function handleReferenceChildrenGet(
 			return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
 		}
 
+		const titleField = await getReferenceTitleField(db, rel.childCollection);
+
+		// A pending selection replaces the published one for a caller that may see
+		// it, page for page — the entry read answers the same way, and a walk that
+		// started on one of them must not continue on the other.
+		const staged = await stagedPageFor(db, {
+			collection,
+			relationSlug: rel.slug,
+			side: "parent",
+			draftRevisionId: entry.draftRevisionId,
+			includeDrafts,
+			page,
+		});
+		if (staged) {
+			const children = await resolveEntryGroups(
+				content,
+				rel.childCollection,
+				staged.groups,
+				entry.locale,
+				includeDrafts,
+				titleField,
+			);
+			return { success: true, data: { children, nextCursor: staged.nextCursor } };
+		}
+
 		const edges = await repo.getChildrenPage(rel.id, entry.translationGroup, page);
 		const children = await resolveEntries(
 			content,
@@ -517,7 +585,7 @@ export async function handleReferenceChildrenGet(
 			(e) => e.childGroup,
 			entry.locale,
 			includeDrafts,
-			await getReferenceTitleField(db, rel.childCollection),
+			titleField,
 		);
 		return { success: true, data: { children, nextCursor: edges.nextCursor } };
 	} catch (error) {
@@ -530,37 +598,48 @@ export async function handleReferenceChildrenGet(
  * `translation_group` on both ends, because an edge names a thing rather than
  * one locale's row of it.
  */
-export interface ReferenceSelectionWrite {
+export interface ReferenceSelectionWrite extends ResolvedReferenceTargets {
+	/** The selecting entry's own translation group. */
+	entryGroup: string;
+}
+
+/**
+ * The same selection, resolved before the entry it belongs to is known — which
+ * is what a create has to do, since its row does not exist until it is written
+ * and, on D1, writing it cannot be taken back.
+ */
+export interface ResolvedReferenceTargets {
 	/** The relation, by id or slug — `setChildren` / `setParents` take either. */
 	relation: string;
 	/** The end of the relation the selecting entry sits on. */
 	side: "parent" | "child";
-	/** The selecting entry's own translation group. */
-	entryGroup: string;
 	/** The selected entries' translation groups, in the caller's order. */
 	groups: string[];
 }
 
 /**
- * Resolve a relation + an entry on one of its ends + the ids it selects, without
- * writing anything, so a draft save can validate and canonicalize a selection at
- * save time and stage the result.
+ * Resolve a bound field's selection to what the link table stores, without
+ * writing anything and without needing the selecting entry to exist.
  *
- * `side` is the end the entry sits on: a `parent` entry selects children, a
- * `child` entry selects the parents pointing at it.
+ * The field decides the relation and the end it views: a field on the `parent`
+ * end selects children, one on the `child` end selects the parents pointing at
+ * it. `entryGroup` is the selecting entry's own translation group when it has
+ * one — the far-side count discounts links it already holds, since replacing a
+ * selection with itself adds nothing. A new entry passes `null`: it holds no
+ * links yet.
  */
-async function resolveReferenceSide(
+async function resolveReferenceTargets(
 	db: Kysely<Database>,
 	collection: string,
-	entryId: string,
-	relation: string,
+	constraints: ReferenceFieldConstraints,
 	selectedIds: string[],
-	side: "parent" | "child",
-): Promise<ApiResult<ReferenceSelectionWrite>> {
+	entryGroup: string | null,
+): Promise<ApiResult<ResolvedReferenceTargets>> {
 	const repo = new RelationRepository(db);
 	const content = new ContentRepository(db);
+	const side = constraints.relationSide;
 
-	const rel = await resolveRelation(repo, relation);
+	const rel = await resolveRelation(repo, constraints.relation);
 	if (!rel) return { success: false, error: { code: "NOT_FOUND", message: "Relation not found" } };
 
 	const ownCollection = side === "parent" ? rel.parentCollection : rel.childCollection;
@@ -575,22 +654,8 @@ async function resolveReferenceSide(
 		};
 	}
 
-	// `relation` may have arrived as either an id or a slug, so look the field up
-	// by the resolved slug and the side it views.
-	const constraints = constraintsForRelationSide(
-		await referenceFieldConstraints(db, collection),
-		rel.slug,
-		side,
-	);
-	if (constraints) {
-		const selection = validateReferenceSelection(constraints, selectedIds);
-		if (!selection.success) return selection;
-	}
-
-	const entry = await content.findByIdOrSlug(collection, entryId);
-	if (!entry?.translationGroup) {
-		return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
-	}
+	const selection = validateReferenceSelection(constraints, selectedIds);
+	if (!selection.success) return selection;
 
 	// Resolve every selected entry within the relation's other collection in one
 	// batch (constant queries, not an N+1 of point lookups for a set up to 1000).
@@ -612,92 +677,137 @@ async function resolveReferenceSide(
 		groups.push(other.translationGroup);
 	}
 
-	// Cardinality binds both ends, but only one end ever selects: a field on the
-	// parent side that hands a child its second parent breaks
-	// `maxParentsPerChild` even though the parent's own limit is untouched.
-	const farLimit = side === "parent" ? rel.maxParentsPerChild : rel.maxChildrenPerParent;
-	if (farLimit !== null && groups.length > 0) {
-		const counts = await repo.countEdgesByGroup(
-			rel.id,
-			side === "parent" ? "child" : "parent",
-			groups,
-			entry.translationGroup,
-		);
-		for (const [index, group] of groups.entries()) {
-			if ((counts.get(group) ?? 0) + 1 <= farLimit) continue;
-			const farSide = side === "parent" ? "parent" : "child";
-			return {
-				success: false,
-				error: {
-					code: "VALIDATION_ERROR",
-					message:
-						farLimit === 1
-							? `Entry '${selectedIds[index]}' already has a ${farSide} on this relation, which allows one.`
-							: `Entry '${selectedIds[index]}' already has the maximum of ${farLimit} ${farSide} entries on this relation.`,
-				},
-			};
-		}
+	const far = await validateOppositeSideLimit(db, {
+		relationId: rel.id,
+		farLimit: side === "parent" ? rel.maxParentsPerChild : rel.maxChildrenPerParent,
+		side,
+		entryGroup,
+		groups,
+		labels: selectedIds,
+	});
+	if (!far.success) return far;
+
+	return { success: true, data: { relation: rel.id, side, groups } };
+}
+
+/**
+ * Check what a selection does to the *other* end's cardinality.
+ *
+ * Cardinality binds both ends, but only one end ever selects: a field on the
+ * parent side that hands a child its second parent breaks `maxParentsPerChild`
+ * even though the parent's own limit is untouched. Links the selecting entry
+ * already holds are discounted — replacing a selection with itself adds nothing.
+ *
+ * `labels` names each group the way the caller addressed it, so the message
+ * quotes the id someone typed. Publication has only the groups, which it stages;
+ * it quotes those.
+ */
+export async function validateOppositeSideLimit(
+	db: Kysely<Database>,
+	options: {
+		relationId: string;
+		/** The opposite end's limit. `null` is unlimited — nothing to check. */
+		farLimit: number | null;
+		/** The end the selecting entry sits on. */
+		side: "parent" | "child";
+		entryGroup: string | null;
+		groups: string[];
+		labels?: string[];
+	},
+): Promise<ApiResult<true>> {
+	const { farLimit, side, groups } = options;
+	if (farLimit === null || groups.length === 0) return { success: true, data: true };
+
+	const counts = await new RelationRepository(db).countEdgesByGroup(
+		options.relationId,
+		side === "parent" ? "child" : "parent",
+		groups,
+		options.entryGroup,
+	);
+	for (const [index, group] of groups.entries()) {
+		if ((counts.get(group) ?? 0) + 1 <= farLimit) continue;
+		const farSide = side === "parent" ? "parent" : "child";
+		const label = options.labels?.[index] ?? group;
+		return {
+			success: false,
+			error: {
+				code: "VALIDATION_ERROR",
+				message:
+					farLimit === 1
+						? `Entry '${label}' already has a ${farSide} on this relation, which allows one.`
+						: `Entry '${label}' already has the maximum of ${farLimit} ${farSide} entries on this relation.`,
+			},
+		};
+	}
+	return { success: true, data: true };
+}
+
+/**
+ * {@link resolveReferenceTargets} for an entry that already exists, anchoring the
+ * selection on that entry's translation group.
+ */
+async function resolveReferenceSide(
+	db: Kysely<Database>,
+	collection: string,
+	entryId: string,
+	constraints: ReferenceFieldConstraints,
+	selectedIds: string[],
+): Promise<ApiResult<ReferenceSelectionWrite>> {
+	const entry = await new ContentRepository(db).findByIdOrSlug(collection, entryId);
+	if (!entry?.translationGroup) {
+		return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
 	}
 
-	return {
-		success: true,
-		data: { relation: rel.id, side, entryGroup: entry.translationGroup, groups },
-	};
+	const resolved = await resolveReferenceTargets(
+		db,
+		collection,
+		constraints,
+		selectedIds,
+		entry.translationGroup,
+	);
+	if (!resolved.success) return resolved;
+	return { success: true, data: { ...resolved.data, entryGroup: entry.translationGroup } };
 }
 
 /**
  * Replace one end's links from an already-resolved selection.
  *
- * Nothing here can fail on the caller's input: resolution has already proved the
- * relation, the entry and every selected entry exist. That is what lets publish
- * apply a staged selection on D1, where the surrounding transaction degrades to
- * sequential statements and a mid-way failure cannot be rolled back.
+ * Resolution has already proved the relation, the entry and every selected entry
+ * exist, so nothing here fails on the caller's input. What it can still hit is
+ * the far end's limit closing between resolving and writing — a slot another
+ * request took in that window. The write refuses the edge rather than exceeding
+ * the limit, and throws so the save reports it; the throw carries an `apiError`
+ * the content handlers map to a response.
  */
 export async function writeReferenceSelection(
 	db: Kysely<Database>,
 	selection: ReferenceSelectionWrite,
 ): Promise<void> {
 	const repo = new RelationRepository(db);
-	if (selection.side === "parent") {
-		await repo.setChildren(selection.relation, selection.entryGroup, selection.groups);
-	} else {
-		await repo.setParents(selection.relation, selection.entryGroup, selection.groups);
+	const rel = await resolveRelation(repo, selection.relation);
+	if (!rel) return;
+
+	const rejected =
+		selection.side === "parent"
+			? await repo.setChildren(rel.id, selection.entryGroup, selection.groups)
+			: await repo.setParents(rel.id, selection.entryGroup, selection.groups);
+	if (rejected.length > 0) {
+		const farSide = selection.side === "parent" ? "parent" : "child";
+		throw Object.assign(
+			new Error(
+				`Entry '${rejected[0]}' already has the maximum number of ${farSide} entries on this relation.`,
+			),
+			{ apiError: { code: "VALIDATION_ERROR" } },
+		);
 	}
-}
 
-/**
- * Resolve a relation + an entry on one of its ends + the ids it selects, and
- * replace that entry's links.
- *
- * Returns the resolved relation/entry translation_groups on success so callers
- * can re-read and echo the new set without re-deriving them.
- */
-async function setReferenceSide(
-	db: Kysely<Database>,
-	collection: string,
-	entryId: string,
-	relation: string,
-	selectedIds: string[],
-	side: "parent" | "child",
-): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
-	const resolved = await resolveReferenceSide(db, collection, entryId, relation, selectedIds, side);
-	if (!resolved.success) return resolved;
-	await writeReferenceSelection(db, resolved.data);
-	return {
-		success: true,
-		data: { relationId: resolved.data.relation, entryGroup: resolved.data.entryGroup },
-	};
-}
-
-/** `setReferenceSide` for the parent end, which the relation-scoped route takes. */
-export function setReferenceChildren(
-	db: Kysely<Database>,
-	collection: string,
-	entryId: string,
-	relation: string,
-	childIds: string[],
-): Promise<ApiResult<{ relationId: string; entryGroup: string }>> {
-	return setReferenceSide(db, collection, entryId, relation, childIds, "parent");
+	// A link is part of what a cached entry renders on both ends — a parent's
+	// selection and a child's backlinks — while no row of either collection has
+	// changed. Nothing else here would tell those snapshots they are stale.
+	invalidateCollectionCache(rel.parentCollection);
+	if (rel.childCollection !== rel.parentCollection) {
+		invalidateCollectionCache(rel.childCollection);
+	}
 }
 
 /**
@@ -739,70 +849,41 @@ export async function resolveReferenceSelection(
 	selectedIds: string[],
 ): Promise<ApiResult<ReferenceSelectionWrite>> {
 	const constraints = (await referenceFieldConstraints(db, collection)).get(fieldSlug);
-	if (!constraints) {
-		return {
-			success: false,
-			error: {
-				code: "VALIDATION_ERROR",
-				message: `Field '${fieldSlug}' is not a reference field on ${collection}`,
-			},
-		};
-	}
-	return resolveReferenceSide(
-		db,
-		collection,
-		entryId,
-		constraints.relation,
-		selectedIds,
-		constraints.relationSide,
-	);
+	if (!constraints) return notAReferenceField(fieldSlug, collection);
+	return resolveReferenceSide(db, collection, entryId, constraints, selectedIds);
 }
 
-export async function handleReferenceChildrenSet(
+/**
+ * `resolveReferenceSelection` for an entry that does not exist yet.
+ *
+ * A create resolves its whole payload before it writes its row, because on D1
+ * that row is committed the moment it is written: a selection that cannot be
+ * resolved has to be refused while there is still nothing to take back.
+ *
+ * `entryGroup` is the group the new row will join — a new translation inherits
+ * the source's — or null when the row starts a group of its own and so holds no
+ * links yet.
+ */
+export async function resolveReferenceSelectionTargets(
 	db: Kysely<Database>,
 	collection: string,
-	entryId: string,
-	relation: string,
-	childIds: string[],
-): Promise<ApiResult<{ children: EntryRef[]; nextCursor?: string }>> {
-	try {
-		const set = await setReferenceChildren(db, collection, entryId, relation, childIds);
-		if (!set.success) return set;
+	fieldSlug: string,
+	selectedIds: string[],
+	entryGroup: string | null,
+): Promise<ApiResult<ResolvedReferenceTargets>> {
+	const constraints = (await referenceFieldConstraints(db, collection)).get(fieldSlug);
+	if (!constraints) return notAReferenceField(fieldSlug, collection);
+	return resolveReferenceTargets(db, collection, constraints, selectedIds, entryGroup);
+}
 
-		const repo = new RelationRepository(db);
-		const content = new ContentRepository(db);
-
-		// Re-resolve the relation/entry for their locale + childCollection — cheap
-		// relative to the write above, and keeps this function independent of
-		// `setReferenceChildren`'s internals beyond the two returned groups.
-		const rel = await resolveRelation(repo, relation);
-		if (!rel)
-			return { success: false, error: { code: "NOT_FOUND", message: "Relation not found" } };
-		const entry = await content.findByIdOrSlug(collection, entryId);
-		if (!entry) {
-			return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
-		}
-
-		// Return the first page of the new set, mirroring the GET shape. The actor
-		// holds an edit permission (gated by the route), so draft children are
-		// included in the echo.
-		const edges = await repo.getChildrenPage(set.data.relationId, set.data.entryGroup);
-		const children = await resolveEntries(
-			content,
-			rel.childCollection,
-			edges.items,
-			(e) => e.childGroup,
-			entry.locale,
-			true,
-			await getReferenceTitleField(db, rel.childCollection),
-		);
-		return { success: true, data: { children, nextCursor: edges.nextCursor } };
-	} catch {
-		return {
-			success: false,
-			error: { code: "REFERENCES_SET_ERROR", message: "Failed to set references" },
-		};
-	}
+function notAReferenceField(fieldSlug: string, collection: string): ApiResult<never> {
+	return {
+		success: false,
+		error: {
+			code: "VALIDATION_ERROR",
+			message: `Field '${fieldSlug}' is not a reference field on ${collection}`,
+		},
+	};
 }
 
 export async function handleReferenceParentsGet(
@@ -837,6 +918,31 @@ export async function handleReferenceParentsGet(
 			return { success: false, error: { code: "NOT_FOUND", message: "Content entry not found" } };
 		}
 
+		const titleField = await getReferenceTitleField(db, rel.parentCollection);
+
+		// As on the children read: a field bound to this end stages its pending
+		// selection in the entry's draft, and that is what a drafts-aware caller
+		// pages through.
+		const staged = await stagedPageFor(db, {
+			collection,
+			relationSlug: rel.slug,
+			side: "child",
+			draftRevisionId: entry.draftRevisionId,
+			includeDrafts,
+			page,
+		});
+		if (staged) {
+			const parents = await resolveEntryGroups(
+				content,
+				rel.parentCollection,
+				staged.groups,
+				entry.locale,
+				includeDrafts,
+				titleField,
+			);
+			return { success: true, data: { parents, nextCursor: staged.nextCursor } };
+		}
+
 		const edges = await repo.getParentsPage(rel.id, entry.translationGroup, page);
 		const parents = await resolveEntries(
 			content,
@@ -845,7 +951,7 @@ export async function handleReferenceParentsGet(
 			(e) => e.parentGroup,
 			entry.locale,
 			includeDrafts,
-			await getReferenceTitleField(db, rel.parentCollection),
+			titleField,
 		);
 		return { success: true, data: { parents, nextCursor: edges.nextCursor } };
 	} catch (error) {

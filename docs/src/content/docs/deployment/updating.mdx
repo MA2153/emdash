@@ -91,12 +91,19 @@ A field is left unbound when it:
 - names no target collection, or names one that no longer exists
 - is marked searchable or indexed
 - needs the relation slug `{collection}_{field}` and that slug is already taken
+- holds different values in different locales of the same entry, on any entry
+
+That last one is about where links live. A link belongs to an entry's translation group, so one
+selection is shared by all of its translations, while the old column was per locale. A field whose
+locales disagree has no single selection to carry over — merging them would hand each locale the
+other's entries, and picking one locale's answer would discard the rest — so the update leaves the
+field alone and both values readable in the column.
 
 An unbound field keeps behaving as it did. Its column holds the entry ID, the value saves and loads, and the field can still be indexed and used as a content-list filter. In the entry editor it renders as a text box rather than a picker.
 
 #### What should I do?
 
-Open an entry in each collection that has a reference field. A field that renders as a picker needs nothing. For a field that still renders as a text box, follow [Bind a field that has no relation](/guides/relations/#bind-a-field-that-has-no-relation), which creates the relation and copies the field's stored IDs in as links.
+Open an entry in each collection that has a reference field. A field that renders as a picker needs nothing. For a field that still renders as a text box, follow [Bind a field that has no relation](/guides/relations/#bind-a-field-that-has-no-relation), which creates the relation and copies the field's stored IDs in as links. On a multi-locale site, settle which entry each translation should point at before binding, since binding keeps one selection for all of them.
 
 ## If the site breaks after an update
 

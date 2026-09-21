@@ -900,7 +900,7 @@ describe("ContentTypeEditor", () => {
 		});
 
 		it("deletes a relation once the dialog says what goes with it", async () => {
-			const onDeleteRelation = vi.fn();
+			const onDeleteRelation = vi.fn(async () => ({}));
 			const screen = await renderPanel([makeRelation()], { onDeleteRelation });
 
 			await screen.getByRole("button", { name: "Delete posts_authors" }).click();

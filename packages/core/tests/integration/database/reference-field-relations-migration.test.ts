@@ -309,7 +309,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		expect(await readValidation("posts", "editor")).toEqual({});
 	});
 
-	it("keeps one child for a single-reference field whose locale rows disagree", async () => {
+	it("leaves a single-reference field unbound when its locale rows disagree", async () => {
 		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
 
 		const content = new ContentRepository(ctx.db);
@@ -332,8 +332,100 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 
 		await migration084.up(ctx.db);
 
+		// A link is shared across an entry's translations, so there is no answer
+		// here that keeps both choices. Binding would have to discard one, so the
+		// field stays as it was and an editor decides.
+		expect(await readValidation("posts", "author")).toEqual({});
+		expect((await readRelations()).rows).toHaveLength(0);
+		expect((await readEdges()).rows).toHaveLength(0);
+		// Both values are still readable in the column.
+		const values = await sql<{ author: string | null }>`
+			SELECT author FROM ${sql.ref("ec_posts")} ORDER BY locale ASC
+		`.execute(ctx.db);
+		expect(values.rows.map((row) => row.author)).toEqual([jane.id, rosa.id]);
+	});
+
+	it("leaves a multiple-reference field unbound when its locale rows disagree", async () => {
+		await createLegacyReferenceField(ctx.db, "posts", "author", {
+			targetCollection: "authors",
+			allowMultiple: true,
+		});
+
+		const content = new ContentRepository(ctx.db);
+		const jane = await content.create({ type: "authors", slug: "jane", data: { name: "Jane" } });
+		const rosa = await content.create({ type: "authors", slug: "rosa", data: { name: "Rosa" } });
+		const english = await content.create({
+			type: "posts",
+			slug: "hello",
+			data: { title: "Hello" },
+		});
+		const french = await content.create({
+			type: "posts",
+			slug: "bonjour",
+			data: { title: "Bonjour" },
+			locale: "fr",
+			translationOf: english.id,
+		});
+		await writeColumn("posts", english.id, "author", JSON.stringify([jane.id]));
+		await writeColumn("posts", french.id, "author", JSON.stringify([rosa.id]));
+
+		await migration084.up(ctx.db);
+
+		// The union would hand each locale the other's entry, which is a different
+		// selection from the one either of them had.
+		expect(await readValidation("posts", "author")).toEqual({});
+		expect((await readEdges()).rows).toHaveLength(0);
+	});
+
+	it("binds a field whose locale rows agree", async () => {
+		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
+
+		const content = new ContentRepository(ctx.db);
+		const jane = await content.create({ type: "authors", slug: "jane", data: { name: "Jane" } });
+		const english = await content.create({
+			type: "posts",
+			slug: "hello",
+			data: { title: "Hello" },
+		});
+		const french = await content.create({
+			type: "posts",
+			slug: "bonjour",
+			data: { title: "Bonjour" },
+			locale: "fr",
+			translationOf: english.id,
+		});
+		// The same choice in both locales, and a third row that made none.
+		await writeColumn("posts", english.id, "author", jane.id);
+		await writeColumn("posts", french.id, "author", jane.id);
+
+		await migration084.up(ctx.db);
+
+		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
 		const edges = await readEdges();
 		expect(edges.rows).toHaveLength(1);
 		expect(edges.rows[0]?.child_group).toBe(jane.translationGroup);
+	});
+
+	it("leaves a field alone when its slug names a relation it did not create", async () => {
+		// Same ends and the same limit a binding would have asked for, but made by
+		// hand: the migration has no claim on it, and adding this field's edges to
+		// it would change a relation someone else is using.
+		await sql`
+			INSERT INTO ${sql.ref("_emdash_relations")}
+				(id, slug, parent_collection, child_collection, parent_label, child_label,
+				 max_children_per_parent)
+			VALUES ('rel-by-hand', 'posts_author', 'posts', 'authors', 'Posts', 'Author', 1)
+		`.execute(ctx.db);
+		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
+		const content = new ContentRepository(ctx.db);
+		const author = await content.create({ type: "authors", slug: "jane", data: { name: "Jane" } });
+		const post = await content.create({ type: "posts", slug: "hello", data: { title: "Hello" } });
+		await writeColumn("posts", post.id, "author", author.id);
+
+		await migration084.up(ctx.db);
+
+		expect(await readValidation("posts", "author")).toEqual({});
+		expect((await readRelations()).rows).toHaveLength(1);
+		expect((await readEdges()).rows).toHaveLength(0);
 	});
 });

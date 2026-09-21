@@ -202,6 +202,19 @@ function sameReferenceIds(a: ReferenceEntryRow[], b: ReferenceEntryRow[]): boole
  * not-yet-fully-loaded) field would risk overwriting it with a partial list.
  * Untouched fields are omitted and left as-is on the server.
  */
+/**
+ * What one autosave would send, as a value that can be compared with what the
+ * server refused. References are part of it: a selection is the whole change a
+ * picker-only save carries, so leaving it out would make the next save look like
+ * the rejected one and suppress it for good.
+ */
+function autosavePayloadKey(
+	state: string,
+	references: Record<string, string[]> | undefined,
+): string {
+	return references ? `${state}|refs=${JSON.stringify(references)}` : state;
+}
+
 function buildReferencesPayload(
 	state: Record<string, ReferenceGroupState>,
 ): Record<string, string[]> | undefined {
@@ -511,6 +524,8 @@ export function ContentEditor({
 		}),
 	);
 	const pendingAutosaveStateRef = React.useRef<string | null>(null);
+	/** The same payload including its selections — what a rejection is keyed by. */
+	const pendingAutosaveKeyRef = React.useRef<string | null>(null);
 	const [rejectedAutosaveState, setRejectedAutosaveState] = React.useState<string | null>(null);
 	const [isPublishing, setIsPublishing] = React.useState(false);
 	const isPublishingRef = React.useRef(false);
@@ -544,6 +559,7 @@ export function ContentEditor({
 			}),
 		);
 		pendingAutosaveStateRef.current = null;
+		pendingAutosaveKeyRef.current = null;
 		pendingAutosaveReferencesRef.current = null;
 		setReferenceState(seedReferenceState(item));
 		setRejectedAutosaveState(null);
@@ -591,6 +607,7 @@ export function ContentEditor({
 			);
 			if (!autosaveJustCompleted) {
 				pendingAutosaveStateRef.current = null;
+				pendingAutosaveKeyRef.current = null;
 				setRejectedAutosaveState(null);
 			}
 			// Re-seed references only when the item carries hydrated references.
@@ -778,6 +795,7 @@ export function ContentEditor({
 			setLastSavedData(pendingAutosaveStateRef.current);
 			pendingAutosaveStateRef.current = null;
 		}
+		pendingAutosaveKeyRef.current = null;
 
 		// Mark the reference groups that autosave just persisted as saved by
 		// advancing their baseline to the sent snapshot. Editing further before
@@ -798,12 +816,16 @@ export function ContentEditor({
 	}, [autosaveCompletionToken]);
 
 	React.useEffect(() => {
-		if (!autosaveRejectionToken || !pendingAutosaveStateRef.current) {
+		if (!autosaveRejectionToken || !pendingAutosaveKeyRef.current) {
 			return;
 		}
 
-		setRejectedAutosaveState(pendingAutosaveStateRef.current);
+		setRejectedAutosaveState(pendingAutosaveKeyRef.current);
+		pendingAutosaveKeyRef.current = null;
 		pendingAutosaveStateRef.current = null;
+		// The selections it carried were not saved, so nothing may advance their
+		// baseline — least of all a later autosave completing.
+		pendingAutosaveReferencesRef.current = null;
 	}, [autosaveRejectionToken]);
 
 	// A save refused under someone else's lock is retried once the entry is
@@ -864,7 +886,10 @@ export function ContentEditor({
 			return;
 		}
 
-		if (currentData === rejectedAutosaveState) {
+		if (
+			autosavePayloadKey(currentData, buildReferencesPayload(referenceState)) ===
+			rejectedAutosaveState
+		) {
 			return;
 		}
 
@@ -896,6 +921,10 @@ export function ContentEditor({
 				slug: payload.slug || "",
 				bylines: activeBylines,
 			});
+			pendingAutosaveKeyRef.current = autosavePayloadKey(
+				pendingAutosaveStateRef.current,
+				payload.references,
+			);
 			onAutosave(payload);
 		}, AUTOSAVE_DELAY);
 

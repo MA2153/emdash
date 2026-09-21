@@ -31,7 +31,8 @@ export interface RelationListProps {
 	error?: string;
 	onCreateRelation: (input: CreateRelationInput) => Promise<unknown>;
 	onUpdateRelation: (id: string, input: UpdateRelationInput) => Promise<unknown>;
-	onDeleteRelation: (id: string) => void;
+	/** Resolves once the relation is gone; a rejection keeps the dialog up. */
+	onDeleteRelation: (id: string) => Promise<unknown>;
 	isDeleting?: boolean;
 	deleteError?: unknown;
 }
@@ -151,8 +152,11 @@ export function RelationList({
 				relation={deleting}
 				onClose={() => setDeleting(null)}
 				onConfirm={(relation) => {
-					onDeleteRelation(relation.id);
-					setDeleting(null);
+					// Closed only once the delete lands. A rejected one leaves the
+					// dialog up to show `deleteError` and be tried again.
+					void onDeleteRelation(relation.id)
+						.then(() => setDeleting(null))
+						.catch(() => {});
 				}}
 				isDeleting={isDeleting}
 				error={deleteError}

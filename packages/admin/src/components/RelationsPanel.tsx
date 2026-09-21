@@ -31,7 +31,8 @@ export interface RelationsPanelProps {
 	isLoading?: boolean;
 	onCreateRelation?: (input: CreateRelationInput) => Promise<unknown>;
 	onUpdateRelation?: (id: string, input: UpdateRelationInput) => Promise<unknown>;
-	onDeleteRelation?: (id: string) => void;
+	/** Resolves once the relation is gone; a rejection keeps the dialog up. */
+	onDeleteRelation?: (id: string) => Promise<unknown>;
 	isDeletingRelation?: boolean;
 	deleteRelationError?: unknown;
 }
@@ -126,8 +127,11 @@ export function RelationsPanel({
 					relation={deleting}
 					onClose={() => setDeleting(null)}
 					onConfirm={(relation) => {
-						onDeleteRelation(relation.id);
-						setDeleting(null);
+						// Closed only once the delete lands, so a rejected one keeps
+						// its error and its retry. Mirrors the relations list.
+						void onDeleteRelation(relation.id)
+							.then(() => setDeleting(null))
+							.catch(() => {});
 					}}
 					isDeleting={isDeletingRelation}
 					error={deleteRelationError}

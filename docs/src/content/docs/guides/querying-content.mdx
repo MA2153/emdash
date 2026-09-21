@@ -299,7 +299,9 @@ const { entries, nextCursor } = await getEmDashReferences("posts", post.id, "rel
 });
 ```
 
-It reads draft visibility from the same request context as `getEmDashEntry`, so a walk started in preview keeps seeing the pending selection.
+It reads draft visibility from the same request context as `getEmDashEntry`, so a walk started in preview keeps seeing the pending selection. A page id carries its locale where i18n prefixes one (`fr/about`), and that is the id to pass back in.
+
+On a route that caches its output, merge the `cacheHint` the page returns into the route's own, so a write to one of the entries it named expires the page.
 
 ### Reference fields in preview
 

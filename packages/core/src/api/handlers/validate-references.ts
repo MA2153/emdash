@@ -9,10 +9,14 @@ export interface ReferenceFieldConstraints {
 	slug: string;
 	/** Relation slug the field binds to. */
 	relation: string;
+	/** Relation id, for the reads that address the link table directly. */
+	relationId: string | null;
 	/** Which end of the relation the field's own collection sits on. */
 	relationSide: "parent" | "child";
 	/** How many entries this side of the relation may hold. `null` is unlimited. */
 	maxSelected: number | null;
+	/** How many this field's selection may hand each entry it selects. */
+	maxOpposite: number | null;
 	required: boolean;
 }
 
@@ -46,7 +50,7 @@ export function referenceFieldConstraints(
 		// about one edge set. The field contributes only which end it views.
 		const relations = await db
 			.selectFrom("_emdash_relations")
-			.select(["slug", "max_children_per_parent", "max_parents_per_child"])
+			.select(["id", "slug", "max_children_per_parent", "max_parents_per_child"])
 			.execute();
 		const limits = new Map(relations.map((r) => [r.slug, r]));
 
@@ -64,16 +68,19 @@ export function referenceFieldConstraints(
 
 			const relation = limits.get(parsed.relation);
 			const relationSide = parsed.relationSide === "child" ? "child" : "parent";
-			const maxSelected =
-				relationSide === "child"
-					? (relation?.max_parents_per_child ?? null)
-					: (relation?.max_children_per_parent ?? null);
+			const onChildSide = relationSide === "child";
 
 			constraints.set(field.slug, {
 				slug: field.slug,
 				relation: parsed.relation,
+				relationId: relation?.id ?? null,
 				relationSide,
-				maxSelected,
+				maxSelected: onChildSide
+					? (relation?.max_parents_per_child ?? null)
+					: (relation?.max_children_per_parent ?? null),
+				maxOpposite: onChildSide
+					? (relation?.max_children_per_parent ?? null)
+					: (relation?.max_parents_per_child ?? null),
 				required: field.required === 1,
 			});
 		}

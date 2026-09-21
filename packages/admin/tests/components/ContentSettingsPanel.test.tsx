@@ -49,10 +49,6 @@ vi.mock("../../src/components/SeoPanel", () => ({
 	SeoPanel: () => <div data-testid="seo-panel">SEO fields</div>,
 }));
 
-vi.mock("../../src/components/ReferencesSidebar", () => ({
-	ReferencesSidebar: () => <h3>Referenced by</h3>,
-}));
-
 vi.mock("@tanstack/react-router", async () => {
 	const actual = await vi.importActual("@tanstack/react-router");
 	return {
@@ -213,7 +209,7 @@ describe("ContentSettingsPanel", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("renders all nine sections when every capability is enabled", async () => {
+	it("renders all eight sections when every capability is enabled", async () => {
 		const screen = await render(<ContentSettingsPanel {...makePanelProps()} />);
 
 		await expect.element(screen.getByRole("heading", { name: "Publish" })).toBeInTheDocument();
@@ -221,23 +217,17 @@ describe("ContentSettingsPanel", () => {
 		await expect.element(screen.getByRole("heading", { name: "Bylines" })).toBeInTheDocument();
 		await expect.element(screen.getByRole("heading", { name: "Translations" })).toBeInTheDocument();
 		await expect.element(screen.getByTestId("taxonomy-sidebar")).toBeInTheDocument();
-		await expect
-			.element(screen.getByRole("heading", { name: "Referenced by" }))
-			.toBeInTheDocument();
 		await expect.element(screen.getByRole("heading", { name: "SEO" })).toBeInTheDocument();
 		await expect.element(screen.getByTestId("doc-outline")).toBeInTheDocument();
 		await expect.element(screen.getByTestId("revision-history")).toBeInTheDocument();
 		await expect.element(screen.getByRole("button", { name: "Move to Trash" })).toBeInTheDocument();
 		await expect
-			.element(screen.getByRole("button", { name: "Drag to reorder Referenced by" }))
+			.element(screen.getByRole("button", { name: "Drag to reorder SEO" }))
 			.toBeInTheDocument();
 
-		const referencesSection = screen
-			.getByRole("heading", { name: "Referenced by" })
-			.element()
-			.closest("section");
+		const taxonomySection = screen.getByTestId("taxonomy-sidebar").element().closest("section");
 		const seoSection = screen.getByRole("heading", { name: "SEO" }).element().closest("section");
-		expect(referencesSection?.nextElementSibling).toBe(seoSection);
+		expect(taxonomySection?.nextElementSibling).toBe(seoSection);
 	});
 
 	it("moves byline ordering guidance into help beside the heading", async () => {

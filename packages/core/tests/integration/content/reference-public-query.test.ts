@@ -25,6 +25,7 @@ import { ContentRepository } from "../../../src/database/repositories/content.js
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import type { Database } from "../../../src/database/types.js";
 import type { EmDashRuntime } from "../../../src/emdash-runtime.js";
+import { setI18nConfig } from "../../../src/i18n/config.js";
 import { getEmDashEntry, getEmDashReferences } from "../../../src/query.js";
 import { resolveReferencePages } from "../../../src/references/resolve.js";
 import { runWithContext } from "../../../src/request-context.js";
@@ -396,6 +397,56 @@ describeEachDialect("public reference queries", (dialect) => {
 		);
 		expect(result.entries).toEqual([]);
 		expect(result.error).toBeUndefined();
+	});
+
+	it("walks a page of a non-default locale's entry, whose id carries its locale", async () => {
+		setI18nConfig({ defaultLocale: "en", locales: ["en", "fr"] });
+		try {
+			const page = await createPage("Page One");
+			const source = await createPost("Hello", [page.id]);
+			const translation = await handleContentCreate(db, "posts", {
+				data: { title: "Bonjour" },
+				slug: "bonjour",
+				locale: "fr",
+				translationOf: source.id,
+			});
+			if (!translation.success) throw new Error("Translation setup failed");
+			const published = await runtime.handleContentPublish("posts", translation.data.item.id);
+			expect(published.success).toBe(true);
+
+			// The id a referenced entry carries in a prefixed locale, as
+			// `entryIdForRow` builds it — what the documented example passes back in.
+			const result = await runWithContext({ editMode: false, db }, () =>
+				getEmDashReferences("posts", "fr/bonjour", "related_pages"),
+			);
+			expect(result.entries.map((entry) => entry.data.title)).toEqual(["Page One"]);
+		} finally {
+			setI18nConfig(null);
+		}
+	});
+
+	it("names the rows a standalone page read, so a cached route can tag them", async () => {
+		const pages = [await createPage("Page One"), await createPage("Page Two")];
+		const post = await createPost(
+			"Hello",
+			pages.map((page) => page.id),
+		);
+
+		const result = await runWithContext({ editMode: false, db }, () =>
+			getEmDashReferences("posts", post.id, "related_pages"),
+		);
+
+		expect(result.entries).toHaveLength(2);
+		expect(result.cacheHint?.tags).toEqual(expect.arrayContaining(pages.map((page) => page.id)));
+		// The newest child, so a write to any of them moves the route's header.
+		const repo = new ContentRepository(db);
+		const stamps = await Promise.all(
+			pages.map(async (page) => {
+				const row = await repo.findById("pages", page.id);
+				return new Date(row!.updatedAt!).getTime();
+			}),
+		);
+		expect(result.cacheHint?.lastModified?.getTime()).toBe(Math.max(...stamps));
 	});
 
 	it("attaches the selected fields to a loaded entry and nothing otherwise", async () => {

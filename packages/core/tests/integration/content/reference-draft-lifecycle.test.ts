@@ -4,6 +4,7 @@
  * the same lifecycle any other field value has.
  */
 
+import { sql } from "kysely";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
 import {
@@ -11,12 +12,15 @@ import {
 	handleContentCreate,
 	handleContentDiscardDraft,
 	handleContentDuplicate,
+	handleContentGet,
+	handleContentPublish,
 } from "../../../src/api/handlers/content.js";
 import { handleRevisionRestore } from "../../../src/api/handlers/revision.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import { RevisionRepository } from "../../../src/database/repositories/revision.js";
 import type { EmDashRuntime } from "../../../src/emdash-runtime.js";
+import { REFERENCE_PAGE_LIMIT } from "../../../src/references/staged.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
 import { createTestRuntime } from "../../utils/mcp-runtime.js";
 import {
@@ -126,6 +130,56 @@ describeEachDialect("versioned reference selections", (dialect) => {
 		const published = await runtime.handleContentPublish("posts", id);
 		expect(published.success).toBe(true);
 		expect(await liveGroups(id)).toEqual([b.translationGroup]);
+	});
+
+	it("leaves the draft staging the selection when the promotion cannot complete", async () => {
+		const [a, b] = [await createPage("A"), await createPage("B")];
+		const id = await publishedPost("Interrupted", [a.id]);
+		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [b.id] } });
+
+		// With the link table gone the promotion cannot run. Handed a transaction,
+		// the handler executes inline — D1's boundary, where a statement that has
+		// run stays run — so what survives the failure here is what a D1 publish
+		// would leave behind.
+		await sql`DROP TABLE ${sql.ref("_emdash_content_references")}`.execute(ctx.db);
+
+		await ctx.db.transaction().execute(async (trx) => {
+			const published = await handleContentPublish(trx, "posts", id);
+			expect(published.success).toBe(false);
+
+			// The draft pointer is the only thing that can find the staged selection
+			// again, so a failed promotion must not have spent it.
+			const post = await new ContentRepository(trx).findById("posts", id);
+			expect(post?.draftRevisionId).toBeTruthy();
+		});
+	});
+
+	it("pages a staged selection the way it pages a live one", async () => {
+		const pages: string[] = [];
+		for (let index = 0; index < REFERENCE_PAGE_LIMIT + 1; index++) {
+			// Drafts are enough: the read that follows may see them, and publishing
+			// each one would only slow the setup down.
+			const created = await handleContentCreate(ctx.db, "pages", {
+				data: { title: `Page ${index}` },
+				slug: `page-${index}`,
+			});
+			if (!created.success) throw new Error("Page setup failed");
+			pages.push(created.data.item.id);
+		}
+
+		const id = await publishedPost("Paged", []);
+		const saved = await runtime.handleContentUpdate("posts", id, {
+			references: { related_pages: pages },
+		});
+		expect(saved.success).toBe(true);
+
+		const got = await handleContentGet(ctx.db, "posts", id, undefined, { includeDrafts: true });
+		expect(got.success).toBe(true);
+		if (!got.success) return;
+
+		const field = got.data.item.references?.related_pages;
+		expect(field?.children).toHaveLength(REFERENCE_PAGE_LIMIT);
+		expect(field?.nextCursor).toBeTruthy();
 	});
 
 	it("reports a staged selection to a drafts-aware read and the live one otherwise", async () => {
@@ -274,6 +328,33 @@ describeEachDialect("versioned reference selections", (dialect) => {
 		expect(await liveGroups(id)).toEqual([a.translationGroup]);
 	});
 
+	it("refuses to restore a selection the relation has since outgrown", async () => {
+		const [a, b] = [await createPage("A"), await createPage("B")];
+		const id = await publishedPost("Outgrown", [a.id]);
+
+		await runtime.handleContentUpdate("posts", id, {
+			references: { related_pages: [a.id, b.id] },
+		});
+		const revisionId = (await new ContentRepository(ctx.db).findById("posts", id))!
+			.draftRevisionId!;
+		await runtime.handleContentPublish("posts", id);
+		expect(await liveGroups(id)).toEqual([a.translationGroup, b.translationGroup]);
+
+		const relations = new RelationRepository(ctx.db);
+		await relations.update((await relations.findBySlug("posts_related_pages"))!.id, {
+			maxChildrenPerParent: 1,
+		});
+		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [a.id] } });
+		await runtime.handleContentPublish("posts", id);
+
+		// Restoring would put the two-page selection back under a relation that now
+		// allows one, so it is refused rather than written past the limit.
+		const restored = await handleRevisionRestore(ctx.db, revisionId, "user-1");
+		expect(restored.success).toBe(false);
+		if (!restored.success) expect(restored.error.code).toBe("VALIDATION_ERROR");
+		expect(await liveGroups(id)).toEqual([a.translationGroup]);
+	});
+
 	it("copies live links to a duplicate, not the source's staged selection", async () => {
 		const [a, b] = [await createPage("A"), await createPage("B")];
 		const id = await publishedPost("Duplicated", [a.id]);
@@ -311,6 +392,25 @@ describeEachDialect("versioned reference selections", (dialect) => {
 			expect(published.error.message).toContain("related_pages");
 		}
 		expect(await liveGroups(id)).toEqual([a.translationGroup]);
+	});
+
+	it("refuses to publish a staged selection another entry has since claimed", async () => {
+		const a = await createPage("A");
+		const relations = new RelationRepository(ctx.db);
+		const relation = await relations.findBySlug("posts_related_pages");
+		await relations.update(relation!.id, { maxParentsPerChild: 1 });
+
+		// Staged while the page was free to take.
+		const id = await publishedPost("First", []);
+		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [a.id] } });
+
+		// Another post takes the page's only parent slot before this draft publishes.
+		await publishedPost("Second", [a.id]);
+
+		const published = await runtime.handleContentPublish("posts", id);
+		expect(published.success).toBe(false);
+		if (!published.success) expect(published.error.code).toBe("VALIDATION_ERROR");
+		expect(await liveGroups(id)).toEqual([]);
 	});
 
 	it("rejects a save that empties a required reference field outright", async () => {

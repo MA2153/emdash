@@ -341,6 +341,10 @@ export async function handleSchemaCollectionDelete(
 	try {
 		const registry = new SchemaRegistry(db);
 
+		// Nothing below can be undone on D1, so a delete that will be refused has
+		// to be refused before the first relation goes.
+		await registry.assertCollectionDeletable(slug, options);
+
 		// A relation with this collection on either end cannot outlive it: its
 		// edges point at content that is about to be dropped, and the reference
 		// fields viewing it — including ones on the *other* collection — would be

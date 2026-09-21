@@ -298,6 +298,8 @@ const { entries, nextCursor, error } = await getEmDashReferences(
 
 `error` is set only for actual errors. An unknown field, a missing entry, or one the request may not see all resolve to an empty `entries` array.
 
+The result also carries a `cacheHint` naming the rows the page read. A route that caches what it renders should merge it into its own hint, the way `getEmDashEntry({ references })` folds in the first page's, so that writing to one of those entries expires the page.
+
 ## URL helpers
 
 ### `decodeSlug()` and `slugify()`

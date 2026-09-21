@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 
 import { RawBindingD1Dialect } from "../../../cloudflare/src/db/d1-dialect.js";
 import { handleContentCreate } from "../../src/api/handlers/content.js";
-import { handleReferenceChildrenSet } from "../../src/api/handlers/relations.js";
+import { setReferenceSelection } from "../../src/api/handlers/relations.js";
 import { runMigrations } from "../../src/database/migrations/runner.js";
 import { RelationRepository } from "../../src/database/repositories/relation.js";
 import type { Database } from "../../src/database/types.js";
@@ -69,20 +69,20 @@ it("replaces more than sixteen reference children in order on D1", async () => {
 		children.push(child.data.item);
 	}
 
-	const seeded = await handleReferenceChildrenSet(
+	const seeded = await setReferenceSelection(
 		db,
 		"batch_posts",
 		parent.data.item.id,
-		relation.slug,
+		"related_pages",
 		[oldChild.data.item.id],
 	);
 	expect(seeded.success).toBe(true);
 
-	const replaced = await handleReferenceChildrenSet(
+	const replaced = await setReferenceSelection(
 		db,
 		"batch_posts",
 		parent.data.item.id,
-		relation.slug,
+		"related_pages",
 		children.map((child) => child.id),
 	);
 	expect(replaced.success).toBe(true);

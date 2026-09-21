@@ -9,28 +9,18 @@
  * them.
  */
 
-import { readStagedReferences } from "../api/handlers/staged-references.js";
 import { RelationRepository } from "../database/repositories/relation.js";
 import { RevisionRepository } from "../database/repositories/revision.js";
-import {
-	decodeCursor,
-	encodeCursor,
-	STAGED_CURSOR_MARKER,
-} from "../database/repositories/types.js";
 import { getDb, loadEntriesByGroups, type LoadedEntry } from "../loader.js";
 import { getReferenceFieldMap } from "./field-map.js";
+import {
+	pageStagedGroups,
+	readStagedReferences,
+	REFERENCE_PAGE_LIMIT,
+	REFERENCE_PAGE_MAX_LIMIT,
+	type PageOfGroups,
+} from "./staged.js";
 import type { ReferenceQuery, ReferenceSelection } from "./types.js";
-
-/** Default page size for one reference field, matching the list endpoints. */
-const DEFAULT_LIMIT = 50;
-/** Hard ceiling, matching the list endpoints. */
-const MAX_LIMIT = 100;
-
-/** One field's page of translation groups, before the entries are loaded. */
-interface PageOfGroups {
-	groups: string[];
-	nextCursor?: string;
-}
 
 /** One reference field's resolved page, before the query layer wraps the entries. */
 export interface ResolvedReferencePage {
@@ -61,46 +51,12 @@ export interface ResolveReferencesOptions {
 }
 
 function pageOptions(query: ReferenceQuery): { limit: number; cursor?: string } {
-	if (query === true) return { limit: DEFAULT_LIMIT };
-	const requested = query.limit ?? DEFAULT_LIMIT;
+	if (query === true) return { limit: REFERENCE_PAGE_LIMIT };
+	const requested = query.limit ?? REFERENCE_PAGE_LIMIT;
 	return {
-		limit: Math.min(Math.max(requested, 1), MAX_LIMIT),
+		limit: Math.min(Math.max(requested, 1), REFERENCE_PAGE_MAX_LIMIT),
 		cursor: query.cursor,
 	};
-}
-
-/**
- * Page a staged selection, which is a list in memory rather than a table.
- *
- * The cursor anchors on the last group of the previous page rather than on its
- * index: the editor can reorder or drop entries between one page and the next,
- * and an index would then silently skip or repeat. An anchor that is no longer
- * in the selection means the entries it pointed past are gone, so the walk ends.
- */
-function pageStagedGroups(
-	groups: string[],
-	options: { limit: number; cursor?: string },
-): PageOfGroups {
-	let start = 0;
-	if (options.cursor) {
-		const decoded = decodeCursor(options.cursor);
-		// A cursor from the link table anchors on an edge row id, which is not a
-		// group and would match nothing. That happens when a preview session opens
-		// mid-pagination over the published selection, so restart the field rather
-		// than handing back an empty page that reads as "no more".
-		if (decoded.orderValue === STAGED_CURSOR_MARKER) {
-			const index = groups.indexOf(decoded.id);
-			if (index === -1) return { groups: [] };
-			start = index + 1;
-		}
-	}
-	const page = groups.slice(start, start + options.limit);
-	const last = page.at(-1);
-	const nextCursor =
-		last && start + page.length < groups.length
-			? encodeCursor(STAGED_CURSOR_MARKER, last)
-			: undefined;
-	return { groups: page, nextCursor };
 }
 
 /**

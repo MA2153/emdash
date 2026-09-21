@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 
 import { RawBindingD1Dialect } from "../../../cloudflare/src/db/d1-dialect.js";
 import { handleContentCreate, handleContentGet } from "../../src/api/handlers/content.js";
-import { handleReferenceChildrenSet } from "../../src/api/handlers/relations.js";
+import { setReferenceSelection } from "../../src/api/handlers/relations.js";
 import { runMigrations } from "../../src/database/migrations/runner.js";
 import { RelationRepository } from "../../src/database/repositories/relation.js";
 import type { Database } from "../../src/database/types.js";
@@ -73,11 +73,11 @@ it("enforces reference constraints while preserving translation-group inheritanc
 	expect(source.success).toBe(true);
 	if (!source.success) return;
 
-	const tooMany = await handleReferenceChildrenSet(
+	const tooMany = await setReferenceSelection(
 		db,
 		"constraint_posts",
 		source.data.item.id,
-		relation.slug,
+		"featured_page",
 		[first.data.item.id, second.data.item.id],
 	);
 	expect(tooMany.success).toBe(false);

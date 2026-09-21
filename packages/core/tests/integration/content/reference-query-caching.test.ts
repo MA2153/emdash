@@ -15,7 +15,7 @@
 import { sql, type Kysely } from "kysely";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { handleContentCreate } from "../../../src/api/handlers/content.js";
+import { handleContentCreate, handleContentUpdate } from "../../../src/api/handlers/content.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import type { Database } from "../../../src/database/types.js";
@@ -216,6 +216,29 @@ describe("reference pages in the entry cache", () => {
 
 		const after = await read(post.slug, { related_pages: true });
 		expect(after.entry?.references?.related_pages?.entries[0]?.data.title).toBe("Renamed");
+	});
+
+	it("drops the cached snapshot when only the selection changes", async () => {
+		const first = await createPage("Page One");
+		const second = await createPage("Page Two");
+		const post = await createPost("Hello", [first.id]);
+		await mockPost(post);
+
+		await read(post.slug, { related_pages: true });
+		await flush();
+
+		// A picker-only write: no column on the entry changes, so nothing but the
+		// links tells the cache that the render's answer has moved.
+		const updated = await handleContentUpdate(db, "posts", post.id, {
+			references: { related_pages: [second.id] },
+		});
+		if (!updated.success) throw new Error(`Post update failed: ${updated.error.message}`);
+		await flush();
+
+		const after = await read(post.slug, { related_pages: true });
+		expect(after.entry?.references?.related_pages?.entries.map((e) => e.data.title)).toEqual([
+			"Page Two",
+		]);
 	});
 
 	it("names every child row in the cache hint", async () => {

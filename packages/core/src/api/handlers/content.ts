@@ -55,13 +55,18 @@ import { decodeRev, encodeRev, validateRev } from "../rev.js";
 import type { ApiResult, ContentListResponse, ContentResponse } from "../types.js";
 import {
 	getReferenceTitleField,
+	type ReferenceSelectionWrite,
 	resolveEntries,
 	resolveEntryGroups,
-	setReferenceSelection,
+	resolveReferenceSelection,
+	resolveReferenceSelectionTargets,
+	type ResolvedReferenceTargets,
+	writeReferenceSelection,
 } from "./relations.js";
 import {
 	applyStagedReferences,
 	liveReferenceSelection,
+	pageStagedGroups,
 	readStagedReferences,
 	STAGED_REFERENCES_KEY,
 	type StagedReferences,
@@ -262,9 +267,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * which hold the published selection. That is what keeps a picker change on a
  * published entry invisible until it is published.
  *
- * A staged selection arrives whole rather than a page at a time: it is already
- * in memory, and resolving it costs the one batched read the save that staged it
- * already paid.
+ * Either selection arrives one page at a time, with the cursor to walk the rest
+ * through the edge routes — a draft's pending selection can be as long as a
+ * published one, and a caller that reads an entry should not have to take a
+ * field of a thousand entries to find out.
  */
 async function hydrateReferences(
 	db: Kysely<Database>,
@@ -324,15 +330,20 @@ async function hydrateReferences(
 
 		const stagedGroups = staged?.[field.slug];
 		if (stagedGroups) {
+			// Paged like the links below it: the REST contract promises one page and
+			// a cursor whichever selection answers, and the editor walks the rest
+			// through the same edge route either way.
+			const page = pageStagedGroups(stagedGroups);
 			references[field.slug] = {
 				children: await resolveEntryGroups(
 					content,
 					targetCollection,
-					stagedGroups,
+					page.groups,
 					item.locale,
 					includeDrafts,
 					await getReferenceTitleField(db, targetCollection),
 				),
+				...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
 			};
 			continue;
 		}
@@ -1074,6 +1085,34 @@ export async function handleContentCreate(
 					).map((field) => field.slug)
 				: [];
 
+			// Resolve the whole selection before the entry is written. On D1 the
+			// statements below land one at a time with nothing to roll them back, so
+			// a field slug or a selected id that fails to resolve has to fail here,
+			// while the only thing written is nothing.
+			const referenceWrites: ResolvedReferenceTargets[] = [];
+			if (body.references) {
+				// A new translation joins the source's group, which may already hold
+				// links the far-side count must discount.
+				const entryGroup = body.translationOf
+					? ((await repo.findById(collection, body.translationOf))?.translationGroup ?? null)
+					: null;
+				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
+					const resolved = await resolveReferenceSelectionTargets(
+						trx,
+						collection,
+						fieldSlug,
+						selectedIds,
+						entryGroup,
+					);
+					if (!resolved.success) {
+						throw Object.assign(new Error(resolved.error.message), {
+							apiError: { code: resolved.error.code },
+						});
+					}
+					referenceWrites.push(resolved.data);
+				}
+			}
+
 			// Default to the configured site locale rather than the repo's
 			// hard-coded "en" — otherwise non-English default-locale sites
 			// silently create entries in a locale the editor never chose.
@@ -1155,24 +1194,15 @@ export async function handleContentCreate(
 				await assignTaxonomies(trx, collection, created.id, effectiveLocale, body.taxonomies);
 			}
 
-			// Attach reference links in the same transaction: a field slug or
-			// selected id that fails to resolve throws with a structured
-			// `apiError`, aborting the whole save so no half-written entry
-			// (with taxonomies/bylines/SEO already committed) is left behind.
-			if (body.references) {
-				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
-					const set = await setReferenceSelection(
-						trx,
-						collection,
-						created.id,
-						fieldSlug,
-						selectedIds,
-					);
-					if (!set.success) {
-						throw Object.assign(new Error(set.error.message), {
-							apiError: { code: set.error.code },
-						});
-					}
+			// Attach the links resolved above. Nothing here can fail on the
+			// caller's input any more, so the entry cannot be left written with a
+			// selection that was rejected.
+			if (created.translationGroup) {
+				for (const write of referenceWrites) {
+					await writeReferenceSelection(trx, {
+						...write,
+						entryGroup: created.translationGroup,
+					});
 				}
 			}
 
@@ -1360,6 +1390,29 @@ export async function handleContentUpdate(
 				requireRoutablePublishSlug(publishConfig.routable, intendedSlug);
 			}
 
+			// Resolve the whole selection before the update, for the reason the
+			// matching block in `handleContentCreate` gives: on D1 the columns,
+			// bylines and SEO below are committed one statement at a time, and a
+			// reference rejected after them cannot take them back.
+			const referenceWrites: ReferenceSelectionWrite[] = [];
+			if (body.references) {
+				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
+					const resolved = await resolveReferenceSelection(
+						trx,
+						collection,
+						resolvedId,
+						fieldSlug,
+						selectedIds,
+					);
+					if (!resolved.success) {
+						throw Object.assign(new Error(resolved.error.message), {
+							apiError: { code: resolved.error.code },
+						});
+					}
+					referenceWrites.push(resolved.data);
+				}
+			}
+
 			const updated = await trxRepo.update(collection, resolvedId, {
 				data: body.data,
 				slug: body.slug,
@@ -1430,24 +1483,9 @@ export async function handleContentUpdate(
 				);
 			}
 
-			// Replace reference links in the same transaction. See the matching
-			// block in handleContentCreate: a resolution failure throws with a
-			// structured `apiError`, aborting the whole update.
-			if (body.references) {
-				for (const [fieldSlug, selectedIds] of Object.entries(body.references)) {
-					const set = await setReferenceSelection(
-						trx,
-						collection,
-						resolvedId,
-						fieldSlug,
-						selectedIds,
-					);
-					if (!set.success) {
-						throw Object.assign(new Error(set.error.message), {
-							apiError: { code: set.error.code },
-						});
-					}
-				}
+			// Replace the links from the selection resolved above.
+			for (const write of referenceWrites) {
+				await writeReferenceSelection(trx, write);
 			}
 
 			return updated;
@@ -1727,6 +1765,27 @@ export async function handleContentPermanentDelete(
 		const deleted = await withTransaction(db, async (trx) => {
 			const trxRepo = new ContentRepository(trx);
 			const item = await trxRepo.findByIdIncludingTrashed(collection, resolvedId);
+
+			// Term assignments and reference edges are keyed by translation_group, so
+			// they belong to the group rather than to this row. They go only once no
+			// row of the group is left, trashed ones included, since a trashed row
+			// can still be restored.
+			const lastOfGroup =
+				item?.translationGroup !== undefined && item.translationGroup !== null
+					? !(await trxRepo.hasTranslationsIncludingTrashed(collection, item.translationGroup, {
+							excludeId: resolvedId,
+						}))
+					: false;
+
+			// The edges go before the row does. On D1 the delete below is committed
+			// on its own, and this row is the only way back to the group that names
+			// them — a cleanup that failed after it would strand edges that still
+			// count and still show up as backlinks, with nothing left to find them
+			// by. Failing here instead leaves everything as it was, to retry.
+			if (lastOfGroup && item?.translationGroup) {
+				await new RelationRepository(trx).clearReferencesForGroup(item.translationGroup);
+			}
+
 			const wasDeleted = await trxRepo.permanentDelete(collection, resolvedId);
 
 			if (wasDeleted) {
@@ -1740,22 +1799,8 @@ export async function handleContentPermanentDelete(
 				const revisionRepo = new RevisionRepository(trx);
 				await revisionRepo.deleteByEntry(collection, resolvedId);
 				await new EntryLockRepository(trx).releaseEntry(collection, resolvedId);
-				// Term assignments and reference edges are keyed by translation_group, so
-				// they belong to the group rather than to this row. They go only once no
-				// row of the group is left, trashed ones included, since a trashed row
-				// can still be restored.
-				if (item?.translationGroup) {
-					const groupSurvives = await trxRepo.hasTranslationsIncludingTrashed(
-						collection,
-						item.translationGroup,
-					);
-					if (!groupSurvives) {
-						await new TaxonomyRepository(trx).clearEntryGroupTerms(
-							collection,
-							item.translationGroup,
-						);
-						await new RelationRepository(trx).clearReferencesForGroup(item.translationGroup);
-					}
+				if (lastOfGroup && item?.translationGroup) {
+					await new TaxonomyRepository(trx).clearEntryGroupTerms(collection, item.translationGroup);
 				}
 			}
 
@@ -2098,6 +2143,16 @@ export async function handleContentPublish(
 						apiError: { code: valid.error.code },
 					});
 				}
+
+				// Promote before the publishing statement, which is also what clears
+				// the draft pointer. On D1 that statement cannot be taken back, and
+				// the draft is the only place the staged selection can be read from
+				// again — a promotion that failed after it would have nothing left to
+				// retry. Replacing a selection is idempotent, so a retry that reaches
+				// here twice writes the same links.
+				if (stagedReferences) {
+					await applyStagedReferences(trx, collection, existing.translationGroup, stagedReferences);
+				}
 			}
 
 			const published = await repo.publish(
@@ -2111,10 +2166,6 @@ export async function handleContentPublish(
 				expectedRevision,
 				options.currentTime,
 			);
-
-			if (stagedReferences && published.translationGroup) {
-				await applyStagedReferences(trx, collection, published.translationGroup, stagedReferences);
-			}
 
 			if (
 				existing &&

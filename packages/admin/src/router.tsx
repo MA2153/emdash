@@ -2644,7 +2644,7 @@ function RelationsListPage() {
 			error={error ? error.message : undefined}
 			onCreateRelation={(input) => createMutation.mutateAsync(input)}
 			onUpdateRelation={(id, input) => updateMutation.mutateAsync({ id, input })}
-			onDeleteRelation={(id) => deleteMutation.mutate(id)}
+			onDeleteRelation={(id) => deleteMutation.mutateAsync(id)}
 			isDeleting={deleteMutation.isPending}
 			deleteError={deleteMutation.error}
 		/>
@@ -2823,7 +2823,7 @@ function ContentTypesEditPage() {
 			onReorderFields={(fieldSlugs) => reorderFieldsMutation.mutate(fieldSlugs)}
 			onCreateRelation={(input) => createRelationMutation.mutateAsync(input)}
 			onUpdateRelation={(id, input) => updateRelationMutation.mutateAsync({ id, input })}
-			onDeleteRelation={(id) => deleteRelationMutation.mutate(id)}
+			onDeleteRelation={(id) => deleteRelationMutation.mutateAsync(id)}
 			isDeletingRelation={deleteRelationMutation.isPending}
 			deleteRelationError={deleteRelationMutation.error}
 		/>

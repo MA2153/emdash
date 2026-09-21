@@ -865,16 +865,29 @@ export class SchemaRegistry {
 	}
 
 	/**
-	 * Delete a collection
+	 * The content guard {@link deleteCollection} refuses on, on its own.
+	 *
+	 * A caller that has to cascade before deleting — relations, whose edges point
+	 * at rows the drop is about to take — needs to know the delete is acceptable
+	 * before it changes anything, since the cascade cannot be rolled back on D1.
 	 */
-	async deleteCollection(slug: string, options?: { force?: boolean }): Promise<void> {
+	async assertCollectionDeletable(slug: string, options?: { force?: boolean }): Promise<void> {
+		if (options?.force) return;
 		const existing = await this.getCollection(slug);
-		if (existing && !options?.force && (await this.collectionHasContent(slug))) {
+		if (existing && (await this.collectionHasContent(slug))) {
 			throw new SchemaError(
 				`Collection "${slug}" has content. Use force: true to delete.`,
 				"COLLECTION_HAS_CONTENT",
 			);
 		}
+	}
+
+	/**
+	 * Delete a collection
+	 */
+	async deleteCollection(slug: string, options?: { force?: boolean }): Promise<void> {
+		await this.assertCollectionDeletable(slug, options);
+		const existing = await this.getCollection(slug);
 		const activated = await deleteActivatedMediaUsageCollection(this.db, {
 			collectionId: existing?.id,
 			collectionSlug: slug,

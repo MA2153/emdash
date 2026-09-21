@@ -128,18 +128,19 @@ export function ContentPickerModal({
 	}, [open, locked]);
 
 	const trimmedSearch = debouncedSearch.trim();
-	const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-		queryKey: ["content-picker", activeCollection, trimmedSearch],
-		queryFn: ({ pageParam }) =>
-			fetchContentList(activeCollection, {
-				limit: 50,
-				cursor: pageParam,
-				search: trimmedSearch || undefined,
-			}),
-		initialPageParam: undefined as string | undefined,
-		getNextPageParam: (lastPage) => lastPage.nextCursor,
-		enabled: open && !!activeCollection,
-	});
+	const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+		useInfiniteQuery({
+			queryKey: ["content-picker", activeCollection, trimmedSearch],
+			queryFn: ({ pageParam }) =>
+				fetchContentList(activeCollection, {
+					limit: 50,
+					cursor: pageParam,
+					search: trimmedSearch || undefined,
+				}),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (lastPage) => lastPage.nextCursor,
+			enabled: open && !!activeCollection,
+		});
 
 	const items = React.useMemo(() => {
 		const flat = data?.pages.flatMap((page) => page.items) ?? [];
@@ -267,6 +268,15 @@ export function ContentPickerModal({
 					{isLoading ? (
 						<div className="flex items-center justify-center h-32">
 							<div className="text-kumo-subtle">{t`Loading content...`}</div>
+						</div>
+					) : error && items.length === 0 ? (
+						// A failed read has nothing to say about what the collection
+						// holds, so it must not read as an empty one.
+						<div className="flex flex-col items-center justify-center h-32 gap-2 text-center">
+							<p className="text-kumo-danger">{t`Couldn't load content.`}</p>
+							<Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+								{t`Retry`}
+							</Button>
 						</div>
 					) : items.length === 0 ? (
 						<div className="flex flex-col items-center justify-center h-32 text-center">

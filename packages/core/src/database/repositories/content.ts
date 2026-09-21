@@ -1947,12 +1947,20 @@ export class ContentRepository {
 	 * the group, not by a single locale row, so a purge may only cascade to it
 	 * once nothing is left to own it — and a trashed sibling is still restorable.
 	 */
-	async hasTranslationsIncludingTrashed(type: string, translationGroup: string): Promise<boolean> {
+	async hasTranslationsIncludingTrashed(
+		type: string,
+		translationGroup: string,
+		options: { excludeId?: string } = {},
+	): Promise<boolean> {
 		const tableName = getTableName(type);
+		// Asked before a row is deleted, "does anything else hold this group?"
+		// has to leave that row out of the answer.
+		const exclusion = options.excludeId ? sql`AND id != ${options.excludeId}` : sql``;
 
 		const result = await sql<Record<string, unknown>>`
 			SELECT id FROM ${sql.ref(tableName)}
 			WHERE translation_group = ${translationGroup}
+			${exclusion}
 			LIMIT 1
 		`.execute(this.db);
 

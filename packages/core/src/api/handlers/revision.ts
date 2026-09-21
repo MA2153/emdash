@@ -11,7 +11,11 @@ import { withTransaction } from "../../database/transaction.js";
 import type { Database } from "../../database/types.js";
 import { encodeRev } from "../rev.js";
 import type { ApiResult, ContentResponse } from "../types.js";
-import { applyStagedReferences, readStagedReferences } from "./staged-references.js";
+import {
+	applyStagedReferences,
+	readStagedReferences,
+	validateStagedReferences,
+} from "./staged-references.js";
 
 export interface RevisionListResponse {
 	items: Revision[];
@@ -122,6 +126,23 @@ export async function handleRevisionRestore(
 			if (!key.startsWith("_")) fieldData[key] = value;
 		}
 		const stagedReferences = readStagedReferences(revision.data);
+
+		// A revision can outlive the cardinality it was written under, and another
+		// entry can have claimed what it selected. Restoring makes its selection
+		// live, so it answers to the relation's current limits exactly as a publish
+		// does — checked before the update below, which on D1 cannot be undone.
+		if (stagedReferences) {
+			const entry = await new ContentRepository(db).findById(revision.collection, revision.entryId);
+			if (entry?.translationGroup) {
+				const valid = await validateStagedReferences(
+					db,
+					revision.collection,
+					stagedReferences,
+					entry.translationGroup,
+				);
+				if (!valid.success) return valid;
+			}
+		}
 
 		// Atomically update content and create a new revision to record the restore.
 		// If either operation fails, neither is committed (on engines that support

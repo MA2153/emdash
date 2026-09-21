@@ -2641,6 +2641,61 @@ describe("ContentEditor", () => {
 
 			await expect.element(screen.getByRole("button", { name: "Add reference" })).toBeEnabled();
 		});
+
+		it("autosaves a reference change made after a rejected autosave", async () => {
+			vi.useFakeTimers();
+
+			try {
+				const onAutosave = vi.fn();
+				const item = makeItem({
+					data: { title: "Hello" },
+					references: {
+						related: {
+							children: [
+								{ id: "c-1", slug: "one", title: "One", locale: "en", translationGroup: "g-1" },
+							],
+						},
+					},
+				});
+				const props: ContentEditorProps = {
+					collection: "posts",
+					collectionLabel: "Post",
+					fields: referenceFields,
+					isNew: false,
+					item,
+					onSave: vi.fn(),
+					onAutosave,
+					isAutosaving: false,
+					autosaveCompletionToken: 0,
+					autosaveRejectionToken: 0,
+				};
+
+				const screen = await render(<ContentEditor {...props} />);
+				await screen.getByLabelText("Title").fill("Rejected");
+				await vi.advanceTimersByTimeAsync(2000);
+				expect(onAutosave).toHaveBeenCalledTimes(1);
+
+				await screen.rerender(<ContentEditor {...props} isAutosaving={true} />);
+				await screen.rerender(
+					<ContentEditor {...props} isAutosaving={false} autosaveRejectionToken={1} />,
+				);
+				await vi.advanceTimersByTimeAsync(10_000);
+				expect(onAutosave).toHaveBeenCalledTimes(1);
+
+				// The selection is the only thing that changes now. The rejected
+				// payload is not what this save would send, so it has to go out —
+				// otherwise the edit is stuck in the editor until a field changes.
+				await screen.getByRole("button", { name: "Remove One" }).click();
+				await vi.advanceTimersByTimeAsync(2000);
+
+				expect(onAutosave).toHaveBeenCalledTimes(2);
+				expect(onAutosave).toHaveBeenLastCalledWith(
+					expect.objectContaining({ references: { related: [] } }),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
 	});
 
 	describe("reference field that predates relations", () => {

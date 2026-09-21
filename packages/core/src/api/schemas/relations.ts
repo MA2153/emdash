@@ -54,10 +54,6 @@ export const updateRelationBody = z
 	})
 	.meta({ id: "UpdateRelationBody" });
 
-export const setReferenceChildrenBody = z
-	.object({ childIds: z.array(z.string().min(1)).max(1000) })
-	.meta({ id: "SetReferenceChildrenBody" });
-
 export const relationDefSchema = z
 	.object({
 		id: z.string(),

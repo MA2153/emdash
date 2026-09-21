@@ -2,64 +2,24 @@ import type { Kysely } from "kysely";
 
 import { RelationRepository } from "../../database/repositories/relation.js";
 import type { Database } from "../../database/types.js";
+import type { StagedReferences } from "../../references/staged.js";
 import type { ApiResult } from "../types.js";
-import { writeReferenceSelection } from "./relations.js";
+import { validateOppositeSideLimit, writeReferenceSelection } from "./relations.js";
 import {
 	referenceFieldConstraints,
 	validateReferenceSelection,
 	type ReferenceFieldConstraints,
 } from "./validate-references.js";
 
-/**
- * Where a collection that keeps drafts stages a pending reference selection: in
- * the draft revision's data, beside `_slug`. The leading underscore is what
- * keeps it out of the column writer, the loaded entry's `data`, and the publish
- * promotion loop, all of which already skip `_`-prefixed keys.
- *
- * The link table holds the live selection only.
- */
-export const STAGED_REFERENCES_KEY = "_references";
-
-/**
- * A staged selection, by field slug, holding `translation_group` values rather
- * than entry ids: an edge names a thing, not one locale's row of it, so the
- * group is what the link table stores and what survives an entry being
- * translated or re-slugged between saving and publishing. The save resolves ids
- * to groups so publication has nothing left that can fail to resolve.
- *
- * Order is significant on the parent side, where it becomes `sort_order`.
- */
-export type StagedReferences = Record<string, string[]>;
-
-function isGroupList(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((entry) => typeof entry === "string");
-}
-
-/** The staged selection inside a revision's data, if it carries one. */
-export function readStagedReferences(
-	data: Record<string, unknown> | undefined,
-): StagedReferences | undefined {
-	const staged = data?.[STAGED_REFERENCES_KEY];
-	if (typeof staged !== "object" || staged === null || Array.isArray(staged)) return undefined;
-
-	const result: StagedReferences = {};
-	for (const [fieldSlug, groups] of Object.entries(staged)) {
-		if (isGroupList(groups)) result[fieldSlug] = groups;
-	}
-	return Object.keys(result).length > 0 ? result : undefined;
-}
-
-/**
- * Fold a save's selections into whatever the previous draft staged. A save that
- * names one reference field must not drop another field's pending selection, so
- * fields absent from `incoming` keep their staged value.
- */
-export function mergeStagedReferences(
-	base: Record<string, unknown> | undefined,
-	incoming: StagedReferences,
-): StagedReferences {
-	return { ...readStagedReferences(base), ...incoming };
-}
+export {
+	mergeStagedReferences,
+	pageStagedGroups,
+	readStagedReferences,
+	REFERENCE_PAGE_LIMIT,
+	REFERENCE_PAGE_MAX_LIMIT,
+	STAGED_REFERENCES_KEY,
+} from "../../references/staged.js";
+export type { PageOfGroups, StagedReferences } from "../../references/staged.js";
 
 /** One bound field's live selection as translation groups. */
 async function liveFieldSelection(
@@ -79,11 +39,12 @@ async function liveFieldSelection(
  * cardinality.
  *
  * A draft can sit unpublished across a schema edit that makes its field required
- * or narrows the relation's limits, and it is publication — not the save that
- * staged it — that has to hold the line. So this walks the collection's bound
- * fields rather than the staged keys: a field added as required after the entry
- * was written appears in no existing draft, and iterating `staged` would never
- * reach it. A field the draft does stage needs no link read.
+ * or narrows the relation's limits, and across another entry claiming what it
+ * selected. It is publication — not the save that staged it — that has to hold
+ * the line on both ends. So this walks the collection's bound fields rather than
+ * the staged keys: a field added as required after the entry was written appears
+ * in no existing draft, and iterating `staged` would never reach it. A field the
+ * draft does stage needs no link read.
  */
 export async function validateStagedReferences(
 	db: Kysely<Database>,
@@ -93,11 +54,24 @@ export async function validateStagedReferences(
 ): Promise<ApiResult<true>> {
 	const repo = new RelationRepository(db);
 	for (const field of (await referenceFieldConstraints(db, collection)).values()) {
-		const groups = Object.hasOwn(staged, field.slug)
+		const isStaged = Object.hasOwn(staged, field.slug);
+		const groups = isStaged
 			? (staged[field.slug] ?? [])
 			: await liveFieldSelection(repo, field, entryGroup);
 		const valid = validateReferenceSelection(field, groups);
 		if (!valid.success) return valid;
+
+		// Only a staged selection can have gone stale: a live one is already
+		// within the limits it was written under.
+		if (!isStaged || field.relationId === null) continue;
+		const far = await validateOppositeSideLimit(db, {
+			relationId: field.relationId,
+			farLimit: field.maxOpposite,
+			side: field.relationSide,
+			entryGroup,
+			groups,
+		});
+		if (!far.success) return far;
 	}
 	return { success: true, data: true };
 }

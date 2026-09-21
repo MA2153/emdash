@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { expect, it } from "vitest";
 
 import {
@@ -8,7 +9,7 @@ import {
 	handleContentPermanentDelete,
 	handleContentUpdate,
 } from "../../../src/api/handlers/content.js";
-import { setReferenceChildren } from "../../../src/api/handlers/relations.js";
+import { setReferenceSelection } from "../../../src/api/handlers/relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
@@ -46,7 +47,7 @@ describeEachDialect("content write strips storage-less data keys", (dialect) => 
 	});
 });
 
-describeEachDialect("setReferenceChildren", (dialect) => {
+describeEachDialect("setReferenceSelection", (dialect) => {
 	let ctx: DialectTestContext;
 
 	it("sets children on a successful call; a child outside the child collection is NOT_FOUND with no partial write", async () => {
@@ -64,6 +65,12 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 				parentLabel: "Related posts",
 				childLabel: "Related to",
 			});
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, relationSide: "parent", targetCollection: "posts" },
+			});
 
 			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
 			const childA = await handleContentCreate(ctx.db, "posts", { data: { title: "Child A" } });
@@ -73,13 +80,10 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 			expect(childB.success).toBe(true);
 			if (!parent.success || !childA.success || !childB.success) return;
 
-			const result = await setReferenceChildren(
-				ctx.db,
-				"posts",
-				parent.data.item.id,
-				relation.slug,
-				[childA.data.item.id, childB.data.item.id],
-			);
+			const result = await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
+				childA.data.item.id,
+				childB.data.item.id,
+			]);
 			expect(result.success).toBe(true);
 			if (result.success) {
 				expect(result.data.relationId).toBe(relation.id);
@@ -95,7 +99,7 @@ describeEachDialect("setReferenceChildren", (dialect) => {
 
 			// A child id outside the relation's child collection fails NOT_FOUND —
 			// and must not partially overwrite the set above.
-			const bad = await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+			const bad = await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
 				"nope",
 			]);
 			expect(bad.success).toBe(false);
@@ -199,6 +203,47 @@ describeEachDialect("content create with a `references` key", (dialect) => {
 			// transaction, not just the reference write, so no half-written entry.
 			const countAfter = await contentRepo.count("posts");
 			expect(countAfter).toBe(countBefore);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("resolves the references before writing anything, since D1 cannot roll back", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+			const relationRepo = new RelationRepository(ctx.db);
+			const relation = await relationRepo.create({
+				slug: "related_posts",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Related posts",
+				childLabel: "Related to",
+			});
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, targetCollection: "posts", multiple: true },
+			});
+
+			// Handed a transaction, `withTransaction` runs the handler inline: its
+			// statements land one after another with no rollback boundary between
+			// them, which is what D1 does. Reading from inside that transaction shows
+			// what a rejected save would leave behind there.
+			await ctx.db.transaction().execute(async (trx) => {
+				const res = await handleContentCreate(trx, "posts", {
+					data: { title: "Parent" },
+					references: { related: ["does-not-exist"] },
+				});
+				expect(res.success).toBe(false);
+				if (!res.success) expect(res.error.code).toBe("NOT_FOUND");
+
+				expect(await new ContentRepository(trx).count("posts")).toBe(0);
+			});
 		} finally {
 			await teardownForDialect(ctx);
 		}
@@ -495,6 +540,12 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 				parentLabel: "Related posts",
 				childLabel: "Related to",
 			});
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, relationSide: "parent", targetCollection: "posts" },
+			});
 
 			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
 			const childA = await handleContentCreate(ctx.db, "posts", { data: { title: "Child A" } });
@@ -502,7 +553,7 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 			expect(parent.success && childA.success && childB.success).toBe(true);
 			if (!parent.success || !childA.success || !childB.success) return;
 
-			const set = await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+			const set = await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
 				childA.data.item.id,
 				childB.data.item.id,
 			]);
@@ -547,6 +598,12 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			parentLabel: "Related posts",
 			childLabel: "Related to",
 		});
+		await registry.createField("posts", {
+			slug: "related",
+			label: "Related",
+			type: "reference",
+			validation: { relation: relation.slug, relationSide: "parent", targetCollection: "posts" },
+		});
 		return { relationRepo, relation };
 	}
 
@@ -565,14 +622,14 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			// so both its outgoing and incoming edges must go.
 			expect(
 				(
-					await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+					await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
 						middle.data.item.id,
 					])
 				).success,
 			).toBe(true);
 			expect(
 				(
-					await setReferenceChildren(ctx.db, "posts", middle.data.item.id, relation.slug, [
+					await setReferenceSelection(ctx.db, "posts", middle.data.item.id, "related", [
 						child.data.item.id,
 					])
 				).success,
@@ -611,7 +668,7 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 
 			expect(
 				(
-					await setReferenceChildren(ctx.db, "posts", parent.data.item.id, relation.slug, [
+					await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
 						child.data.item.id,
 					])
 				).success,
@@ -627,6 +684,37 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 
 			const page = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
 			expect(page.items.map((i) => i.childGroup)).toEqual([child.data.item.id]);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("keeps the row when its edges cannot be cleared, so nothing is orphaned", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await setupPostsWithRelation(ctx.db);
+
+			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
+			const child = await handleContentCreate(ctx.db, "posts", { data: { title: "Child" } });
+			if (!parent.success || !child.success) return;
+			await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
+				child.data.item.id,
+			]);
+			await handleContentDelete(ctx.db, "posts", parent.data.item.id);
+
+			// The row is the only way back to the edges keyed by its translation
+			// group. With the link table gone the cleanup cannot run, and inside a
+			// transaction the handler executes inline — D1's boundary — so a row
+			// deleted first would be gone for good with its edges left behind.
+			await sql`DROP TABLE ${sql.ref("_emdash_content_references")}`.execute(ctx.db);
+
+			await ctx.db.transaction().execute(async (trx) => {
+				const purged = await handleContentPermanentDelete(trx, "posts", parent.data.item.id);
+				expect(purged.success).toBe(false);
+
+				const repo = new ContentRepository(trx);
+				expect(await repo.findByIdIncludingTrashed("posts", parent.data.item.id)).not.toBeNull();
+			});
 		} finally {
 			await teardownForDialect(ctx);
 		}

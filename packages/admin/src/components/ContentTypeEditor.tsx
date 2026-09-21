@@ -67,7 +67,7 @@ export interface ContentTypeEditorProps {
 	/** Resolves once the relation is saved; rejects with the server's message. */
 	onUpdateRelation?: (id: string, input: UpdateRelationInput) => Promise<unknown>;
 	/** Also removes the relation's links and the reference fields bound to it. */
-	onDeleteRelation?: (id: string) => void;
+	onDeleteRelation?: (id: string) => Promise<unknown>;
 	isDeletingRelation?: boolean;
 	deleteRelationError?: unknown;
 }
