@@ -13,7 +13,12 @@ import { setReferenceSelection } from "../../../src/api/handlers/relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
-import { describeEachDialect, setupForDialect, teardownForDialect } from "../../utils/test-db.js";
+import {
+	asInlineTransaction,
+	describeEachDialect,
+	setupForDialect,
+	teardownForDialect,
+} from "../../utils/test-db.js";
 import type { DialectTestContext } from "../../utils/test-db.js";
 
 describeEachDialect("content write strips storage-less data keys", (dialect) => {
@@ -703,18 +708,17 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			await handleContentDelete(ctx.db, "posts", parent.data.item.id);
 
 			// The row is the only way back to the edges keyed by its translation
-			// group. With the link table gone the cleanup cannot run, and inside a
-			// transaction the handler executes inline — D1's boundary — so a row
-			// deleted first would be gone for good with its edges left behind.
+			// group. With the link table gone the cleanup cannot run, and the
+			// handler executes inline — D1's boundary — so a row deleted first
+			// would be gone for good with its edges left behind.
 			await sql`DROP TABLE ${sql.ref("_emdash_content_references")}`.execute(ctx.db);
 
-			await ctx.db.transaction().execute(async (trx) => {
-				const purged = await handleContentPermanentDelete(trx, "posts", parent.data.item.id);
-				expect(purged.success).toBe(false);
+			const inline = asInlineTransaction(ctx.db);
+			const purged = await handleContentPermanentDelete(inline, "posts", parent.data.item.id);
+			expect(purged.success).toBe(false);
 
-				const repo = new ContentRepository(trx);
-				expect(await repo.findByIdIncludingTrashed("posts", parent.data.item.id)).not.toBeNull();
-			});
+			const repo = new ContentRepository(ctx.db);
+			expect(await repo.findByIdIncludingTrashed("posts", parent.data.item.id)).not.toBeNull();
 		} finally {
 			await teardownForDialect(ctx);
 		}

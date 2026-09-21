@@ -24,6 +24,7 @@ import { REFERENCE_PAGE_LIMIT } from "../../../src/references/staged.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
 import { createTestRuntime } from "../../utils/mcp-runtime.js";
 import {
+	asInlineTransaction,
 	describeEachDialect,
 	setupForDialect,
 	teardownForDialect,
@@ -137,21 +138,19 @@ describeEachDialect("versioned reference selections", (dialect) => {
 		const id = await publishedPost("Interrupted", [a.id]);
 		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [b.id] } });
 
-		// With the link table gone the promotion cannot run. Handed a transaction,
-		// the handler executes inline — D1's boundary, where a statement that has
-		// run stays run — so what survives the failure here is what a D1 publish
-		// would leave behind.
+		// With the link table gone the promotion cannot run. The handler executes
+		// inline — D1's boundary, where a statement that has run stays run — so
+		// what survives the failure here is what a D1 publish would leave behind.
 		await sql`DROP TABLE ${sql.ref("_emdash_content_references")}`.execute(ctx.db);
 
-		await ctx.db.transaction().execute(async (trx) => {
-			const published = await handleContentPublish(trx, "posts", id);
-			expect(published.success).toBe(false);
+		const inline = asInlineTransaction(ctx.db);
+		const published = await handleContentPublish(inline, "posts", id);
+		expect(published.success).toBe(false);
 
-			// The draft pointer is the only thing that can find the staged selection
-			// again, so a failed promotion must not have spent it.
-			const post = await new ContentRepository(trx).findById("posts", id);
-			expect(post?.draftRevisionId).toBeTruthy();
-		});
+		// The draft pointer is the only thing that can find the staged selection
+		// again, so a failed promotion must not have spent it.
+		const post = await new ContentRepository(ctx.db).findById("posts", id);
+		expect(post?.draftRevisionId).toBeTruthy();
 	});
 
 	it("pages a staged selection the way it pages a live one", async () => {
