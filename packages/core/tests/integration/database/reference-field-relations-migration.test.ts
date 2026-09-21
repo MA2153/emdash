@@ -251,8 +251,12 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		// `{collection}_{field}` is cut to 63 chars, so two long field slugs on one
 		// collection can name the same relation. Merging their selections into one
 		// edge set would make each field show the other's entries.
-		const first = `author_${"x".repeat(60)}`;
-		const second = `author_${"x".repeat(59)}y`;
+		//
+		// The slugs diverge past `posts_`'s 57 characters of room but within the 63
+		// Postgres allows an identifier, so they collide as relation slugs while
+		// staying two distinct columns.
+		const first = `author_${"x".repeat(50)}${"a".repeat(6)}`;
+		const second = `author_${"x".repeat(50)}${"b".repeat(6)}`;
 		await createLegacyReferenceField(ctx.db, "posts", first, { targetCollection: "authors" });
 		await createLegacyReferenceField(ctx.db, "posts", second, { targetCollection: "authors" });
 
