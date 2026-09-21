@@ -4,7 +4,7 @@
 
 Adds a working reference field, and a screen for the relationships behind it.
 
-A reference field is an entry picker: search for, pick, and reorder linked entries in the entry editor, saved with the entry in one request. A referenced entry gets a read-only "Referenced by" panel listing what points at it, and any linked entry can be opened from either side.
+A reference field is an entry picker: search for, pick, and reorder linked entries in the entry editor, saved with the entry in one request. A referenced entry gets a read-only "Referenced by" panel listing what points at it, and any linked entry can be opened from either side. The [Relations guide](https://docs.emdashcms.com/guides/relations/) walks through the screens below.
 
 #### Relationships have their own page
 

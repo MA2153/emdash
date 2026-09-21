@@ -196,7 +196,8 @@ The generated collection schema recognizes these rules where the field type supp
 ## Relations
 
 A relation joins two collections and owns the links between their entries. A reference field binds to
-one and views its links from one end:
+one and views its links from one end. The following seed declares a relation between `posts` and
+`authors` that allows one author per post:
 
 ```json
 {
@@ -227,7 +228,7 @@ one and views its links from one end:
 | `maxChildrenPerParent` | `number \| null` | No       | How many children one parent may link (null: no limit) |
 | `maxParentsPerChild`   | `number \| null` | No       | How many parents one child may link (null: no limit)   |
 
-A reference field names the relation it binds to:
+A reference field in `collections` names the relation it binds to:
 
 ```json
 {
@@ -238,23 +239,11 @@ A reference field names the relation it binds to:
 }
 ```
 
-The side follows from which end of the relation the field's collection sits on, and the target
-collection is the other end. Add `"relationSide": "parent"` or `"child"` only for a relation whose
-two ends are the same collection, where both would match.
-
-A field can name a `targetCollection` instead of a relation, and gets one created for it:
-
-```json
-{
-	"slug": "author",
-	"label": "Author",
-	"type": "reference",
-	"validation": { "targetCollection": "authors", "multiple": false }
-}
-```
-
-That is the shorter path for a link only one collection views. Declare the relation when both
+A field can name a `targetCollection` instead and have a relation created for it, which is the
+shorter path for a link only one collection views. Declare the relation in `relations` when both
 collections should view it, or to set its labels and limits.
+[`reference`](/reference/field-types/#reference) documents both forms and the validation keys each
+one takes.
 
 A relation's two collections are fixed once it exists: a seed naming different ones fails rather than
 leaving the links it holds pointing into a collection that is no longer an end of it. Labels and

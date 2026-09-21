@@ -252,7 +252,7 @@ the site intends to trust.
 
 ## Read reference fields
 
-A [`reference` field](/reference/field-types/#reference) links an entry to entries in another collection. Its value is not part of `data`. Pass a `references` option to `getEmDashEntry` naming the fields the page renders, keyed by field slug, and each one comes back as a page of entries:
+A [`reference` field](/reference/field-types/#reference) links an entry to entries in another collection, and [Relations](/guides/relations/) covers defining one. Its value is not part of `data`. Pass a `references` option to `getEmDashEntry` naming the fields the page renders, keyed by field slug, and each one comes back as a page of entries:
 
 ```astro title="src/pages/posts/[slug].astro"
 ---
