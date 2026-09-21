@@ -32,6 +32,7 @@ import {
 	FOLDED_BYLINES,
 	FOLDED_BYLINES_EXIST,
 	FOLDED_TERMS,
+	loadPublishedDates,
 	type WhereRange,
 	type WhereValue,
 } from "./loader.js";
@@ -48,7 +49,7 @@ import { getRequestContext } from "./request-context.js";
 import { resetRegisteredCollectionsCache } from "./schema/collection-slugs-cache.js";
 import { compileUrlPattern } from "./schema/url-pattern.js";
 import type { TaxonomyTerm } from "./taxonomies/types.js";
-import { isMissingTableError } from "./utils/db-errors.js";
+import { isMissingColumnError, isMissingTableError } from "./utils/db-errors.js";
 import {
 	createEditable,
 	createNoop,
@@ -287,6 +288,58 @@ export interface ReferenceResult<T = Record<string, unknown>> extends ReferenceP
 export interface CacheHint {
 	tags?: string[];
 	lastModified?: Date;
+}
+
+interface PublishedDatesResult {
+	dates: Date[];
+	cacheHint: CacheHint;
+	error?: Error;
+}
+
+/** @internal Publication dates for the Archives widget. */
+export async function getPublishedDates(
+	type: string,
+	options?: { locale?: string },
+): Promise<PublishedDatesResult> {
+	const locale = effectiveLocaleKey(options) || undefined;
+	const key = `publishedDates:${JSON.stringify([type, locale])}`;
+	try {
+		return await requestCached(key, () =>
+			cachedQuery<PublishedDatesResult>({
+				namespace: contentCacheNamespaces(type),
+				key,
+				load: async () => {
+					const rows = await loadPublishedDates(type, locale);
+					const dates: Date[] = [];
+					let lastModified: Date | undefined;
+					for (const row of rows) {
+						if (row.published_at) {
+							const date = new Date(row.published_at);
+							if (!Number.isNaN(date.getTime())) dates.push(date);
+						}
+						if (row.updated_at) {
+							const modified = new Date(row.updated_at);
+							if (!Number.isNaN(modified.getTime()) && (!lastModified || modified > lastModified)) {
+								lastModified = modified;
+							}
+						}
+					}
+					return { dates, cacheHint: { tags: [type], lastModified } };
+				},
+			}),
+		);
+	} catch (error) {
+		return {
+			dates: [],
+			cacheHint: {},
+			error:
+				isMissingTableError(error) || isMissingColumnError(error)
+					? undefined
+					: error instanceof Error
+						? error
+						: new Error("Failed to load publication dates"),
+		};
+	}
 }
 
 /**

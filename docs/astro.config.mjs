@@ -6,10 +6,13 @@ import { defineConfig } from "astro/config";
 // https://astro.build/config
 export default defineConfig({
 	site: "https://docs.emdashcms.com",
+	redirects: {
+		"/introduction": "/why-emdash",
+	},
+	session: false,
 	integrations: [
 		starlight({
 			title: "EmDash",
-			tagline: "The Astro-native CMS",
 			disable404Route: true,
 			components: {
 				SkipLink: "./src/components/SkipLink.astro",
@@ -34,7 +37,6 @@ export default defineConfig({
 				{
 					label: "Start Here",
 					items: [
-						{ label: "Introduction", slug: "introduction" },
 						{ label: "Getting Started", slug: "getting-started" },
 						{ label: "Add to an Existing Project", slug: "existing-project" },
 						{ label: "Why EmDash?", slug: "why-emdash" },
@@ -93,6 +95,10 @@ export default defineConfig({
 						{ label: "Plugin Overview", slug: "plugins/overview" },
 						{ label: "Installing Plugins", slug: "plugins/installing" },
 						{ label: "Plugin Registry", slug: "plugins/registry" },
+						{
+							label: "Migrate from Marketplace",
+							slug: "plugins/migrate-from-marketplace",
+						},
 						{ label: "Upgrading Plugins", slug: "plugins/upgrading-sites" },
 					],
 				},

@@ -19,9 +19,10 @@ const MIGRATIONS_DIR = join(
  * is then undefined while the other initializes: the published package throws
  * `__exportAll is not a function` on import, with no test failing first.
  *
- * Helpers on this list are imported by migrations and nothing else, or are
- * external packages. To use anything else, copy what you need into the migration
- * — which a shipped migration wants anyway, since its behaviour is frozen.
+ * A helper earns a place on this list by being a leaf: imported by migrations
+ * and nothing else, an external package, or reaching only further leaves and
+ * never back into shared source. Anything else gets copied into the migration —
+ * which a shipped migration wants anyway, since its behaviour is frozen.
  */
 const ALLOWED_IMPORTS = new Set([
 	"kysely",
@@ -30,6 +31,7 @@ const ALLOWED_IMPORTS = new Set([
 	"../validate.js",
 	"../types.js",
 	"../pg-migration-lock.js",
+	"../datetime-storage.js",
 	"../../i18n/config.js",
 ]);
 
