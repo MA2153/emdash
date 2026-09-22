@@ -342,6 +342,7 @@ function dbFieldDescriptor(
 		kind: field.unsupportedType ? "unsupported" : FIELD_TYPE_TO_KIND[field.type],
 		label: field.label,
 		required: field.required,
+		translatable: field.translatable,
 		id: field.id,
 	};
 	if (field.unsupportedType) entry.unsupportedType = field.unsupportedType;
