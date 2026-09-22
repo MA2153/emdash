@@ -4,34 +4,24 @@ import { sql } from "kysely";
 import { columnExists, currentTimestamp, tableExists } from "../dialect-helpers.js";
 
 /**
- * Relations join the schema side of the i18n line.
+ * Rebuilds `_emdash_relations` with one row per relation instead of one per
+ * locale. A relation is schema, like `_emdash_collections` and
+ * `_emdash_fields`, whose labels are not localized either.
  *
- * Migration 043 modelled a relation row-per-locale, mirroring
- * `_emdash_taxonomy_defs`. A relation is schema, not content: it belongs with
- * `_emdash_collections` and `_emdash_fields`, neither of which carries a locale
- * — their labels are single-valued, and migration 036 localized menus and
- * taxonomies while deliberately leaving both alone.
- *
- * Being row-per-locale bought nothing (no surface ever exposed a relation's
- * locale or labels) and cost the ability to state the one invariant that
- * matters: a slug identifies exactly one relation. `UNIQUE(name, locale)` let
- * two unrelated relations share a slug in different locales, so a slug could
- * not be resolved without a locale in hand — which is what a reference field
- * addressing a relation by slug needs to do from any locale.
+ * A slug identifies exactly one relation. `UNIQUE(name, locale)` let two
+ * unrelated relations share a slug in different locales, so a reference field,
+ * which addresses its relation by slug from any locale, could not resolve it.
  *
  * `id` is preserved from the old `translation_group`, so values already stored
  * in `_emdash_content_references` stay valid and that column is renamed rather
  * than remapped.
  *
- * Role cardinality and the singular label forms arrive here too, rather than in
- * a follow-up: the table is being rebuilt anyway, and a reference field binds
- * to a relation *and a side*, so "how many may this side hold" is a property of
- * the relation rather than of whichever field exposes it.
+ * Link limits and singular labels are per side of the relation, not per field:
+ * a reference field binds to a relation and a side, and every field bound to
+ * that side shares its limit.
  *
- * Migration 043 is not re-runnable once this has applied — it indexes `locale`
- * and `translation_group`, which no longer exist. Kysely never re-runs a
- * recorded migration, so this only affects the replay window in
- * `migrations.test.ts`, which starts after 043 for that reason.
+ * Migration 043 cannot re-run after this one: it indexes `locale` and
+ * `translation_group`, which no longer exist.
  */
 
 interface OldRelationRow {

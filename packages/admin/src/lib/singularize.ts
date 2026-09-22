@@ -1,8 +1,8 @@
 /**
  * Naive English singularization, for filling in a singular name nobody typed.
  *
- * Handles the common plural endings and nothing else: a name it gets wrong is
- * one the user can overwrite, so guessing beats leaving the field empty.
+ * Handles the common plural endings and nothing else; the user can overwrite a
+ * wrong guess.
  */
 
 const IES_SUFFIX = /ies$/;

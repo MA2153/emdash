@@ -1,3 +1,9 @@
+import {
+	RouterProvider,
+	createMemoryHistory,
+	createRootRoute,
+	createRouter,
+} from "@tanstack/react-router";
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -11,6 +17,15 @@ vi.mock("../../src/lib/api", async () => {
 	const actual = await vi.importActual<typeof import("../../src/lib/api")>("../../src/lib/api");
 	return { ...actual, fetchCollections: vi.fn(), fetchRelations: vi.fn() };
 });
+
+function renderInRouter(ui: React.ReactElement) {
+	const router = createRouter({
+		routeTree: createRootRoute({ component: () => ui }),
+		basepath: "/_emdash/admin",
+		history: createMemoryHistory({ initialEntries: ["/_emdash/admin"] }),
+	});
+	return render(<RouterProvider router={router} />);
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -84,7 +99,7 @@ describe("FieldEditor", () => {
 
 	describe("type selection step", () => {
 		it("shows type selection grid when creating new field", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} />);
 			await expect.element(screen.getByText("Add Field")).toBeInTheDocument();
 			await expect
 				.element(screen.getByRole("button", { name: SHORT_TEXT_REGEX }))
@@ -99,7 +114,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows all 14 field types as buttons", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} />);
 			// Each type renders as a button with label and description
 			for (const name of FIELD_TYPE_REGEXES) {
 				await expect.element(screen.getByRole("button", { name })).toBeInTheDocument();
@@ -107,7 +122,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("does not show config form on initial render", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} />);
 			// Label and Slug inputs should NOT be present in type selection step
 			expect(screen.getByLabelText("Label").query()).toBeNull();
 			expect(screen.getByLabelText("Slug").query()).toBeNull();
@@ -126,38 +141,38 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows Configure Field title for string type", async () => {
-			const screen = await render(
+			const screen = await renderInRouter(
 				<FieldEditor {...defaultProps} field={makeField({ type: "string" })} />,
 			);
 			await expect.element(screen.getByText("Edit Field")).toBeInTheDocument();
 		});
 
 		it("shows label and slug inputs", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={stringField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={stringField} />);
 			await expect.element(screen.getByLabelText("Label")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Slug")).toBeInTheDocument();
 		});
 
 		it("shows searchable checkbox for string type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={stringField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={stringField} />);
 			await expect.element(screen.getByText("Searchable")).toBeInTheDocument();
 			await expect.element(screen.getByText("Indexed")).toBeInTheDocument();
 		});
 
 		it("shows min/max length validation for string type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={stringField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={stringField} />);
 			await expect.element(screen.getByText("Validation")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Min Length")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Max Length")).toBeInTheDocument();
 		});
 
 		it("shows pattern input for string type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={stringField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={stringField} />);
 			await expect.element(screen.getByLabelText("Pattern (Regex)")).toBeInTheDocument();
 		});
 
 		it("shows required and unique checkboxes", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={stringField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={stringField} />);
 			await expect.element(screen.getByText("Required")).toBeInTheDocument();
 			await expect.element(screen.getByText("Unique")).toBeInTheDocument();
 		});
@@ -174,24 +189,24 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows min/max value for number type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={numberField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={numberField} />);
 			await expect.element(screen.getByLabelText("Min Value")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Max Value")).toBeInTheDocument();
 			await expect.element(screen.getByText("Indexed")).toBeInTheDocument();
 		});
 
 		it("does not show searchable for number type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={numberField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={numberField} />);
 			expect(screen.getByText("Searchable").query()).toBeNull();
 		});
 
 		it("does not show pattern for number type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={numberField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={numberField} />);
 			expect(screen.getByLabelText("Pattern (Regex)").query()).toBeNull();
 		});
 
 		it("does not show min/max length for number type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={numberField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={numberField} />);
 			expect(screen.getByLabelText("Min Length").query()).toBeNull();
 			expect(screen.getByLabelText("Max Length").query()).toBeNull();
 		});
@@ -208,14 +223,14 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows min/max length but no pattern for text type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={textField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={textField} />);
 			await expect.element(screen.getByLabelText("Min Length")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Max Length")).toBeInTheDocument();
 			expect(screen.getByLabelText("Pattern (Regex)").query()).toBeNull();
 		});
 
 		it("shows searchable checkbox for text type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={textField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={textField} />);
 			await expect.element(screen.getByText("Searchable")).toBeInTheDocument();
 			expect(screen.getByText("Indexed").query()).toBeNull();
 		});
@@ -232,7 +247,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows options textarea for select type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={selectField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={selectField} />);
 			await expect.element(screen.getByText("Options (one per line)")).toBeInTheDocument();
 			// Textarea should have the placeholder
 			await expect.element(screen.getByPlaceholder("Option 1")).toBeInTheDocument();
@@ -250,7 +265,9 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows options textarea for multi-select type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={multiSelectField} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} field={multiSelectField} />,
+			);
 			await expect.element(screen.getByText("Options (one per line)")).toBeInTheDocument();
 			await expect.element(screen.getByPlaceholder("Option 1")).toBeInTheDocument();
 		});
@@ -262,60 +279,60 @@ describe("FieldEditor", () => {
 		});
 
 		it("skips type selection and shows config directly", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect.element(screen.getByText("Edit Field")).toBeInTheDocument();
 			await expect.element(screen.getByLabelText("Label")).toHaveValue("Title");
 		});
 
 		it("disables slug input in edit mode", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect.element(screen.getByLabelText("Slug")).toBeDisabled();
 		});
 
 		it("shows hint about slug immutability", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect
 				.element(screen.getByText("Field slugs cannot be changed after creation"))
 				.toBeInTheDocument();
 		});
 
 		it("does not show Change button in edit mode", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			expect(screen.getByRole("button", { name: "Change" }).query()).toBeNull();
 		});
 
 		it("shows Update Field button instead of Add Field", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect
 				.element(screen.getByRole("button", { name: "Update Field" }))
 				.toBeInTheDocument();
 		});
 
 		it("pre-populates validation values", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect.element(screen.getByLabelText("Max Length")).toHaveValue(200);
 		});
 
 		it("pre-populates slug value", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect.element(screen.getByLabelText("Slug")).toHaveValue("title");
 		});
 
 		it("pre-populates required checkbox", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			// The Required checkbox text should be present (the field has required: true)
 			await expect.element(screen.getByText("Required")).toBeInTheDocument();
 		});
 
 		it("does not auto-generate slug when editing label in edit mode", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await screen.getByLabelText("Label").fill("New Label");
 			// Slug should remain "title", not change to "new_label"
 			await expect.element(screen.getByLabelText("Slug")).toHaveValue("title");
 		});
 
 		it("shows type indicator with field type info", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={existingField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={existingField} />);
 			await expect.element(screen.getByText("Short Text")).toBeInTheDocument();
 			await expect.element(screen.getByText("Single line text input")).toBeInTheDocument();
 		});
@@ -324,19 +341,25 @@ describe("FieldEditor", () => {
 	describe("saving state", () => {
 		it("shows Saving... when isSaving is true", async () => {
 			const field = makeField();
-			const screen = await render(<FieldEditor {...defaultProps} isSaving={true} field={field} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} isSaving={true} field={field} />,
+			);
 			await expect.element(screen.getByText("Saving...")).toBeInTheDocument();
 		});
 
 		it("disables cancel button when saving", async () => {
 			const field = makeField();
-			const screen = await render(<FieldEditor {...defaultProps} isSaving={true} field={field} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} isSaving={true} field={field} />,
+			);
 			await expect.element(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
 		});
 
 		it("disables update button when saving", async () => {
 			const field = makeField();
-			const screen = await render(<FieldEditor {...defaultProps} isSaving={true} field={field} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} isSaving={true} field={field} />,
+			);
 			await expect.element(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
 		});
 	});
@@ -344,13 +367,13 @@ describe("FieldEditor", () => {
 	describe("button state", () => {
 		it("disables save button when label is empty", async () => {
 			const field = makeField({ slug: "test", label: "" });
-			const screen = await render(<FieldEditor {...defaultProps} field={field} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={field} />);
 			await expect.element(screen.getByRole("button", { name: "Update Field" })).toBeDisabled();
 		});
 
 		it("enables save button when label and slug are filled", async () => {
 			const field = makeField({ slug: "test", label: "Test" });
-			const screen = await render(<FieldEditor {...defaultProps} field={field} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={field} />);
 			await expect.element(screen.getByRole("button", { name: "Update Field" })).toBeEnabled();
 		});
 	});
@@ -365,7 +388,9 @@ describe("FieldEditor", () => {
 		it("clears the flag when the field type cannot be indexed", async () => {
 			const onSave = vi.fn();
 			const field = makeField({ slug: "body", label: "Body", type: "text", indexed: true });
-			const screen = await render(<FieldEditor {...defaultProps} field={field} onSave={onSave} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} field={field} onSave={onSave} />,
+			);
 
 			expect(screen.getByText("Indexed").query()).toBeNull();
 			await save(screen);
@@ -376,7 +401,9 @@ describe("FieldEditor", () => {
 		it("keeps the flag for a field type that can be indexed", async () => {
 			const onSave = vi.fn();
 			const field = makeField({ slug: "priority", label: "Priority", indexed: true });
-			const screen = await render(<FieldEditor {...defaultProps} field={field} onSave={onSave} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} field={field} onSave={onSave} />,
+			);
 
 			await save(screen);
 
@@ -392,7 +419,9 @@ describe("FieldEditor", () => {
 				indexed: true,
 				validation: { targetCollection: "posts", multiple: true },
 			});
-			const screen = await render(<FieldEditor {...defaultProps} field={field} onSave={onSave} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} field={field} onSave={onSave} />,
+			);
 
 			expect(screen.getByText("Indexed").query()).toBeNull();
 			await save(screen);
@@ -421,7 +450,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows the collection its options named, so it can be confirmed", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={legacyField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={legacyField} />);
 
 			await expect
 				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
@@ -432,7 +461,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("keeps a bound field's collection immutable", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={boundField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={boundField} />);
 
 			await expect
 				.element(screen.getByRole("combobox", { name: "Referenced collection" }))
@@ -446,7 +475,7 @@ describe("FieldEditor", () => {
 
 		it("sends the collection on save so the server can bind the field", async () => {
 			const onSave = vi.fn();
-			const screen = await render(
+			const screen = await renderInRouter(
 				<FieldEditor {...defaultProps} field={legacyField} onSave={onSave} />,
 			);
 
@@ -494,7 +523,7 @@ describe("FieldEditor", () => {
 			props: Partial<React.ComponentProps<typeof FieldEditor>> = {},
 		) {
 			vi.mocked(fetchRelations).mockResolvedValue(relations);
-			return render(
+			return renderInRouter(
 				<FieldEditor {...defaultProps} field={relationField} collectionSlug="posts" {...props} />,
 			);
 		}
@@ -664,7 +693,7 @@ describe("FieldEditor", () => {
 		});
 
 		it("shows AllowedTypesEditor for file type", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} field={fileField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={fileField} />);
 			await expect.element(screen.getByText("Allowed types")).toBeInTheDocument();
 		});
 
@@ -677,7 +706,7 @@ describe("FieldEditor", () => {
 				unique: false,
 				searchable: false,
 			});
-			const screen = await render(<FieldEditor {...defaultProps} field={imageField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={imageField} />);
 			await expect.element(screen.getByText("Allowed types")).toBeInTheDocument();
 		});
 
@@ -691,7 +720,7 @@ describe("FieldEditor", () => {
 				searchable: false,
 				validation: { allowedMimeTypes: ["application/pdf"] },
 			});
-			const screen = await render(<FieldEditor {...defaultProps} field={fieldWithMimes} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={fieldWithMimes} />);
 			await expect.element(screen.getByText("application/pdf")).toBeInTheDocument();
 		});
 	});
@@ -714,14 +743,14 @@ describe("FieldEditor", () => {
 
 		it("is absent for file fields", async () => {
 			const fileField = makeField({ ...imageField, slug: "attachment", type: "file" });
-			const screen = await render(<FieldEditor {...defaultProps} field={fileField} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={fileField} />);
 
 			expect(screen.getByRole("switch", { name: "Dark mode variant" }).query()).toBeNull();
 		});
 
 		it("saves the option when switched on", async () => {
 			const onSave = vi.fn();
-			const screen = await render(
+			const screen = await renderInRouter(
 				<FieldEditor {...defaultProps} field={imageField} onSave={onSave} />,
 			);
 
@@ -739,7 +768,9 @@ describe("FieldEditor", () => {
 		it("removes only the option when switched off and keeps other widget options", async () => {
 			const onSave = vi.fn();
 			const field = makeField({ ...imageField, options: { showPreview: true, darkVariant: true } });
-			const screen = await render(<FieldEditor {...defaultProps} field={field} onSave={onSave} />);
+			const screen = await renderInRouter(
+				<FieldEditor {...defaultProps} field={field} onSave={onSave} />,
+			);
 
 			const toggle = screen.getByRole("switch", { name: "Dark mode variant" });
 			await expect.element(toggle).toBeChecked();
@@ -786,7 +817,7 @@ describe("FieldEditor", () => {
 				{ slug: "chapters", label: "Chapters", labelSingular: "Chapter" },
 				{ slug: "lessons", label: "Lessons" },
 			] as Awaited<ReturnType<typeof fetchCollections>>);
-			const screen = await render(
+			const screen = await renderInRouter(
 				<FieldEditor {...defaultProps} collectionSlug="chapters" {...props} />,
 			);
 			screen
@@ -893,7 +924,7 @@ describe("FieldEditor", () => {
 
 	describe("dialog closed", () => {
 		it("renders nothing visible when open is false", async () => {
-			const screen = await render(<FieldEditor {...defaultProps} open={false} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} open={false} />);
 			expect(screen.getByText("Add Field").query()).toBeNull();
 		});
 	});
@@ -911,7 +942,7 @@ describe("FieldEditor", () => {
 				validation: { subFields } as SchemaField["validation"],
 			});
 
-			const screen = await render(<FieldEditor {...defaultProps} field={field} />);
+			const screen = await renderInRouter(<FieldEditor {...defaultProps} field={field} />);
 			const content = document.querySelector('[data-testid="field-editor-config-content"]');
 
 			expect(content).not.toBeNull();

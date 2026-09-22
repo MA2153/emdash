@@ -1327,12 +1327,12 @@ async function resolveEmDashEntry<T extends string, D = InferCollectionData<T>>(
 		return { entry: null, isPreview: false, cacheHint: {} };
 	};
 
-	// A snapshot now carries whatever references the caller asked for, so both
-	// halves of the cache identity have to account for the selection: the key,
-	// or a render that asked for references would be served one that did not;
-	// the namespaces, or the snapshot would outlive a write to a child. A caller
-	// that asked for none keeps the key and namespaces it had before references
-	// existed, so entries cached by the previous release stay reachable.
+	// A snapshot carries whatever references the caller asked for, so both the
+	// key and the namespaces account for the selection: the key, or a render that
+	// asked for references would be served one that did not; the namespaces, or
+	// the snapshot would outlive a write to a child. A caller that asks for none
+	// must keep the plain key and namespaces, which entries already in the cache
+	// are stored under.
 	const namespaces = references
 		? [...contentNamespaces(type), ...(await referenceTargetNamespaces(type, references))]
 		: contentNamespaces(type);

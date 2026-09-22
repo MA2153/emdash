@@ -1,13 +1,4 @@
-import {
-	Button,
-	Dialog,
-	Input,
-	InputArea,
-	Link as KumoLink,
-	Select,
-	Switch,
-	Tooltip,
-} from "@cloudflare/kumo";
+import { Button, Dialog, Input, InputArea, Select, Switch, Tooltip } from "@cloudflare/kumo";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
 	TextT,
@@ -31,6 +22,7 @@ import {
 	Info,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "@tanstack/react-router";
 import * as React from "react";
 
 import { fetchCollections, fetchRelations } from "../lib/api";
@@ -982,9 +974,13 @@ export function FieldEditor({
 														Quick create names the relationship after this field and this
 														collection, takes how many entries it holds from the switch above, and
 														puts no limit on how many entries link back the other way.{" "}
-														<KumoLink href="/_emdash/admin/content-types/relations" target="_blank">
+														<RouterLink
+															to="/content-types/relations"
+															target="_blank"
+															className="text-kumo-link underline"
+														>
 															Create the relationship yourself
-														</KumoLink>{" "}
+														</RouterLink>{" "}
 														to set its slug, the name each side goes by, and both limits, then pick
 														it above.
 													</Trans>

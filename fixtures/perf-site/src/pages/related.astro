@@ -1,8 +1,9 @@
 ---
 // An entry rendered with one reference field hydrated. Pair with
 // /related-baseline, which is the same page without the `references` option:
-// the gap between the two snapshots is what opting in costs — one link query
-// for the field, plus one entry query for the collection it points at.
+// the gap between the two snapshots is what opting in costs — one query for the
+// collection's reference fields, one link query for the field, and one entry
+// query for the collection it points at.
 import { getEmDashEntry } from "emdash";
 import Base from "../layouts/Base.astro";
 

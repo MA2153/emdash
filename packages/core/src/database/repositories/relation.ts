@@ -740,8 +740,8 @@ export class RelationRepository {
 	 * preserving relation, child, and sort order. Used when duplicating a content
 	 * entry so the copy carries the same reference selections (edges are
 	 * storage-less, keyed by translation_group, so they don't ride along in the
-	 * row's `data`). Only the parent side is copied — backlinks pointing at the
-	 * original are intentionally left alone. Idempotent per edge via onConflict.
+	 * row's `data`). Only the parent side is copied; backlinks pointing at the
+	 * original stay on the original. Idempotent per edge via onConflict.
 	 *
 	 * A copy is still a new edge, so it holds to `maxParentsPerChild` like any
 	 * other: a child already at its limit cannot also belong to the copy. Returns

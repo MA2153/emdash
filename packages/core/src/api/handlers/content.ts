@@ -126,8 +126,8 @@ function readStagedSlug(data: Record<string, unknown> | undefined): string | nul
  * landed after that promotion would leave a draft's links live on an entry that
  * never published.
  *
- * The optimistic fence `publish()` ends on is deliberately not here: it is the
- * write itself, so a publish lost to a concurrent edit still promotes.
+ * The optimistic fence `publish()` ends on is not checked here, because it is
+ * the write itself: a publish lost to a concurrent edit still promotes.
  */
 async function assertPublishWillNotBeRefused(
 	db: Kysely<Database>,

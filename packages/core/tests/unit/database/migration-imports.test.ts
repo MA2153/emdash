@@ -42,6 +42,7 @@ describe("migration imports", () => {
 		.filter((name) => /^\d{3}_.*\.ts$/.test(name))
 		.toSorted();
 
+	// A wrong MIGRATIONS_DIR would leave `it.each` with no cases, passing vacuously.
 	it("covers every migration file", () => {
 		expect(files.length).toBeGreaterThan(70);
 	});
