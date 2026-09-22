@@ -290,7 +290,7 @@ export function RelationFormFields({ form, collections, isNew }: RelationFormFie
 			<div className="space-y-4">
 				<h3 className="text-xs font-medium uppercase tracking-wider text-kumo-subtle">{t`Roles`}</h3>
 				<p className="text-sm text-kumo-subtle">
-					{t`What each side is called. These name the picker and the "Referenced by" panel.`}
+					{t`What each side is called. These name the fields bound to this relationship.`}
 				</p>
 
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

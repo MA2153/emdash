@@ -94,6 +94,98 @@ function hasApiError(error: unknown): error is Error & { apiError: { code: strin
 	);
 }
 
+/**
+ * Abort the surrounding transaction when a relation's limit refused an edge.
+ *
+ * `farSide` names the end that filled up, which is the opposite of the end the
+ * refused group sits on: a child that cannot take another parent refuses with
+ * `"parent"`.
+ */
+function throwIfReferenceLimitRefused(rejected: string[], farSide: "parent" | "child"): void {
+	if (rejected.length === 0) return;
+	throw Object.assign(
+		new Error(
+			`Entry '${rejected[0]}' already has the maximum number of ${farSide} entries on this relation.`,
+		),
+		{ apiError: { code: "VALIDATION_ERROR" } },
+	);
+}
+
+/** The slug a draft revision stages, when it stages one. */
+function readStagedSlug(data: Record<string, unknown> | undefined): string | null {
+	return typeof data?._slug === "string" ? data._slug : null;
+}
+
+/**
+ * Make every refusal `publish()` decides before it writes, ahead of it.
+ *
+ * `publish()` decides all of them again and stays authoritative; this does not
+ * replace it. It exists for the one caller that has irreversible work to do
+ * first — promoting a draft's staged reference selection, which nothing takes
+ * back where `withTransaction` degrades to plain statements. A refusal that
+ * landed after that promotion would leave a draft's links live on an entry that
+ * never published.
+ *
+ * The optimistic fence `publish()` ends on is deliberately not here: it is the
+ * write itself, so a publish lost to a concurrent edit still promotes.
+ */
+async function assertPublishWillNotBeRefused(
+	db: Kysely<Database>,
+	collection: string,
+	id: string,
+	existing: ContentItem,
+	options: {
+		stagedSlug: string | null;
+		requireSlug: boolean;
+		requireDue?: boolean;
+		expectedScheduledAt?: string;
+		expectedRevision?: ContentRevisionPrecondition;
+	},
+): Promise<void> {
+	const { expectedRevision } = options;
+	if (
+		expectedRevision &&
+		(existing.version !== expectedRevision.version ||
+			existing.updatedAt !== expectedRevision.updatedAt)
+	) {
+		throw new ContentMutationConflictError();
+	}
+
+	if (
+		options.requireDue &&
+		options.expectedScheduledAt !== undefined &&
+		existing.scheduledAt !== options.expectedScheduledAt
+	) {
+		throw new ScheduledNotDueError();
+	}
+
+	const intendedSlug = options.stagedSlug ?? existing.slug;
+	if (options.requireSlug && !intendedSlug?.trim()) {
+		throw new EmDashValidationError("Cannot publish routable content without a slug");
+	}
+
+	// Only a publish that moves the slug can collide, so this costs a read on
+	// that path alone.
+	if (
+		options.stagedSlug !== null &&
+		options.stagedSlug !== existing.slug &&
+		existing.locale !== null
+	) {
+		const conflict = await new ContentRepository(db).findBySlugIncludingTrashed(
+			collection,
+			options.stagedSlug,
+			existing.locale,
+		);
+		if (conflict && conflict.id !== id) {
+			throw new EmDashValidationError(
+				`Cannot publish: slug '${options.stagedSlug}' is already used by another entry` +
+					` in this collection (id: ${conflict.id}). Choose a different slug.`,
+				{ code: "SLUG_CONFLICT" },
+			);
+		}
+	}
+}
+
 function isTranslationLocaleConflict(error: unknown, collection: string): boolean {
 	if (!(error instanceof Error)) return false;
 	const message = error.message.toLowerCase();
@@ -1634,7 +1726,14 @@ export async function handleContentDuplicate(
 			// outgoing references onto the duplicate explicitly.
 			if (original?.translationGroup && dup.translationGroup) {
 				const relations = new RelationRepository(trx);
-				await relations.copyParentEdges(original.translationGroup, dup.translationGroup);
+				// A relation's limits bind a copied edge like any other, and a
+				// selection the copy cannot hold is not one to drop quietly: the
+				// duplicate would look complete with a reference field the editor
+				// never emptied. Refuse instead, and name what refused it.
+				throwIfReferenceLimitRefused(
+					await relations.copyParentEdges(original.translationGroup, dup.translationGroup),
+					"parent",
+				);
 
 				// Where a field on this collection binds the *child* end, its
 				// backlinks are the field's value, so a duplicate that dropped them
@@ -1644,10 +1743,13 @@ export async function handleContentDuplicate(
 					if (field.relationSide !== "child") continue;
 					const parents = await relations.getParents(field.relation, original.translationGroup);
 					if (parents.length === 0) continue;
-					await relations.setParents(
-						field.relation,
-						dup.translationGroup,
-						parents.map((parent) => parent.parentGroup),
+					throwIfReferenceLimitRefused(
+						await relations.setParents(
+							field.relation,
+							dup.translationGroup,
+							parents.map((parent) => parent.parentGroup),
+						),
+						"child",
 					);
 				}
 			}
@@ -1689,6 +1791,14 @@ export async function handleContentDuplicate(
 					code: "NOT_FOUND",
 					message: err.message,
 				},
+			};
+		}
+		// A relation limit that refused a copied edge names the entry that refused
+		// it, which the editor needs to act on.
+		if (hasApiError(err)) {
+			return {
+				success: false,
+				error: { code: err.apiError.code, message: err.message },
 			};
 		}
 		console.error("Content duplicate error:", err);
@@ -1823,12 +1933,18 @@ export async function handleContentPermanentDelete(
 			const trxRepo = new ContentRepository(trx);
 			const item = await trxRepo.findByIdIncludingTrashed(collection, resolvedId);
 
+			// `permanentDelete` removes a trashed row only. Anything cleared ahead of
+			// it has to answer the same question first, or purging a live entry strips
+			// what belongs to it and then reports it was never found — and nothing
+			// throws, so the clear stands even where the transaction is real.
+			if (!item || item.deletedAt === null) return false;
+
 			// Term assignments and reference edges are keyed by translation_group, so
 			// they belong to the group rather than to this row. They go only once no
 			// row of the group is left, trashed ones included, since a trashed row
 			// can still be restored.
 			const lastOfGroup =
-				item?.translationGroup !== undefined && item.translationGroup !== null
+				item.translationGroup !== null
 					? !(await trxRepo.hasTranslationsIncludingTrashed(collection, item.translationGroup, {
 							excludeId: resolvedId,
 						}))
@@ -1839,7 +1955,7 @@ export async function handleContentPermanentDelete(
 			// them — a cleanup that failed after it would strand edges that still
 			// count and still show up as backlinks, with nothing left to find them
 			// by. Failing here instead leaves everything as it was, to retry.
-			if (lastOfGroup && item?.translationGroup) {
+			if (lastOfGroup && item.translationGroup) {
 				await new RelationRepository(trx).clearReferencesForGroup(item.translationGroup);
 			}
 
@@ -1859,7 +1975,7 @@ export async function handleContentPermanentDelete(
 				// Credits belong to this row alone — no other row reads them, so they
 				// go with it whether or not the group survives.
 				await new BylineRepository(trx).deleteContentBylines(collection, resolvedId);
-				if (lastOfGroup && item?.translationGroup) {
+				if (lastOfGroup && item.translationGroup) {
 					await new TaxonomyRepository(trx).clearEntryGroupTerms(collection, item.translationGroup);
 				}
 			}
@@ -2185,12 +2301,11 @@ export async function handleContentPublish(
 			// before the publishing statement rather than after: `withTransaction`
 			// degrades to sequential statements on D1, so a selection rejected
 			// afterwards would leave the entry published with the old links.
-			const stagedReferences =
+			const draftRevision =
 				publishConfig.supportsRevisions && existing?.draftRevisionId
-					? readStagedReferences(
-							(await new RevisionRepository(trx).findById(existing.draftRevisionId))?.data,
-						)
+					? await new RevisionRepository(trx).findById(existing.draftRevisionId)
 					: undefined;
+			const stagedReferences = draftRevision ? readStagedReferences(draftRevision.data) : undefined;
 			if (existing?.translationGroup) {
 				const valid = await validateStagedReferences(
 					trx,
@@ -2210,7 +2325,22 @@ export async function handleContentPublish(
 				// again — a promotion that failed after it would have nothing left to
 				// retry. Replacing a selection is idempotent, so a retry that reaches
 				// here twice writes the same links.
+				//
+				// That ordering only holds if the publish is going to happen, so every
+				// refusal `repo.publish()` decides before it writes is decided here
+				// first. It repeats them all and stays authoritative; running them
+				// early keeps a refusal from landing after a promotion nothing undoes,
+				// which would show readers a selection that was never published. Its
+				// last check is the optimistic fence, which cannot move ahead of the
+				// write it guards.
 				if (stagedReferences) {
+					await assertPublishWillNotBeRefused(trx, collection, resolvedId, existing, {
+						stagedSlug: readStagedSlug(draftRevision?.data),
+						requireSlug: publishConfig.routable,
+						requireDue: options.requireScheduledDue,
+						expectedScheduledAt: options.expectedScheduledAt,
+						expectedRevision,
+					});
 					await applyStagedReferences(trx, collection, existing.translationGroup, stagedReferences);
 				}
 			}

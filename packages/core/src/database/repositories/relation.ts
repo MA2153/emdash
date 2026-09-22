@@ -742,32 +742,53 @@ export class RelationRepository {
 	 * storage-less, keyed by translation_group, so they don't ride along in the
 	 * row's `data`). Only the parent side is copied — backlinks pointing at the
 	 * original are intentionally left alone. Idempotent per edge via onConflict.
+	 *
+	 * A copy is still a new edge, so it holds to `maxParentsPerChild` like any
+	 * other: a child already at its limit cannot also belong to the copy. Returns
+	 * the child group that refused, in a one-element array, having taken back
+	 * every edge this call had already written — the caller decides what a
+	 * duplicate that cannot carry its selection should do.
 	 */
-	async copyParentEdges(fromParentGroup: string, toParentGroup: string): Promise<void> {
+	async copyParentEdges(fromParentGroup: string, toParentGroup: string): Promise<string[]> {
 		const rows = await this.db
 			.selectFrom("_emdash_content_references")
 			.selectAll()
 			.where("parent_group", "=", fromParentGroup)
 			.execute();
-		if (rows.length === 0) return;
+		if (rows.length === 0) return [];
 
 		const now = new Date().toISOString();
-		const copies = rows.map((row) => ({
-			id: ulid(),
-			relation_id: row.relation_id,
-			parent_group: toParentGroup,
-			child_group: row.child_group,
-			sort_order: row.sort_order,
-			created_at: now,
-		}));
-		for (const rowBatch of chunks(copies, REFERENCE_INSERT_BATCH_SIZE)) {
-			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
-			await this.db
-				.insertInto("_emdash_content_references")
-				.values(rowBatch)
-				.onConflict((oc) => oc.doNothing())
-				.execute();
+		// Each relation carries its own limit, so the copies are written a relation
+		// at a time rather than as one undifferentiated batch.
+		const byRelation = new Map<string, EdgeInsert[]>();
+		for (const row of rows) {
+			const copies = byRelation.get(row.relation_id) ?? [];
+			copies.push({
+				id: ulid(),
+				relation_id: row.relation_id,
+				parent_group: toParentGroup,
+				child_group: row.child_group,
+				sort_order: row.sort_order,
+				created_at: now,
+			});
+			byRelation.set(row.relation_id, copies);
 		}
+
+		const written: string[] = [];
+		for (const [relationId, copies] of byRelation) {
+			// oxlint-disable-next-line no-await-in-loop -- each relation's limit gates its own copies
+			const rel = await this.resolveRelationLimits(relationId);
+			// oxlint-disable-next-line no-await-in-loop -- sequential so a refusal stops the rest
+			const rejected = await this.insertEdges(copies, "child", rel?.maxParentsPerChild ?? null);
+			if (rejected.length > 0) {
+				// `insertEdges` took back its own partial write; the relations already
+				// copied are this call's to undo.
+				await this.deleteEdgesById(written);
+				return rejected;
+			}
+			written.push(...copies.map((copy) => copy.id));
+		}
+		return [];
 	}
 
 	/**

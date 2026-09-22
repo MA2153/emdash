@@ -106,8 +106,8 @@ function parseColumnIds(value: unknown): string[] {
 }
 
 /**
- * What one field's column holds, per translation group, or `null` when its
- * locale rows disagree.
+ * What one field's column holds, per translation group, as the translation
+ * groups it selects — or `null` when its locale rows disagree.
  *
  * A link belongs to the group, not to one locale's row of it, so a field whose
  * locale rows made different choices has no selection this can carry over: the
@@ -115,6 +115,12 @@ function parseColumnIds(value: unknown): string[] {
  * answer would throw the other's away. Neither is the selection the site has, so
  * such a field is left unbound with its column intact, for an editor to settle
  * and bind by hand.
+ *
+ * Disagreement is judged on translation groups rather than on the ids in the
+ * column, because that is what an edge names: two locale rows pointing at their
+ * own locale's row of one entry have made the same choice twice, which is
+ * exactly how a localized site holds a reference. Comparing ids would read that
+ * as a conflict and leave the field unbound.
  *
  * A row that chose nothing does not disagree with one that did — it is the same
  * group's single answer, arrived at once.
@@ -140,40 +146,53 @@ async function readColumnSelections(
 		ORDER BY locale, id
 	`.execute(db);
 
-	// Parent group -> the child entry ids it selects, in order.
-	const selections = new Map<string, string[]>();
+	const rows: Array<{ parentGroup: string; ids: string[] }> = [];
 	for (const entry of entries.rows) {
 		if (!entry.translation_group) continue;
 		const ids = parseColumnIds(entry.value);
 		if (ids.length === 0) continue;
+		rows.push({ parentGroup: entry.translation_group, ids });
+	}
+	if (rows.length === 0) return new Map();
 
-		const existing = selections.get(entry.translation_group);
+	const childGroups = await resolveChildGroups(db, childTable, [
+		...new Set(rows.flatMap((row) => row.ids)),
+	]);
+
+	// Parent group -> the child translation groups it selects, in order.
+	const selections = new Map<string, string[]>();
+	for (const row of rows) {
+		const groups: string[] = [];
+		for (const id of row.ids) {
+			const group = childGroups.get(id);
+			// An id whose entry is gone is dropped; its value stays in the column.
+			if (group && !groups.includes(group)) groups.push(group);
+		}
+
+		const existing = selections.get(row.parentGroup);
 		if (!existing) {
-			selections.set(entry.translation_group, ids);
+			selections.set(row.parentGroup, groups);
 			continue;
 		}
-		if (existing.length !== ids.length || existing.some((id, index) => id !== ids[index])) {
+		if (
+			existing.length !== groups.length ||
+			existing.some((group, index) => group !== groups[index])
+		) {
 			return null;
 		}
 	}
 	return selections;
 }
 
-/** Copy one field's column values in as edges. */
-async function backfillEdges(
+/** The translation group each of `ids` belongs to, for the ids that still resolve. */
+async function resolveChildGroups(
 	db: Kysely<unknown>,
-	field: LegacyReferenceField,
-	relationId: string,
-	maxChildren: number | null,
-	selections: Map<string, string[]>,
-): Promise<void> {
-	const childTable = `ec_${field.targetCollection}`;
-	if (selections.size === 0) return;
-
-	const childIds = [...new Set([...selections.values()].flat())];
+	childTable: string,
+	ids: string[],
+): Promise<Map<string, string>> {
 	const childGroups = new Map<string, string>();
-	for (let offset = 0; offset < childIds.length; offset += ID_BATCH_SIZE) {
-		const batch = childIds.slice(offset, offset + ID_BATCH_SIZE);
+	for (let offset = 0; offset < ids.length; offset += ID_BATCH_SIZE) {
+		const batch = ids.slice(offset, offset + ID_BATCH_SIZE);
 		// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
 		const resolved = await sql<{ id: string; translation_group: string | null }>`
 			SELECT id, translation_group
@@ -184,15 +203,21 @@ async function backfillEdges(
 			if (row.translation_group) childGroups.set(row.id, row.translation_group);
 		}
 	}
+	return childGroups;
+}
+
+/** Copy one field's resolved selections in as edges. */
+async function backfillEdges(
+	db: Kysely<unknown>,
+	relationId: string,
+	maxChildren: number | null,
+	selections: Map<string, string[]>,
+): Promise<void> {
+	if (selections.size === 0) return;
 
 	const now = currentTimestampValue(db);
 	for (const parentGroup of [...selections.keys()].toSorted()) {
-		const groups: string[] = [];
-		for (const id of selections.get(parentGroup) ?? []) {
-			const group = childGroups.get(id);
-			// An id whose entry is gone is dropped; its value stays in the column.
-			if (group && !groups.includes(group)) groups.push(group);
-		}
+		const groups = selections.get(parentGroup) ?? [];
 		// The locale rows agree by now, so this only cuts a column that held more
 		// ids than the field's own shape allows.
 		const selected = maxChildren === null ? groups : groups.slice(0, maxChildren);
@@ -317,7 +342,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 		}
 
 		// oxlint-disable-next-line no-await-in-loop -- edges depend on the relation above
-		await backfillEdges(db, field, relationId, maxChildren, selections);
+		await backfillEdges(db, relationId, maxChildren, selections);
 
 		const validation = {
 			...field.validation,

@@ -804,6 +804,105 @@ describeEachDialect("handleContentDuplicate copies reference edges", (dialect) =
 			await teardownForDialect(ctx);
 		}
 	});
+
+	it("refuses the duplicate when copying its children would pass their parent limit", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+			const relationRepo = new RelationRepository(ctx.db);
+			// One parent per child, so a copy of the parent cannot also hold them.
+			const relation = await relationRepo.create({
+				slug: "related_posts",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Related posts",
+				childLabel: "Related to",
+				maxParentsPerChild: 1,
+			});
+			await registry.createField("posts", {
+				slug: "related",
+				label: "Related",
+				type: "reference",
+				validation: { relation: relation.slug, relationSide: "parent", targetCollection: "posts" },
+			});
+
+			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
+			const child = await handleContentCreate(ctx.db, "posts", { data: { title: "Child" } });
+			expect(parent.success && child.success).toBe(true);
+			if (!parent.success || !child.success) return;
+			expect(
+				(
+					await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
+						child.data.item.id,
+					])
+				).success,
+			).toBe(true);
+
+			const dup = await handleContentDuplicate(ctx.db, "posts", parent.data.item.id);
+			expect(dup.success).toBe(false);
+			if (dup.success) return;
+			expect(dup.error.code).toBe("VALIDATION_ERROR");
+
+			// The child keeps the one parent the relation allows it.
+			const parents = await relationRepo.getParentsPage(relation.slug, child.data.item.id);
+			expect(parents.items.map((i) => i.parentGroup)).toEqual([parent.data.item.id]);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("refuses the duplicate when copying its parents would pass their child limit", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+			const relationRepo = new RelationRepository(ctx.db);
+			// One child per parent, so a copy of the child has no room under it.
+			const relation = await relationRepo.create({
+				slug: "related_posts",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Related posts",
+				childLabel: "Related to",
+				maxChildrenPerParent: 1,
+			});
+			// The field views the child end, so the duplicate has to carry its parents.
+			await registry.createField("posts", {
+				slug: "related_to",
+				label: "Related to",
+				type: "reference",
+				validation: { relation: relation.slug, relationSide: "child", targetCollection: "posts" },
+			});
+
+			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
+			const child = await handleContentCreate(ctx.db, "posts", { data: { title: "Child" } });
+			expect(parent.success && child.success).toBe(true);
+			if (!parent.success || !child.success) return;
+			expect(
+				(
+					await setReferenceSelection(ctx.db, "posts", child.data.item.id, "related_to", [
+						parent.data.item.id,
+					])
+				).success,
+			).toBe(true);
+
+			const dup = await handleContentDuplicate(ctx.db, "posts", child.data.item.id);
+			expect(dup.success).toBe(false);
+			if (dup.success) return;
+			expect(dup.error.code).toBe("VALIDATION_ERROR");
+
+			// The parent keeps the one child the relation allows it.
+			const children = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
+			expect(children.items.map((i) => i.childGroup)).toEqual([child.data.item.id]);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
 });
 
 describeEachDialect("handleContentPermanentDelete clears reference edges", (dialect) => {
@@ -906,6 +1005,36 @@ describeEachDialect("handleContentPermanentDelete clears reference edges", (dial
 			const purged = await handleContentPermanentDelete(ctx.db, "posts", translation.data.item.id);
 			expect(purged.success).toBe(true);
 
+			const page = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
+			expect(page.items.map((i) => i.childGroup)).toEqual([child.data.item.id]);
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("keeps a live entry's links when permanent delete refuses the row", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const { relationRepo, relation } = await setupPostsWithRelation(ctx.db);
+
+			const parent = await handleContentCreate(ctx.db, "posts", { data: { title: "Parent" } });
+			const child = await handleContentCreate(ctx.db, "posts", { data: { title: "Child" } });
+			expect(parent.success && child.success).toBe(true);
+			if (!parent.success || !child.success) return;
+			expect(
+				(
+					await setReferenceSelection(ctx.db, "posts", parent.data.item.id, "related", [
+						child.data.item.id,
+					])
+				).success,
+			).toBe(true);
+
+			// The entry was never trashed, so `permanentDelete` refuses it.
+			const purged = await handleContentPermanentDelete(ctx.db, "posts", parent.data.item.id);
+			expect(purged.success).toBe(false);
+
+			const repo = new ContentRepository(ctx.db);
+			expect(await repo.findById("posts", parent.data.item.id)).not.toBeNull();
 			const page = await relationRepo.getChildrenPage(relation.slug, parent.data.item.id);
 			expect(page.items.map((i) => i.childGroup)).toEqual([child.data.item.id]);
 		} finally {

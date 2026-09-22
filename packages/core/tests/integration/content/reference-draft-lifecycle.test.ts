@@ -153,6 +153,27 @@ describeEachDialect("versioned reference selections", (dialect) => {
 		expect(post?.draftRevisionId).toBeTruthy();
 	});
 
+	it("leaves the live selection alone when the publish itself is refused", async () => {
+		const [a, b] = [await createPage("A"), await createPage("B")];
+		const id = await publishedPost("Refused", [a.id]);
+		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [b.id] } });
+
+		// The entry is not scheduled, so this publish is refused outright. Run
+		// inline — D1's boundary — so a promotion that ran before the refusal
+		// would still be standing afterwards.
+		const inline = asInlineTransaction(ctx.db);
+		const published = await handleContentPublish(inline, "posts", id, {
+			requireScheduledDue: true,
+			expectedScheduledAt: "2099-01-01T00:00:00.000Z",
+		});
+		expect(published.success).toBe(false);
+
+		// Nothing was published, so nothing of the draft may be live: a promoted
+		// selection on an unpublished entry shows readers a choice never published.
+		expect(await liveGroups(id)).toEqual([a.translationGroup]);
+		expect(await stagedGroups(id)).toEqual([b.translationGroup]);
+	});
+
 	it("pages a staged selection the way it pages a live one", async () => {
 		const pages: string[] = [];
 		for (let index = 0; index < REFERENCE_PAGE_LIMIT + 1; index++) {

@@ -394,9 +394,75 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 			locale: "fr",
 			translationOf: english.id,
 		});
-		// The same choice in both locales, and a third row that made none.
+		// The same choice in both locales.
 		await writeColumn("posts", english.id, "author", jane.id);
 		await writeColumn("posts", french.id, "author", jane.id);
+
+		await migration084.up(ctx.db);
+
+		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
+		const edges = await readEdges();
+		expect(edges.rows).toHaveLength(1);
+		expect(edges.rows[0]?.child_group).toBe(jane.translationGroup);
+	});
+
+	it("binds a field whose locale rows point at translations of one entry", async () => {
+		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
+
+		const content = new ContentRepository(ctx.db);
+		const jane = await content.create({ type: "authors", slug: "jane", data: { name: "Jane" } });
+		const jeanne = await content.create({
+			type: "authors",
+			slug: "jeanne",
+			data: { name: "Jeanne" },
+			locale: "fr",
+			translationOf: jane.id,
+		});
+		const english = await content.create({
+			type: "posts",
+			slug: "hello",
+			data: { title: "Hello" },
+		});
+		const french = await content.create({
+			type: "posts",
+			slug: "bonjour",
+			data: { title: "Bonjour" },
+			locale: "fr",
+			translationOf: english.id,
+		});
+		// Each locale names its own row of one author — the same selection said
+		// twice, not two selections, because an edge names a translation group.
+		await writeColumn("posts", english.id, "author", jane.id);
+		await writeColumn("posts", french.id, "author", jeanne.id);
+
+		await migration084.up(ctx.db);
+
+		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
+		const edges = await readEdges();
+		expect(edges.rows).toHaveLength(1);
+		expect(edges.rows[0]?.child_group).toBe(jane.translationGroup);
+	});
+
+	it("binds a field one locale left empty and another selected", async () => {
+		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
+
+		const content = new ContentRepository(ctx.db);
+		const jane = await content.create({ type: "authors", slug: "jane", data: { name: "Jane" } });
+		const english = await content.create({
+			type: "posts",
+			slug: "hello",
+			data: { title: "Hello" },
+		});
+		await content.create({
+			type: "posts",
+			slug: "bonjour",
+			data: { title: "Bonjour" },
+			locale: "fr",
+			translationOf: english.id,
+		});
+		// Only the English row chose. A row that chose nothing contradicts
+		// nothing, so the group's one answer carries across its translations.
+		await writeColumn("posts", english.id, "author", jane.id);
 
 		await migration084.up(ctx.db);
 
