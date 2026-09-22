@@ -292,7 +292,7 @@ msgid "{0} detected"
 msgstr "{0} detectado"
 
 #. placeholder {0}: term.locale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:356
+#: packages/admin/src/components/TaxonomySidebar.tsx:616
 msgid "{0} fallback"
 msgstr ""
 
@@ -370,7 +370,7 @@ msgid "{0} system + {1} custom {2}"
 msgstr "{0} del sistema + {1} {2}"
 
 #. placeholder {0}: taxonomy.label
-#: packages/admin/src/components/TaxonomySidebar.tsx:411
+#: packages/admin/src/components/TaxonomySidebar.tsx:675
 msgid "{0} updated"
 msgstr "Se actualizó {0}"
 
@@ -459,6 +459,10 @@ msgstr ""
 #. placeholder {0}: to + 1
 #: packages/admin/src/components/BylineCreditsEditor.tsx:291
 msgid "{label} moved to position {0}."
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:531
+msgid "{label} options"
 msgstr ""
 
 #: packages/admin/src/components/ContentList.tsx:1197
@@ -795,7 +799,7 @@ msgstr ""
 msgid "A short description of your site"
 msgstr "Una breve descripción de su sitio."
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:455
+#: packages/admin/src/components/TaxonomySidebar.tsx:755
 msgid "A source and target locale are required"
 msgstr ""
 
@@ -874,7 +878,6 @@ msgstr "Activo"
 #: packages/admin/src/components/AllowedTypesEditor.tsx:174
 #: packages/admin/src/components/BylineCreditsEditor.tsx:501
 #: packages/admin/src/components/MenuEditor.tsx:441
-#: packages/admin/src/components/TaxonomySidebar.tsx:619
 msgid "Add"
 msgstr "Agregar"
 
@@ -888,10 +891,6 @@ msgstr "Agregar"
 msgid "Add {0}"
 msgstr "Agregar {0}"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:316
-msgid "Add {label}"
-msgstr "Añadir {label}"
-
 #: packages/admin/src/components/settings/SecuritySettings.tsx:160
 msgid "Add a new passkey"
 msgstr "Agregar una nueva Passkey"
@@ -900,7 +899,7 @@ msgstr "Agregar una nueva Passkey"
 msgid "Add another byline"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:583
+#: packages/admin/src/components/FieldEditor.tsx:586
 msgid "Add at least one sub-field to define the repeater structure."
 msgstr "Agregue al menos un subcampo para definir la estructura del repetidor."
 
@@ -939,7 +938,7 @@ msgstr "Agregar dominio"
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:647
 #: packages/admin/src/components/FieldEditor.tsx:378
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Add Field"
 msgstr "Agregar campo"
 
@@ -995,11 +994,6 @@ msgstr "Agregar tipo MIME o extensión"
 msgid "Add New"
 msgstr "Agregar nuevo"
 
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:631
-msgid "Add new {0}"
-msgstr "Agregar nuevo {0}"
-
 #: packages/admin/src/components/MediaFolderDialog.tsx:127
 #: packages/admin/src/components/MediaLibrary.tsx:852
 #: packages/admin/src/components/MediaLibrary.tsx:857
@@ -1031,13 +1025,9 @@ msgstr ""
 msgid "Add SEO metadata fields (title, description, image) and include in sitemap"
 msgstr "Agregar campos de metadatos SEO (título, descripción, imagen) e incluir en el sitemap"
 
-#: packages/admin/src/components/FieldEditor.tsx:577
+#: packages/admin/src/components/FieldEditor.tsx:580
 msgid "Add Sub-Field"
 msgstr "Agregar subcampo"
-
-#: packages/admin/src/components/TaxonomySidebar.tsx:318
-msgid "Add tags..."
-msgstr "Añadir etiquetas..."
 
 #: packages/admin/src/components/Widgets.tsx:403
 msgid "Add Widget Area"
@@ -1262,8 +1252,8 @@ msgstr ""
 #: packages/admin/src/components/settings/SocialSettings.tsx:67
 #: packages/admin/src/components/settings/SocialSettings.tsx:111
 #: packages/admin/src/components/settings/SocialSettings.tsx:112
-#: packages/admin/src/components/TaxonomySidebar.tsx:416
-#: packages/admin/src/components/TaxonomySidebar.tsx:476
+#: packages/admin/src/components/TaxonomySidebar.tsx:680
+#: packages/admin/src/components/TaxonomySidebar.tsx:776
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:114
 #: packages/admin/src/router.tsx:469
 #: packages/admin/src/router.tsx:484
@@ -1534,7 +1524,7 @@ msgid "Available bylines"
 msgstr ""
 
 #. placeholder {0}: assignment.availableLocales.map((locale) => locale.toUpperCase()).join(", ")
-#: packages/admin/src/components/TaxonomySidebar.tsx:545
+#: packages/admin/src/components/TaxonomySidebar.tsx:839
 msgid "Available in {0}"
 msgstr ""
 
@@ -1670,7 +1660,7 @@ msgstr "Negrita"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:55
 #: packages/admin/src/components/FieldEditor.tsx:206
-#: packages/admin/src/components/FieldEditor.tsx:622
+#: packages/admin/src/components/FieldEditor.tsx:625
 msgid "Boolean"
 msgstr "Booleano"
 
@@ -1782,7 +1772,7 @@ msgstr "Puede ver contenido"
 #: packages/admin/src/components/editor/ImageNode.tsx:299
 #: packages/admin/src/components/editor/ImageNode.tsx:300
 #: packages/admin/src/components/editor/PluginBlockNode.tsx:406
-#: packages/admin/src/components/FieldEditor.tsx:701
+#: packages/admin/src/components/FieldEditor.tsx:704
 #: packages/admin/src/components/MediaDetailPanel.tsx:1835
 #: packages/admin/src/components/MediaFolderDialog.tsx:152
 #: packages/admin/src/components/MediaPickerModal.tsx:1588
@@ -1888,7 +1878,7 @@ msgstr "Centro"
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:76
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:107
-#: packages/admin/src/components/FieldEditor.tsx:438
+#: packages/admin/src/components/FieldEditor.tsx:441
 #: packages/admin/src/components/SeoImageField.tsx:58
 msgid "Change"
 msgstr "Cambiar"
@@ -2010,6 +2000,12 @@ msgstr "Verificando cuántos valores almacenados hacen referencia a \"{0}\"…"
 
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:493
 msgid "Checking this device for passkey support..."
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:394
+#: packages/admin/src/components/TaxonomySidebar.tsx:395
+#: packages/admin/src/components/TaxonomySidebar.tsx:488
+msgid "Choose {label}"
 msgstr ""
 
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:577
@@ -2164,6 +2160,7 @@ msgstr "Haga clic en el enlace del correo electrónico para iniciar sesión."
 #: packages/admin/src/components/TaxonomyManager.tsx:807
 #: packages/admin/src/components/TaxonomyManager.tsx:813
 #: packages/admin/src/components/TaxonomyManager.tsx:817
+#: packages/admin/src/components/TaxonomySidebar.tsx:602
 #: packages/admin/src/components/ThemeMarketplaceDetail.tsx:298
 #: packages/admin/src/components/users/InviteUserModal.tsx:88
 #: packages/admin/src/components/users/InviteUserModal.tsx:94
@@ -2624,7 +2621,7 @@ msgstr "Crear"
 msgid "Create “{0}”"
 msgstr ""
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
 msgid "Create \"{trimmedInput}\""
 msgstr "Crear \"{trimmedInput}\""
 
@@ -2634,7 +2631,7 @@ msgid "Create {0}"
 msgstr ""
 
 #. placeholder {0}: resolvedEntryLocale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:556
+#: packages/admin/src/components/TaxonomySidebar.tsx:850
 msgid "Create {0} translation"
 msgstr ""
 
@@ -2646,6 +2643,10 @@ msgstr "Crear una lista con viñetas"
 #: packages/admin/src/components/TaxonomyManager.tsx:562
 msgid "Create a new {0}"
 msgstr "Crear un nuevo {0}"
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
+msgid "Create a new {singularLabel}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1624
 msgid "Create a numbered list"
@@ -2832,7 +2833,6 @@ msgstr ""
 #: packages/admin/src/components/Sections.tsx:212
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:540
 #: packages/admin/src/components/TaxonomyManager.tsx:891
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
 msgid "Creating..."
 msgstr "Creando..."
 
@@ -2903,7 +2903,7 @@ msgstr "Taxonomías personalizadas"
 msgid "Daily automatic backups"
 msgstr "Respaldos automáticos diarios"
 
-#: packages/admin/src/components/FieldEditor.tsx:688
+#: packages/admin/src/components/FieldEditor.tsx:691
 #: packages/admin/src/components/ImageFieldRenderer.tsx:396
 msgid "Dark mode variant"
 msgstr ""
@@ -2922,7 +2922,7 @@ msgid "Date"
 msgstr "Fecha"
 
 #: packages/admin/src/components/FieldEditor.tsx:212
-#: packages/admin/src/components/FieldEditor.tsx:623
+#: packages/admin/src/components/FieldEditor.tsx:626
 msgid "Date & Time"
 msgstr "Fecha y hora"
 
@@ -3655,6 +3655,11 @@ msgstr "Editar campo {0}"
 msgid "Edit {itemLabel}"
 msgstr "Editar {itemLabel}"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:414
+#: packages/admin/src/components/TaxonomySidebar.tsx:423
+msgid "Edit {label}"
+msgstr ""
+
 #: packages/admin/src/components/ContentList.tsx:1343
 msgid "Edit {title}"
 msgstr "Editar {title}"
@@ -3776,7 +3781,7 @@ msgstr ""
 "Reportero\n"
 "Fotógrafo"
 
-#: packages/admin/src/components/FieldEditor.tsx:691
+#: packages/admin/src/components/FieldEditor.tsx:694
 msgid "Editors can select a second image that the site shows in dark mode."
 msgstr ""
 
@@ -3997,6 +4002,10 @@ msgstr "Error al guardar la sección"
 msgid "Error updating widget"
 msgstr "Error al actualizar el widget"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:600
+msgid "Esc"
+msgstr ""
+
 #: packages/admin/src/components/MediaDetailPanel.tsx:1974
 msgid "Every place using this image will update to the cropped version."
 msgstr ""
@@ -4092,6 +4101,11 @@ msgstr "No se pudo comunicar con el plugin"
 msgid "Failed to confirm upload"
 msgstr "No se pudo confirmar la subida"
 
+#. placeholder {0}: failedLabels.join(", ")
+#: packages/admin/src/components/TaxonomySidebar.tsx:746
+msgid "Failed to create {0}"
+msgstr ""
+
 #: packages/admin/src/components/SetupWizard.tsx:486
 msgid "Failed to create admin"
 msgstr "No se pudo crear el administrador"
@@ -4121,11 +4135,11 @@ msgstr "No se pudo crear la sección"
 msgid "Failed to create some collections"
 msgstr "No se pudieron crear algunas colecciones."
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:638
+#: packages/admin/src/components/TaxonomySidebar.tsx:725
 msgid "Failed to create term"
 msgstr "No se pudo crear el término"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:475
+#: packages/admin/src/components/TaxonomySidebar.tsx:775
 #: packages/admin/src/router.tsx:1366
 msgid "Failed to create translation"
 msgstr "No se pudo crear la traducción"
@@ -4287,7 +4301,7 @@ msgstr "No se pudieron obtener las estadísticas del panel"
 msgid "Failed to fetch email settings"
 msgstr "No se pudo obtener la configuración de correo electrónico"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:140
+#: packages/admin/src/components/TaxonomySidebar.tsx:159
 msgid "Failed to fetch entry terms"
 msgstr "No se pudieron obtener los términos de la entrada"
 
@@ -4357,7 +4371,7 @@ msgstr "No se pudo obtener la configuración"
 msgid "Failed to fetch setup status"
 msgstr "No se pudo obtener el estado de la configuración"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:124
+#: packages/admin/src/components/TaxonomySidebar.tsx:143
 msgid "Failed to fetch terms"
 msgstr "No se pudieron obtener los términos"
 
@@ -4399,7 +4413,7 @@ msgid "Failed to import media"
 msgstr "No se pudieron importar los medios"
 
 #: packages/admin/src/lib/api/marketplace.ts:344
-#: packages/admin/src/lib/api/registry.ts:826
+#: packages/admin/src/lib/api/registry.ts:825
 msgid "Failed to install plugin"
 msgstr "No se pudo instalar el plugin"
 
@@ -4607,12 +4621,12 @@ msgstr "No se pudo enviar el correo electrónico de prueba"
 msgid "Failed to send verification email"
 msgstr "No se pudo enviar el correo electrónico de verificación"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:159
+#: packages/admin/src/components/TaxonomySidebar.tsx:178
 msgid "Failed to set entry terms"
 msgstr "No se pudieron establecer los términos de la entrada"
 
 #: packages/admin/src/lib/api/marketplace.ts:387
-#: packages/admin/src/lib/api/registry.ts:1040
+#: packages/admin/src/lib/api/registry.ts:1039
 msgid "Failed to uninstall plugin"
 msgstr "No se pudo desinstalar el plugin"
 
@@ -4629,7 +4643,7 @@ msgid "Failed to update"
 msgstr "No se pudo actualizar"
 
 #. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:415
+#: packages/admin/src/components/TaxonomySidebar.tsx:679
 msgid "Failed to update {0}"
 msgstr "No se pudo actualizar {0}"
 
@@ -4651,7 +4665,7 @@ msgstr "No se pudieron actualizar los medios"
 
 #: packages/admin/src/components/PluginManager.tsx:314
 #: packages/admin/src/lib/api/marketplace.ts:370
-#: packages/admin/src/lib/api/registry.ts:915
+#: packages/admin/src/lib/api/registry.ts:914
 msgid "Failed to update plugin"
 msgstr "No se pudo actualizar el plugin"
 
@@ -4733,15 +4747,15 @@ msgstr "Campo creado"
 msgid "Field deleted"
 msgstr "Campo eliminado"
 
-#: packages/admin/src/components/FieldEditor.tsx:606
+#: packages/admin/src/components/FieldEditor.tsx:609
 msgid "Field label"
 msgstr "Etiqueta de campo"
 
-#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:453
 msgid "Field Label"
 msgstr "Etiqueta de campo"
 
-#: packages/admin/src/components/FieldEditor.tsx:462
+#: packages/admin/src/components/FieldEditor.tsx:465
 msgid "Field slugs cannot be changed after creation"
 msgstr "Los slugs de campo no se pueden cambiar después de la creación"
 
@@ -5225,7 +5239,7 @@ msgid "If an account exists for <0>{email}</0>, we've sent a sign-in link."
 msgstr "Si existe una cuenta para <0>{email}</0>, le enviamos un enlace de inicio de sesión."
 
 #: packages/admin/src/components/FieldEditor.tsx:236
-#: packages/admin/src/components/FieldEditor.tsx:626
+#: packages/admin/src/components/FieldEditor.tsx:629
 #: packages/admin/src/components/PortableTextEditor.tsx:2892
 msgid "Image"
 msgstr "Imagen"
@@ -5416,7 +5430,7 @@ msgstr ""
 msgid "Index existing content and keep Used in results up to date."
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:491
+#: packages/admin/src/components/FieldEditor.tsx:494
 #: packages/admin/src/components/RegistryPluginDetail.tsx:575
 msgid "Indexed"
 msgstr "Indexado"
@@ -5571,7 +5585,7 @@ msgid "Installing..."
 msgstr "Instalando..."
 
 #: packages/admin/src/components/FieldEditor.tsx:200
-#: packages/admin/src/components/FieldEditor.tsx:621
+#: packages/admin/src/components/FieldEditor.tsx:624
 msgid "Integer"
 msgstr "Entero"
 
@@ -5718,8 +5732,8 @@ msgid "Kotlin"
 msgstr "Kotlin"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:232
-#: packages/admin/src/components/FieldEditor.tsx:447
-#: packages/admin/src/components/FieldEditor.tsx:592
+#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:595
 #: packages/admin/src/components/MenuEditor.tsx:416
 #: packages/admin/src/components/MenuEditor.tsx:593
 #: packages/admin/src/components/MenuList.tsx:169
@@ -6073,7 +6087,7 @@ msgid "Long text"
 msgstr "Texto largo"
 
 #: packages/admin/src/components/FieldEditor.tsx:188
-#: packages/admin/src/components/FieldEditor.tsx:619
+#: packages/admin/src/components/FieldEditor.tsx:622
 msgid "Long Text"
 msgstr "Texto largo"
 
@@ -6188,15 +6202,15 @@ msgstr ""
 msgid "Marketplace configuration is deprecated"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:666
+#: packages/admin/src/components/FieldEditor.tsx:669
 msgid "Max Items"
 msgstr "Artículos máximos"
 
-#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:512
 msgid "Max Length"
 msgstr "Longitud máxima"
 
-#: packages/admin/src/components/FieldEditor.tsx:539
+#: packages/admin/src/components/FieldEditor.tsx:542
 msgid "Max Value"
 msgstr "Valor máximo"
 
@@ -6384,15 +6398,15 @@ msgstr ""
 msgid "Migration key"
 msgstr "Clave de migración"
 
-#: packages/admin/src/components/FieldEditor.tsx:659
+#: packages/admin/src/components/FieldEditor.tsx:662
 msgid "Min Items"
 msgstr "Artículos mínimos"
 
-#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:505
 msgid "Min Length"
 msgstr "Longitud mínima"
 
-#: packages/admin/src/components/FieldEditor.tsx:532
+#: packages/admin/src/components/FieldEditor.tsx:535
 msgid "Min Value"
 msgstr "Valor mínimo"
 
@@ -6611,6 +6625,10 @@ msgstr "El nombre y la etiqueta son obligatorios."
 msgid "Name must start with a letter and contain only lowercase letters, numbers, and underscores"
 msgstr "El nombre debe comenzar con una letra y contener solo letras minúsculas, números y guiones bajos."
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:590
+msgid "Navigate"
+msgstr ""
+
 #: packages/admin/src/components/AdminCommandPalette.tsx:342
 #: packages/admin/src/components/ContentTypeEditor.tsx:480
 msgid "Navigation"
@@ -6643,11 +6661,6 @@ msgstr "Nueva"
 #: packages/admin/src/components/CapabilityConsentDialog.tsx:185
 msgid "NEW"
 msgstr "NUEVO"
-
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:607
-msgid "New {0}"
-msgstr "Nuevo {0}"
 
 #: packages/admin/src/components/ContentEditor.tsx:994
 msgid "New {itemLabel}"
@@ -6754,11 +6767,6 @@ msgstr "No"
 msgid "No (shared across translations)"
 msgstr "No (compartido entre traducciones)"
 
-#. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:576
-msgid "No {0} available."
-msgstr "No hay {0} disponible."
-
 #. placeholder {0}: collectionLabel.toLowerCase()
 #: packages/admin/src/components/ContentList.tsx:658
 msgid "No {0} yet."
@@ -6768,6 +6776,10 @@ msgstr "Aún no hay {0}."
 #: packages/admin/src/components/TaxonomyManager.tsx:1120
 msgid "No {0} yet. Create one to get started."
 msgstr "Aún no hay {0}. Crea uno para comenzar."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:565
+msgid "No {label} found."
+msgstr ""
 
 #: packages/admin/src/components/Redirects.tsx:218
 msgid "No 404 errors recorded yet."
@@ -6905,7 +6917,7 @@ msgstr "No se proporcionó ningún token de invitación"
 msgid "No items yet"
 msgstr "Aún no hay artículos"
 
-#: packages/admin/src/components/FieldEditor.tsx:670
+#: packages/admin/src/components/FieldEditor.tsx:673
 msgid "No limit"
 msgstr "Sin límite"
 
@@ -6938,8 +6950,8 @@ msgstr "No hay medios coincidentes"
 msgid "No matching passkey found for this account."
 msgstr "No se encontró ninguna Passkey coincidente para esta cuenta."
 
-#: packages/admin/src/components/FieldEditor.tsx:513
-#: packages/admin/src/components/FieldEditor.tsx:543
+#: packages/admin/src/components/FieldEditor.tsx:516
+#: packages/admin/src/components/FieldEditor.tsx:546
 msgid "No maximum"
 msgstr "Sin máximo"
 
@@ -6960,8 +6972,8 @@ msgstr "Aún no hay elementos de menú"
 msgid "No menus yet"
 msgstr "Aún no hay menús"
 
-#: packages/admin/src/components/FieldEditor.tsx:506
-#: packages/admin/src/components/FieldEditor.tsx:536
+#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:539
 msgid "No minimum"
 msgstr "Sin mínimo"
 
@@ -7105,7 +7117,7 @@ msgid "Not set"
 msgstr "No establecido"
 
 #: packages/admin/src/components/FieldEditor.tsx:194
-#: packages/admin/src/components/FieldEditor.tsx:620
+#: packages/admin/src/components/FieldEditor.tsx:623
 msgid "Number"
 msgstr "Número"
 
@@ -7207,7 +7219,7 @@ msgstr ""
 msgid "Open WordPress Profile"
 msgstr "Abrir perfil de WordPress"
 
-#: packages/admin/src/components/FieldEditor.tsx:554
+#: packages/admin/src/components/FieldEditor.tsx:557
 msgid ""
 "Option 1\n"
 "Option 2\n"
@@ -7243,7 +7255,7 @@ msgid "Optional tooltip on hover"
 msgstr "Información sobre herramientas opcional al pasar el mouse"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:302
-#: packages/admin/src/components/FieldEditor.tsx:551
+#: packages/admin/src/components/FieldEditor.tsx:554
 msgid "Options (one per line)"
 msgstr "Opciones (una por línea)"
 
@@ -7426,7 +7438,7 @@ msgstr "Pegue su clave de migración"
 msgid "Path"
 msgstr "Camino"
 
-#: packages/admin/src/components/FieldEditor.tsx:518
+#: packages/admin/src/components/FieldEditor.tsx:521
 msgid "Pattern (Regex)"
 msgstr "Patrón (Regex)"
 
@@ -7639,7 +7651,7 @@ msgid "Plugin uninstalled"
 msgstr "Plugin desinstalado"
 
 #: packages/admin/src/lib/api/marketplace.ts:232
-#: packages/admin/src/lib/api/registry.ts:955
+#: packages/admin/src/lib/api/registry.ts:954
 msgid "Plugin update requires re-consent"
 msgstr "La actualización del plugin requiere un nuevo consentimiento"
 
@@ -8088,12 +8100,12 @@ msgid "Remove"
 msgstr "Eliminar"
 
 #. placeholder {0}: job.file.name
+#. placeholder {0}: option.term.label
 #. placeholder {0}: passkey.name
-#. placeholder {0}: row.file.name
 #: packages/admin/src/components/media/MediaBrowserItems.tsx:220
 #: packages/admin/src/components/MediaUploadDialog.tsx:162
 #: packages/admin/src/components/settings/PasskeyItem.tsx:181
-#: packages/admin/src/components/TaxonomySidebar.tsx:294
+#: packages/admin/src/components/TaxonomySidebar.tsx:457
 msgid "Remove {0}"
 msgstr "Eliminar {0}"
 
@@ -8110,7 +8122,7 @@ msgstr "Quitar {entry}"
 msgid "Remove {label}"
 msgstr "Quitar {label}"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:565
+#: packages/admin/src/components/TaxonomySidebar.tsx:859
 msgid "Remove assignment"
 msgstr ""
 
@@ -8168,7 +8180,7 @@ msgstr "¿Quitar la Passkey?"
 msgid "Remove schedule"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:650
+#: packages/admin/src/components/FieldEditor.tsx:653
 msgid "Remove sub-field"
 msgstr "Eliminar subcampo"
 
@@ -8300,8 +8312,8 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:280
 #: packages/admin/src/components/ContentTypeEditor.tsx:789
-#: packages/admin/src/components/FieldEditor.tsx:473
-#: packages/admin/src/components/FieldEditor.tsx:632
+#: packages/admin/src/components/FieldEditor.tsx:476
+#: packages/admin/src/components/FieldEditor.tsx:635
 #: packages/admin/src/routes/byline-schema.tsx:246
 msgid "Required"
 msgstr "Requerido"
@@ -8687,7 +8699,7 @@ msgstr "Guardado"
 msgid "Saved \"{0}\"."
 msgstr "Se guardó \"{0}\"."
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 #: packages/admin/src/components/MediaDetailPanel.tsx:1866
 #: packages/admin/src/components/MediaFolderDialog.tsx:171
 #: packages/admin/src/components/MenuEditor.tsx:626
@@ -8827,6 +8839,14 @@ msgstr "Buscar {0}"
 msgid "Search {0}..."
 msgstr "Buscar {0}..."
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:499
+msgid "Search {label}"
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:519
+msgid "Search {label}…"
+msgstr ""
+
 #: packages/admin/src/components/MediaLibrary.tsx:966
 #: packages/admin/src/components/MediaPickerModal.tsx:1255
 msgid "Search by filename..."
@@ -8951,7 +8971,7 @@ msgid "Search..."
 msgstr "Buscar..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:791
-#: packages/admin/src/components/FieldEditor.tsx:484
+#: packages/admin/src/components/FieldEditor.tsx:487
 msgid "Searchable"
 msgstr "Buscable"
 
@@ -9050,7 +9070,7 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:56
 #: packages/admin/src/components/FieldEditor.tsx:218
-#: packages/admin/src/components/FieldEditor.tsx:624
+#: packages/admin/src/components/FieldEditor.tsx:627
 #: packages/admin/src/components/MediaPickerModal.tsx:860
 #: packages/admin/src/components/Settings.tsx:149
 msgid "Select"
@@ -9172,6 +9192,10 @@ msgstr "Seleccione qué tipos de contenido importar."
 #: packages/admin/src/components/RepeaterField.tsx:385
 msgid "Select..."
 msgstr "Seleccionar..."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:428
+msgid "Selected {label}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1936
 msgid "Selected {selectedItemTitle}"
@@ -9353,7 +9377,7 @@ msgid "Short text"
 msgstr "Texto corto"
 
 #: packages/admin/src/components/FieldEditor.tsx:182
-#: packages/admin/src/components/FieldEditor.tsx:618
+#: packages/admin/src/components/FieldEditor.tsx:621
 msgid "Short Text"
 msgstr "Texto corto"
 
@@ -9517,7 +9541,7 @@ msgstr "Saltado"
 #: packages/admin/src/components/ContentTypeEditor.tsx:414
 #: packages/admin/src/components/ContentTypeList.tsx:181
 #: packages/admin/src/components/FieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:454
+#: packages/admin/src/components/FieldEditor.tsx:457
 #: packages/admin/src/components/SectionEditor.tsx:280
 #: packages/admin/src/components/Sections.tsx:184
 #: packages/admin/src/components/TaxonomyManager.tsx:593
@@ -9684,7 +9708,7 @@ msgstr "Estructura"
 msgid "Structured"
 msgstr "Estructurados"
 
-#: packages/admin/src/components/FieldEditor.tsx:562
+#: packages/admin/src/components/FieldEditor.tsx:565
 msgid "Sub-Fields"
 msgstr "Subcampos"
 
@@ -9799,7 +9823,7 @@ msgid "Target locale"
 msgstr "Locale de destino"
 
 #: packages/admin/src/components/ContentSettingsPanel.tsx:1144
-#: packages/admin/src/components/TaxonomySidebar.tsx:683
+#: packages/admin/src/components/TaxonomySidebar.tsx:891
 msgid "Taxonomies"
 msgstr "Taxonomías"
 
@@ -10113,15 +10137,15 @@ msgstr ""
 msgid "This permanently deletes {0} from storage."
 msgstr "Esto elimina permanentemente {0} del almacenamiento."
 
-#: packages/admin/src/lib/api/registry.ts:785
+#: packages/admin/src/lib/api/registry.ts:784
 msgid "This plugin cannot be installed because its publisher profile is missing valid verification metadata. Ask the publisher to republish it with the latest EmDash plugin CLI."
 msgstr ""
 
-#: packages/admin/src/lib/api/registry.ts:793
+#: packages/admin/src/lib/api/registry.ts:792
 msgid "This plugin cannot be installed because its release provenance could not be verified. Ask the publisher to publish a new verified release."
 msgstr ""
 
-#: packages/admin/src/lib/api/registry.ts:797
+#: packages/admin/src/lib/api/registry.ts:796
 msgid "This plugin cannot be installed because its signed publisher records failed verification. Ask the publisher to publish a corrected release."
 msgstr ""
 
@@ -10277,6 +10301,10 @@ msgstr "cerrar"
 msgid "to select"
 msgstr "para seleccionar"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:596
+msgid "Toggle"
+msgstr ""
+
 #: packages/admin/src/components/editor/TableControls.tsx:31
 msgid "Toggle header column"
 msgstr ""
@@ -10342,7 +10370,7 @@ msgstr "Traduciendo..."
 
 #: packages/admin/src/components/MenuEditor.tsx:143
 #: packages/admin/src/components/TaxonomyManager.tsx:1028
-#: packages/admin/src/components/TaxonomySidebar.tsx:471
+#: packages/admin/src/components/TaxonomySidebar.tsx:771
 #: packages/admin/src/router.tsx:1360
 msgid "Translation created"
 msgstr "Traducción creada"
@@ -10454,7 +10482,7 @@ msgid "Twitter"
 msgstr "Gorjeo"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:610
+#: packages/admin/src/components/FieldEditor.tsx:613
 #: packages/admin/src/components/MediaLibrary.tsx:1206
 #: packages/admin/src/routes/byline-schema.tsx:240
 msgid "Type"
@@ -10511,7 +10539,7 @@ msgid "Uninstalling..."
 msgstr "Desinstalando..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:790
-#: packages/admin/src/components/FieldEditor.tsx:478
+#: packages/admin/src/components/FieldEditor.tsx:481
 msgid "Unique"
 msgstr "Único"
 
@@ -10550,7 +10578,7 @@ msgstr "Despublicado"
 msgid "Unregistered Content Tables Found"
 msgstr "Se encontraron tablas de contenido no registrado"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:543
+#: packages/admin/src/components/TaxonomySidebar.tsx:837
 msgid "Unresolved assignment"
 msgstr ""
 
@@ -10594,7 +10622,7 @@ msgstr ""
 msgid "Update"
 msgstr "Actualizar"
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Update Field"
 msgstr "Actualizar campo"
 
@@ -10731,7 +10759,7 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:54
 #: packages/admin/src/components/FieldEditor.tsx:266
-#: packages/admin/src/components/FieldEditor.tsx:625
+#: packages/admin/src/components/FieldEditor.tsx:628
 #: packages/admin/src/components/MenuEditor.tsx:418
 #: packages/admin/src/components/MenuEditor.tsx:596
 msgid "URL"
@@ -10901,8 +10929,8 @@ msgstr "Los usuarios con direcciones de correo electrónico de estos dominios pu
 msgid "v{0} available"
 msgstr "v{0} disponible"
 
-#: packages/admin/src/components/FieldEditor.tsx:499
-#: packages/admin/src/components/FieldEditor.tsx:529
+#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:532
 msgid "Validation"
 msgstr "Validación"
 

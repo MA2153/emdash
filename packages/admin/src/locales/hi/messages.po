@@ -292,7 +292,7 @@ msgid "{0} detected"
 msgstr "{0} का पता चला"
 
 #. placeholder {0}: term.locale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:356
+#: packages/admin/src/components/TaxonomySidebar.tsx:616
 msgid "{0} fallback"
 msgstr ""
 
@@ -370,7 +370,7 @@ msgid "{0} system + {1} custom {2}"
 msgstr "{0} सिस्टम + {1} कस्टम {2}"
 
 #. placeholder {0}: taxonomy.label
-#: packages/admin/src/components/TaxonomySidebar.tsx:411
+#: packages/admin/src/components/TaxonomySidebar.tsx:675
 msgid "{0} updated"
 msgstr "{0} अद्यतन किया गया"
 
@@ -459,6 +459,10 @@ msgstr ""
 #. placeholder {0}: to + 1
 #: packages/admin/src/components/BylineCreditsEditor.tsx:291
 msgid "{label} moved to position {0}."
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:531
+msgid "{label} options"
 msgstr ""
 
 #: packages/admin/src/components/ContentList.tsx:1197
@@ -795,7 +799,7 @@ msgstr ""
 msgid "A short description of your site"
 msgstr "आपकी साइट का संक्षिप्त विवरण"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:455
+#: packages/admin/src/components/TaxonomySidebar.tsx:755
 msgid "A source and target locale are required"
 msgstr ""
 
@@ -874,7 +878,6 @@ msgstr "सक्रिय"
 #: packages/admin/src/components/AllowedTypesEditor.tsx:174
 #: packages/admin/src/components/BylineCreditsEditor.tsx:501
 #: packages/admin/src/components/MenuEditor.tsx:441
-#: packages/admin/src/components/TaxonomySidebar.tsx:619
 msgid "Add"
 msgstr "जोड़ना"
 
@@ -888,10 +891,6 @@ msgstr "जोड़ना"
 msgid "Add {0}"
 msgstr "{0} जोड़ें"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:316
-msgid "Add {label}"
-msgstr "{label} जोड़ें"
-
 #: packages/admin/src/components/settings/SecuritySettings.tsx:160
 msgid "Add a new passkey"
 msgstr "एक नई पासकी जोड़ें"
@@ -900,7 +899,7 @@ msgstr "एक नई पासकी जोड़ें"
 msgid "Add another byline"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:583
+#: packages/admin/src/components/FieldEditor.tsx:586
 msgid "Add at least one sub-field to define the repeater structure."
 msgstr "पुनरावर्तक संरचना को परिभाषित करने के लिए कम से कम एक उप-फ़ील्ड जोड़ें।"
 
@@ -939,7 +938,7 @@ msgstr "डोमेन जोड़ें"
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:647
 #: packages/admin/src/components/FieldEditor.tsx:378
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Add Field"
 msgstr "क्षेत्र जोड़ें"
 
@@ -995,11 +994,6 @@ msgstr "MIME प्रकार या एक्सटेंशन जोड़�
 msgid "Add New"
 msgstr "नया जोड़ो"
 
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:631
-msgid "Add new {0}"
-msgstr "नया जोड़ें {0}"
-
 #: packages/admin/src/components/MediaFolderDialog.tsx:127
 #: packages/admin/src/components/MediaLibrary.tsx:852
 #: packages/admin/src/components/MediaLibrary.tsx:857
@@ -1031,13 +1025,9 @@ msgstr ""
 msgid "Add SEO metadata fields (title, description, image) and include in sitemap"
 msgstr "SEO मेटाडेटा फ़ील्ड (शीर्षक, विवरण, छवि) जोड़ें और साइटमैप में शामिल करें"
 
-#: packages/admin/src/components/FieldEditor.tsx:577
+#: packages/admin/src/components/FieldEditor.tsx:580
 msgid "Add Sub-Field"
 msgstr "उप-फ़ील्ड जोड़ें"
-
-#: packages/admin/src/components/TaxonomySidebar.tsx:318
-msgid "Add tags..."
-msgstr "टैगों को जोड़ें..."
 
 #: packages/admin/src/components/Widgets.tsx:403
 msgid "Add Widget Area"
@@ -1262,8 +1252,8 @@ msgstr ""
 #: packages/admin/src/components/settings/SocialSettings.tsx:67
 #: packages/admin/src/components/settings/SocialSettings.tsx:111
 #: packages/admin/src/components/settings/SocialSettings.tsx:112
-#: packages/admin/src/components/TaxonomySidebar.tsx:416
-#: packages/admin/src/components/TaxonomySidebar.tsx:476
+#: packages/admin/src/components/TaxonomySidebar.tsx:680
+#: packages/admin/src/components/TaxonomySidebar.tsx:776
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:114
 #: packages/admin/src/router.tsx:469
 #: packages/admin/src/router.tsx:484
@@ -1534,7 +1524,7 @@ msgid "Available bylines"
 msgstr ""
 
 #. placeholder {0}: assignment.availableLocales.map((locale) => locale.toUpperCase()).join(", ")
-#: packages/admin/src/components/TaxonomySidebar.tsx:545
+#: packages/admin/src/components/TaxonomySidebar.tsx:839
 msgid "Available in {0}"
 msgstr ""
 
@@ -1670,7 +1660,7 @@ msgstr "बोल्ड"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:55
 #: packages/admin/src/components/FieldEditor.tsx:206
-#: packages/admin/src/components/FieldEditor.tsx:622
+#: packages/admin/src/components/FieldEditor.tsx:625
 msgid "Boolean"
 msgstr "बूलियन"
 
@@ -1782,7 +1772,7 @@ msgstr "सामग्री देख सकते हैं"
 #: packages/admin/src/components/editor/ImageNode.tsx:299
 #: packages/admin/src/components/editor/ImageNode.tsx:300
 #: packages/admin/src/components/editor/PluginBlockNode.tsx:406
-#: packages/admin/src/components/FieldEditor.tsx:701
+#: packages/admin/src/components/FieldEditor.tsx:704
 #: packages/admin/src/components/MediaDetailPanel.tsx:1835
 #: packages/admin/src/components/MediaFolderDialog.tsx:152
 #: packages/admin/src/components/MediaPickerModal.tsx:1588
@@ -1888,7 +1878,7 @@ msgstr "केंद्र"
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:76
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:107
-#: packages/admin/src/components/FieldEditor.tsx:438
+#: packages/admin/src/components/FieldEditor.tsx:441
 #: packages/admin/src/components/SeoImageField.tsx:58
 msgid "Change"
 msgstr "परिवर्तन"
@@ -2010,6 +2000,12 @@ msgstr "जाँच की जा रही है कि कितने स�
 
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:493
 msgid "Checking this device for passkey support..."
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:394
+#: packages/admin/src/components/TaxonomySidebar.tsx:395
+#: packages/admin/src/components/TaxonomySidebar.tsx:488
+msgid "Choose {label}"
 msgstr ""
 
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:577
@@ -2164,6 +2160,7 @@ msgstr "साइन इन करने के लिए ईमेल में
 #: packages/admin/src/components/TaxonomyManager.tsx:807
 #: packages/admin/src/components/TaxonomyManager.tsx:813
 #: packages/admin/src/components/TaxonomyManager.tsx:817
+#: packages/admin/src/components/TaxonomySidebar.tsx:602
 #: packages/admin/src/components/ThemeMarketplaceDetail.tsx:298
 #: packages/admin/src/components/users/InviteUserModal.tsx:88
 #: packages/admin/src/components/users/InviteUserModal.tsx:94
@@ -2624,7 +2621,7 @@ msgstr "बनाएं"
 msgid "Create “{0}”"
 msgstr ""
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
 msgid "Create \"{trimmedInput}\""
 msgstr "\"{trimmedInput}\" बनाएं"
 
@@ -2634,7 +2631,7 @@ msgid "Create {0}"
 msgstr ""
 
 #. placeholder {0}: resolvedEntryLocale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:556
+#: packages/admin/src/components/TaxonomySidebar.tsx:850
 msgid "Create {0} translation"
 msgstr ""
 
@@ -2646,6 +2643,10 @@ msgstr "एक बुलेट सूची बनाएं"
 #: packages/admin/src/components/TaxonomyManager.tsx:562
 msgid "Create a new {0}"
 msgstr "एक नया {0} बनाएं"
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
+msgid "Create a new {singularLabel}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1624
 msgid "Create a numbered list"
@@ -2832,7 +2833,6 @@ msgstr ""
 #: packages/admin/src/components/Sections.tsx:212
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:540
 #: packages/admin/src/components/TaxonomyManager.tsx:891
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
 msgid "Creating..."
 msgstr "बनाया जा रहा है..."
 
@@ -2903,7 +2903,7 @@ msgstr "कस्टम वर्गीकरण"
 msgid "Daily automatic backups"
 msgstr "दैनिक स्वचालित बैकअप"
 
-#: packages/admin/src/components/FieldEditor.tsx:688
+#: packages/admin/src/components/FieldEditor.tsx:691
 #: packages/admin/src/components/ImageFieldRenderer.tsx:396
 msgid "Dark mode variant"
 msgstr ""
@@ -2922,7 +2922,7 @@ msgid "Date"
 msgstr "तारीख"
 
 #: packages/admin/src/components/FieldEditor.tsx:212
-#: packages/admin/src/components/FieldEditor.tsx:623
+#: packages/admin/src/components/FieldEditor.tsx:626
 msgid "Date & Time"
 msgstr "दिनांक समय"
 
@@ -3655,6 +3655,11 @@ msgstr "{0} फ़ील्ड संपादित करें"
 msgid "Edit {itemLabel}"
 msgstr "संपादित करें {itemLabel}"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:414
+#: packages/admin/src/components/TaxonomySidebar.tsx:423
+msgid "Edit {label}"
+msgstr ""
+
 #: packages/admin/src/components/ContentList.tsx:1343
 msgid "Edit {title}"
 msgstr "संपादित करें {title}"
@@ -3776,7 +3781,7 @@ msgstr ""
 "रिपोर्टर\n"
 "फ़ोटोग्राफ़र"
 
-#: packages/admin/src/components/FieldEditor.tsx:691
+#: packages/admin/src/components/FieldEditor.tsx:694
 msgid "Editors can select a second image that the site shows in dark mode."
 msgstr ""
 
@@ -3997,6 +4002,10 @@ msgstr "अनुभाग सहेजने में त्रुटि"
 msgid "Error updating widget"
 msgstr "विजेट अपडेट करने में त्रुटि"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:600
+msgid "Esc"
+msgstr ""
+
 #: packages/admin/src/components/MediaDetailPanel.tsx:1974
 msgid "Every place using this image will update to the cropped version."
 msgstr ""
@@ -4092,6 +4101,11 @@ msgstr "प्लगइन के साथ संचार करने मे�
 msgid "Failed to confirm upload"
 msgstr "अपलोड की पुष्टि करने में विफल"
 
+#. placeholder {0}: failedLabels.join(", ")
+#: packages/admin/src/components/TaxonomySidebar.tsx:746
+msgid "Failed to create {0}"
+msgstr ""
+
 #: packages/admin/src/components/SetupWizard.tsx:486
 msgid "Failed to create admin"
 msgstr "व्यवस्थापक बनाने में विफल"
@@ -4121,11 +4135,11 @@ msgstr "अनुभाग बनाने में विफल"
 msgid "Failed to create some collections"
 msgstr "कुछ संग्रह बनाने में विफल"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:638
+#: packages/admin/src/components/TaxonomySidebar.tsx:725
 msgid "Failed to create term"
 msgstr "शब्द बनाने में विफल"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:475
+#: packages/admin/src/components/TaxonomySidebar.tsx:775
 #: packages/admin/src/router.tsx:1366
 msgid "Failed to create translation"
 msgstr "अनुवाद बनाने में विफल"
@@ -4287,7 +4301,7 @@ msgstr "डैशबोर्ड आँकड़े लाने में व�
 msgid "Failed to fetch email settings"
 msgstr "ईमेल सेटिंग लाने में विफल"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:140
+#: packages/admin/src/components/TaxonomySidebar.tsx:159
 msgid "Failed to fetch entry terms"
 msgstr "प्रवेश शर्तें लाने में विफल"
 
@@ -4357,7 +4371,7 @@ msgstr "सेटिंग लाने में विफल"
 msgid "Failed to fetch setup status"
 msgstr "सेटअप स्थिति लाने में विफल"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:124
+#: packages/admin/src/components/TaxonomySidebar.tsx:143
 msgid "Failed to fetch terms"
 msgstr "शर्तें लाने में विफल"
 
@@ -4399,7 +4413,7 @@ msgid "Failed to import media"
 msgstr "मीडिया आयात करने में विफल"
 
 #: packages/admin/src/lib/api/marketplace.ts:344
-#: packages/admin/src/lib/api/registry.ts:826
+#: packages/admin/src/lib/api/registry.ts:825
 msgid "Failed to install plugin"
 msgstr "प्लगइन स्थापित करने में विफल"
 
@@ -4607,12 +4621,12 @@ msgstr "परीक्षण ईमेल भेजने में विफ�
 msgid "Failed to send verification email"
 msgstr "सत्यापन ईमेल भेजने में विफल"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:159
+#: packages/admin/src/components/TaxonomySidebar.tsx:178
 msgid "Failed to set entry terms"
 msgstr "प्रवेश शर्तें निर्धारित करने में विफल"
 
 #: packages/admin/src/lib/api/marketplace.ts:387
-#: packages/admin/src/lib/api/registry.ts:1040
+#: packages/admin/src/lib/api/registry.ts:1039
 msgid "Failed to uninstall plugin"
 msgstr "प्लगइन अनइंस्टॉल करने में विफल"
 
@@ -4629,7 +4643,7 @@ msgid "Failed to update"
 msgstr "अद्यतन करने में विफल"
 
 #. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:415
+#: packages/admin/src/components/TaxonomySidebar.tsx:679
 msgid "Failed to update {0}"
 msgstr "{0} को अपडेट करने में विफल"
 
@@ -4651,7 +4665,7 @@ msgstr "मीडिया अपडेट करने में विफल"
 
 #: packages/admin/src/components/PluginManager.tsx:314
 #: packages/admin/src/lib/api/marketplace.ts:370
-#: packages/admin/src/lib/api/registry.ts:915
+#: packages/admin/src/lib/api/registry.ts:914
 msgid "Failed to update plugin"
 msgstr "प्लगइन अद्यतन करने में विफल"
 
@@ -4733,15 +4747,15 @@ msgstr "फ़ील्ड बनाया गया"
 msgid "Field deleted"
 msgstr "फ़ील्ड हटा दी गई"
 
-#: packages/admin/src/components/FieldEditor.tsx:606
+#: packages/admin/src/components/FieldEditor.tsx:609
 msgid "Field label"
 msgstr "फील्ड लेबल"
 
-#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:453
 msgid "Field Label"
 msgstr "फील्ड लेबल"
 
-#: packages/admin/src/components/FieldEditor.tsx:462
+#: packages/admin/src/components/FieldEditor.tsx:465
 msgid "Field slugs cannot be changed after creation"
 msgstr "फ़ील्ड स्लग को निर्माण के बाद बदला नहीं जा सकता"
 
@@ -5225,7 +5239,7 @@ msgid "If an account exists for <0>{email}</0>, we've sent a sign-in link."
 msgstr "यदि कोई खाता <0>{email}</0> के लिए मौजूद है, तो हमने एक साइन-इन लिंक भेजा है।"
 
 #: packages/admin/src/components/FieldEditor.tsx:236
-#: packages/admin/src/components/FieldEditor.tsx:626
+#: packages/admin/src/components/FieldEditor.tsx:629
 #: packages/admin/src/components/PortableTextEditor.tsx:2892
 msgid "Image"
 msgstr "छवि"
@@ -5416,7 +5430,7 @@ msgstr ""
 msgid "Index existing content and keep Used in results up to date."
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:491
+#: packages/admin/src/components/FieldEditor.tsx:494
 #: packages/admin/src/components/RegistryPluginDetail.tsx:575
 msgid "Indexed"
 msgstr "इंडेक्स किए गए"
@@ -5571,7 +5585,7 @@ msgid "Installing..."
 msgstr "स्थापित किया जा रहा है..."
 
 #: packages/admin/src/components/FieldEditor.tsx:200
-#: packages/admin/src/components/FieldEditor.tsx:621
+#: packages/admin/src/components/FieldEditor.tsx:624
 msgid "Integer"
 msgstr "पूर्णांक"
 
@@ -5718,8 +5732,8 @@ msgid "Kotlin"
 msgstr "Kotlin"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:232
-#: packages/admin/src/components/FieldEditor.tsx:447
-#: packages/admin/src/components/FieldEditor.tsx:592
+#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:595
 #: packages/admin/src/components/MenuEditor.tsx:416
 #: packages/admin/src/components/MenuEditor.tsx:593
 #: packages/admin/src/components/MenuList.tsx:169
@@ -6073,7 +6087,7 @@ msgid "Long text"
 msgstr "लंबा पाठ"
 
 #: packages/admin/src/components/FieldEditor.tsx:188
-#: packages/admin/src/components/FieldEditor.tsx:619
+#: packages/admin/src/components/FieldEditor.tsx:622
 msgid "Long Text"
 msgstr "लंबा पाठ"
 
@@ -6188,15 +6202,15 @@ msgstr ""
 msgid "Marketplace configuration is deprecated"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:666
+#: packages/admin/src/components/FieldEditor.tsx:669
 msgid "Max Items"
 msgstr "अधिकतम आइटम"
 
-#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:512
 msgid "Max Length"
 msgstr "अधिकतम लंबाई"
 
-#: packages/admin/src/components/FieldEditor.tsx:539
+#: packages/admin/src/components/FieldEditor.tsx:542
 msgid "Max Value"
 msgstr "अधिकतम मूल्य"
 
@@ -6384,15 +6398,15 @@ msgstr ""
 msgid "Migration key"
 msgstr "माइग्रेशन कुंजी"
 
-#: packages/admin/src/components/FieldEditor.tsx:659
+#: packages/admin/src/components/FieldEditor.tsx:662
 msgid "Min Items"
 msgstr "न्यूनतम आइटम"
 
-#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:505
 msgid "Min Length"
 msgstr "न्यूनतम लंबाई"
 
-#: packages/admin/src/components/FieldEditor.tsx:532
+#: packages/admin/src/components/FieldEditor.tsx:535
 msgid "Min Value"
 msgstr "न्यूनतम मूल्य"
 
@@ -6611,6 +6625,10 @@ msgstr "नाम और लेबल आवश्यक है"
 msgid "Name must start with a letter and contain only lowercase letters, numbers, and underscores"
 msgstr "नाम एक अक्षर से शुरू होना चाहिए और इसमें केवल छोटे अक्षर, संख्याएँ और अंडरस्कोर शामिल होने चाहिए"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:590
+msgid "Navigate"
+msgstr ""
+
 #: packages/admin/src/components/AdminCommandPalette.tsx:342
 #: packages/admin/src/components/ContentTypeEditor.tsx:480
 msgid "Navigation"
@@ -6643,11 +6661,6 @@ msgstr "नया"
 #: packages/admin/src/components/CapabilityConsentDialog.tsx:185
 msgid "NEW"
 msgstr "नया"
-
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:607
-msgid "New {0}"
-msgstr "नया {0}"
 
 #: packages/admin/src/components/ContentEditor.tsx:994
 msgid "New {itemLabel}"
@@ -6754,11 +6767,6 @@ msgstr "नहीं"
 msgid "No (shared across translations)"
 msgstr "नहीं (अनुवादों में साझा)"
 
-#. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:576
-msgid "No {0} available."
-msgstr "कोई {0} उपलब्ध नहीं है।"
-
 #. placeholder {0}: collectionLabel.toLowerCase()
 #: packages/admin/src/components/ContentList.tsx:658
 msgid "No {0} yet."
@@ -6768,6 +6776,10 @@ msgstr "अभी तक कोई {0} नहीं।"
 #: packages/admin/src/components/TaxonomyManager.tsx:1120
 msgid "No {0} yet. Create one to get started."
 msgstr "अभी तक कोई {0} नहीं। आरंभ करने के लिए एक बनाएं."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:565
+msgid "No {label} found."
+msgstr ""
 
 #: packages/admin/src/components/Redirects.tsx:218
 msgid "No 404 errors recorded yet."
@@ -6905,7 +6917,7 @@ msgstr "कोई आमंत्रण टोकन प्रदान नह�
 msgid "No items yet"
 msgstr "अभी तक कोई आइटम नहीं"
 
-#: packages/admin/src/components/FieldEditor.tsx:670
+#: packages/admin/src/components/FieldEditor.tsx:673
 msgid "No limit"
 msgstr "कोई सीमा नहीं"
 
@@ -6938,8 +6950,8 @@ msgstr "कोई मेल खाता मीडिया नहीं"
 msgid "No matching passkey found for this account."
 msgstr "इस खाते के लिए कोई मेल खाती पासकी नहीं मिली."
 
-#: packages/admin/src/components/FieldEditor.tsx:513
-#: packages/admin/src/components/FieldEditor.tsx:543
+#: packages/admin/src/components/FieldEditor.tsx:516
+#: packages/admin/src/components/FieldEditor.tsx:546
 msgid "No maximum"
 msgstr "कोई अधिकतम नहीं"
 
@@ -6960,8 +6972,8 @@ msgstr "अभी तक कोई मेनू आइटम नहीं"
 msgid "No menus yet"
 msgstr "अभी तक कोई मेनू नहीं"
 
-#: packages/admin/src/components/FieldEditor.tsx:506
-#: packages/admin/src/components/FieldEditor.tsx:536
+#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:539
 msgid "No minimum"
 msgstr "कोई न्यूनतम नहीं"
 
@@ -7105,7 +7117,7 @@ msgid "Not set"
 msgstr "सेट नहीं"
 
 #: packages/admin/src/components/FieldEditor.tsx:194
-#: packages/admin/src/components/FieldEditor.tsx:620
+#: packages/admin/src/components/FieldEditor.tsx:623
 msgid "Number"
 msgstr "संख्या"
 
@@ -7207,7 +7219,7 @@ msgstr ""
 msgid "Open WordPress Profile"
 msgstr "वर्डप्रेस प्रोफ़ाइल खोलें"
 
-#: packages/admin/src/components/FieldEditor.tsx:554
+#: packages/admin/src/components/FieldEditor.tsx:557
 msgid ""
 "Option 1\n"
 "Option 2\n"
@@ -7243,7 +7255,7 @@ msgid "Optional tooltip on hover"
 msgstr "होवर पर वैकल्पिक टूलटिप"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:302
-#: packages/admin/src/components/FieldEditor.tsx:551
+#: packages/admin/src/components/FieldEditor.tsx:554
 msgid "Options (one per line)"
 msgstr "विकल्प (प्रति पंक्ति एक)"
 
@@ -7426,7 +7438,7 @@ msgstr "अपनी माइग्रेशन कुंजी चिपका
 msgid "Path"
 msgstr "पथ"
 
-#: packages/admin/src/components/FieldEditor.tsx:518
+#: packages/admin/src/components/FieldEditor.tsx:521
 msgid "Pattern (Regex)"
 msgstr "पैटर्न (रेगेक्स)"
 
@@ -7639,7 +7651,7 @@ msgid "Plugin uninstalled"
 msgstr "प्लगइन अनइंस्टॉल किया गया"
 
 #: packages/admin/src/lib/api/marketplace.ts:232
-#: packages/admin/src/lib/api/registry.ts:955
+#: packages/admin/src/lib/api/registry.ts:954
 msgid "Plugin update requires re-consent"
 msgstr "प्लगइन अद्यतन के लिए पुनः सहमति की आवश्यकता है"
 
@@ -8088,12 +8100,12 @@ msgid "Remove"
 msgstr "निकालना"
 
 #. placeholder {0}: job.file.name
+#. placeholder {0}: option.term.label
 #. placeholder {0}: passkey.name
-#. placeholder {0}: row.file.name
 #: packages/admin/src/components/media/MediaBrowserItems.tsx:220
 #: packages/admin/src/components/MediaUploadDialog.tsx:162
 #: packages/admin/src/components/settings/PasskeyItem.tsx:181
-#: packages/admin/src/components/TaxonomySidebar.tsx:294
+#: packages/admin/src/components/TaxonomySidebar.tsx:457
 msgid "Remove {0}"
 msgstr "{0} हटाएं"
 
@@ -8110,7 +8122,7 @@ msgstr "{entry} हटाएं"
 msgid "Remove {label}"
 msgstr "{label} हटाएं"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:565
+#: packages/admin/src/components/TaxonomySidebar.tsx:859
 msgid "Remove assignment"
 msgstr ""
 
@@ -8168,7 +8180,7 @@ msgstr "पासकी हटाएँ?"
 msgid "Remove schedule"
 msgstr ""
 
-#: packages/admin/src/components/FieldEditor.tsx:650
+#: packages/admin/src/components/FieldEditor.tsx:653
 msgid "Remove sub-field"
 msgstr "उप-फ़ील्ड हटाएँ"
 
@@ -8300,8 +8312,8 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:280
 #: packages/admin/src/components/ContentTypeEditor.tsx:789
-#: packages/admin/src/components/FieldEditor.tsx:473
-#: packages/admin/src/components/FieldEditor.tsx:632
+#: packages/admin/src/components/FieldEditor.tsx:476
+#: packages/admin/src/components/FieldEditor.tsx:635
 #: packages/admin/src/routes/byline-schema.tsx:246
 msgid "Required"
 msgstr "आवश्यक"
@@ -8687,7 +8699,7 @@ msgstr "सहेजा गया"
 msgid "Saved \"{0}\"."
 msgstr "\"{0}\" सहेजा गया।"
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 #: packages/admin/src/components/MediaDetailPanel.tsx:1866
 #: packages/admin/src/components/MediaFolderDialog.tsx:171
 #: packages/admin/src/components/MenuEditor.tsx:626
@@ -8827,6 +8839,14 @@ msgstr "खोजें {0}"
 msgid "Search {0}..."
 msgstr "खोजें {0}..."
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:499
+msgid "Search {label}"
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:519
+msgid "Search {label}…"
+msgstr ""
+
 #: packages/admin/src/components/MediaLibrary.tsx:966
 #: packages/admin/src/components/MediaPickerModal.tsx:1255
 msgid "Search by filename..."
@@ -8951,7 +8971,7 @@ msgid "Search..."
 msgstr "खोज..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:791
-#: packages/admin/src/components/FieldEditor.tsx:484
+#: packages/admin/src/components/FieldEditor.tsx:487
 msgid "Searchable"
 msgstr "खोज सकने"
 
@@ -9050,7 +9070,7 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:56
 #: packages/admin/src/components/FieldEditor.tsx:218
-#: packages/admin/src/components/FieldEditor.tsx:624
+#: packages/admin/src/components/FieldEditor.tsx:627
 #: packages/admin/src/components/MediaPickerModal.tsx:860
 #: packages/admin/src/components/Settings.tsx:149
 msgid "Select"
@@ -9172,6 +9192,10 @@ msgstr "चुनें कि किस सामग्री प्रका�
 #: packages/admin/src/components/RepeaterField.tsx:385
 msgid "Select..."
 msgstr "चुनना..."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:428
+msgid "Selected {label}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1936
 msgid "Selected {selectedItemTitle}"
@@ -9353,7 +9377,7 @@ msgid "Short text"
 msgstr "लघु पाठ"
 
 #: packages/admin/src/components/FieldEditor.tsx:182
-#: packages/admin/src/components/FieldEditor.tsx:618
+#: packages/admin/src/components/FieldEditor.tsx:621
 msgid "Short Text"
 msgstr "लघु पाठ"
 
@@ -9517,7 +9541,7 @@ msgstr "छोड़ा गया"
 #: packages/admin/src/components/ContentTypeEditor.tsx:414
 #: packages/admin/src/components/ContentTypeList.tsx:181
 #: packages/admin/src/components/FieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:454
+#: packages/admin/src/components/FieldEditor.tsx:457
 #: packages/admin/src/components/SectionEditor.tsx:280
 #: packages/admin/src/components/Sections.tsx:184
 #: packages/admin/src/components/TaxonomyManager.tsx:593
@@ -9684,7 +9708,7 @@ msgstr "संरचना"
 msgid "Structured"
 msgstr "स्ट्रक्चर्ड"
 
-#: packages/admin/src/components/FieldEditor.tsx:562
+#: packages/admin/src/components/FieldEditor.tsx:565
 msgid "Sub-Fields"
 msgstr "उप क्षेत्रों"
 
@@ -9799,7 +9823,7 @@ msgid "Target locale"
 msgstr "लक्ष्य स्थान"
 
 #: packages/admin/src/components/ContentSettingsPanel.tsx:1144
-#: packages/admin/src/components/TaxonomySidebar.tsx:683
+#: packages/admin/src/components/TaxonomySidebar.tsx:891
 msgid "Taxonomies"
 msgstr "taxonomies"
 
@@ -10113,15 +10137,15 @@ msgstr ""
 msgid "This permanently deletes {0} from storage."
 msgstr "यह स्टोरेज से {0} को स्थायी रूप से हटा देता है।"
 
-#: packages/admin/src/lib/api/registry.ts:785
+#: packages/admin/src/lib/api/registry.ts:784
 msgid "This plugin cannot be installed because its publisher profile is missing valid verification metadata. Ask the publisher to republish it with the latest EmDash plugin CLI."
 msgstr ""
 
-#: packages/admin/src/lib/api/registry.ts:793
+#: packages/admin/src/lib/api/registry.ts:792
 msgid "This plugin cannot be installed because its release provenance could not be verified. Ask the publisher to publish a new verified release."
 msgstr ""
 
-#: packages/admin/src/lib/api/registry.ts:797
+#: packages/admin/src/lib/api/registry.ts:796
 msgid "This plugin cannot be installed because its signed publisher records failed verification. Ask the publisher to publish a corrected release."
 msgstr ""
 
@@ -10277,6 +10301,10 @@ msgstr "बंद कर देना"
 msgid "to select"
 msgstr "चयन करना"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:596
+msgid "Toggle"
+msgstr ""
+
 #: packages/admin/src/components/editor/TableControls.tsx:31
 msgid "Toggle header column"
 msgstr ""
@@ -10342,7 +10370,7 @@ msgstr "अनुवाद हो रहा है..."
 
 #: packages/admin/src/components/MenuEditor.tsx:143
 #: packages/admin/src/components/TaxonomyManager.tsx:1028
-#: packages/admin/src/components/TaxonomySidebar.tsx:471
+#: packages/admin/src/components/TaxonomySidebar.tsx:771
 #: packages/admin/src/router.tsx:1360
 msgid "Translation created"
 msgstr "अनुवाद बनाया गया"
@@ -10454,7 +10482,7 @@ msgid "Twitter"
 msgstr "ट्विटर"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:610
+#: packages/admin/src/components/FieldEditor.tsx:613
 #: packages/admin/src/components/MediaLibrary.tsx:1206
 #: packages/admin/src/routes/byline-schema.tsx:240
 msgid "Type"
@@ -10511,7 +10539,7 @@ msgid "Uninstalling..."
 msgstr "अनइंस्टॉल किया जा रहा है..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:790
-#: packages/admin/src/components/FieldEditor.tsx:478
+#: packages/admin/src/components/FieldEditor.tsx:481
 msgid "Unique"
 msgstr "अद्वितीय"
 
@@ -10550,7 +10578,7 @@ msgstr "अप्रकाशित"
 msgid "Unregistered Content Tables Found"
 msgstr "अपंजीकृत सामग्री तालिकाएँ मिलीं"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:543
+#: packages/admin/src/components/TaxonomySidebar.tsx:837
 msgid "Unresolved assignment"
 msgstr ""
 
@@ -10594,7 +10622,7 @@ msgstr ""
 msgid "Update"
 msgstr "अद्यतन"
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Update Field"
 msgstr "फ़ील्ड अद्यतन करें"
 
@@ -10731,7 +10759,7 @@ msgstr ""
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:54
 #: packages/admin/src/components/FieldEditor.tsx:266
-#: packages/admin/src/components/FieldEditor.tsx:625
+#: packages/admin/src/components/FieldEditor.tsx:628
 #: packages/admin/src/components/MenuEditor.tsx:418
 #: packages/admin/src/components/MenuEditor.tsx:596
 msgid "URL"
@@ -10901,8 +10929,8 @@ msgstr "इन डोमेन के ईमेल पते वाले उप
 msgid "v{0} available"
 msgstr "v{0} उपलब्ध"
 
-#: packages/admin/src/components/FieldEditor.tsx:499
-#: packages/admin/src/components/FieldEditor.tsx:529
+#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:532
 msgid "Validation"
 msgstr "मान्यकरण"
 

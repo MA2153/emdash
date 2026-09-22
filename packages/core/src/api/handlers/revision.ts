@@ -7,7 +7,7 @@ import type { Kysely } from "kysely";
 import { after } from "../../after.js";
 import { ContentRepository } from "../../database/repositories/content.js";
 import { RevisionRepository, type Revision } from "../../database/repositories/revision.js";
-import { withTransaction } from "../../database/transaction.js";
+import { ContentMutationConflictError } from "../../database/repositories/types.js";
 import type { Database } from "../../database/types.js";
 import { encodeRev } from "../rev.js";
 import type { ApiResult, ContentResponse } from "../types.js";
@@ -116,21 +116,11 @@ export async function handleRevisionRestore(
 			};
 		}
 
-		// Leading-underscore keys are staged metadata (`_slug`, `_references`), not
-		// columns — `writableContentData` rejects them as identifiers. Each is
-		// restored on its own path below, both live: a restore replaces the
-		// published entry rather than staging a new draft.
-		const { _slug } = revision.data;
-		const fieldData: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(revision.data)) {
-			if (!key.startsWith("_")) fieldData[key] = value;
-		}
-		const stagedReferences = readStagedReferences(revision.data);
-
 		// A revision can outlive the cardinality it was written under, and another
 		// entry can have claimed what it selected. Restoring makes its selection
 		// live, so it answers to the relation's current limits exactly as a publish
-		// does — checked before the update below, which on D1 cannot be undone.
+		// does — checked before the restore, which on D1 cannot be undone.
+		const stagedReferences = readStagedReferences(revision.data);
 		if (stagedReferences) {
 			const entry = await new ContentRepository(db).findById(revision.collection, revision.entryId);
 			if (entry?.translationGroup) {
@@ -144,36 +134,19 @@ export async function handleRevisionRestore(
 			}
 		}
 
-		// Atomically update content and create a new revision to record the restore.
-		// If either operation fails, neither is committed (on engines that support
-		// transactions; on D1, withTransaction falls back to sequential execution).
-		const { item, queuedRevisionId } = await withTransaction(db, async (trx) => {
-			const trxContentRepo = new ContentRepository(trx);
-			const trxRevisionRepo = new RevisionRepository(trx);
+		const { item, revisionId: queuedRevisionId } = await new ContentRepository(db).restoreRevision(
+			revision.collection,
+			revision.entryId,
+			revision.data,
+			callerUserId,
+		);
 
-			const updated = await trxContentRepo.update(revision.collection, revision.entryId, {
-				data: fieldData,
-				slug: typeof _slug === "string" ? _slug : undefined,
-			});
-
-			if (stagedReferences && updated.translationGroup) {
-				await applyStagedReferences(
-					trx,
-					revision.collection,
-					updated.translationGroup,
-					stagedReferences,
-				);
-			}
-
-			const queuedRevision = await trxRevisionRepo.create({
-				collection: revision.collection,
-				entryId: revision.entryId,
-				data: revision.data,
-				authorId: callerUserId,
-			});
-
-			return { item: updated, queuedRevisionId: queuedRevision.id };
-		});
+		// Promoted only once the restore has landed, so a restore refused by its
+		// fence leaves the live links untouched. The restore's own revision carries
+		// the selection, so restoring it again retries a promotion that failed here.
+		if (stagedReferences && item.translationGroup) {
+			await applyStagedReferences(db, revision.collection, item.translationGroup, stagedReferences);
+		}
 
 		const pruneRepo = new RevisionRepository(db);
 		after(async () => {
@@ -196,7 +169,13 @@ export async function handleRevisionRestore(
 			success: true,
 			data: { item, _rev: encodeRev(item) },
 		};
-	} catch {
+	} catch (error) {
+		if (error instanceof ContentMutationConflictError) {
+			return {
+				success: false,
+				error: { code: "CONFLICT", message: error.message },
+			};
+		}
 		return {
 			success: false,
 			error: {

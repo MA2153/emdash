@@ -292,7 +292,7 @@ msgid "{0} detected"
 msgstr "აღმოჩენილია {0}"
 
 #. placeholder {0}: term.locale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:356
+#: packages/admin/src/components/TaxonomySidebar.tsx:616
 msgid "{0} fallback"
 msgstr "{0} — სარეზერვო"
 
@@ -370,7 +370,7 @@ msgid "{0} system + {1} custom {2}"
 msgstr "{0} სისტემური + {1} მორგებული {2}"
 
 #. placeholder {0}: taxonomy.label
-#: packages/admin/src/components/TaxonomySidebar.tsx:411
+#: packages/admin/src/components/TaxonomySidebar.tsx:675
 msgid "{0} updated"
 msgstr "{0} განახლდა"
 
@@ -460,6 +460,10 @@ msgstr "{label} გადავიდა პოზიციაზე {0} / {1}."
 #: packages/admin/src/components/BylineCreditsEditor.tsx:291
 msgid "{label} moved to position {0}."
 msgstr "{label} გადავიდა პოზიციაზე {0}."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:531
+msgid "{label} options"
+msgstr ""
 
 #: packages/admin/src/components/ContentList.tsx:1197
 msgid "{matchCount, plural, one {# item matching \"{searchQuery}\"} other {# items matching \"{searchQuery}\"}}"
@@ -795,7 +799,7 @@ msgstr "გამოქვეყნების ოპერაცია უკ�
 msgid "A short description of your site"
 msgstr "საიტის მოკლე აღწერა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:455
+#: packages/admin/src/components/TaxonomySidebar.tsx:755
 msgid "A source and target locale are required"
 msgstr "წყაროს და სამიზნე ლოკალი სავალდებულოა"
 
@@ -874,7 +878,6 @@ msgstr "აქტიური"
 #: packages/admin/src/components/AllowedTypesEditor.tsx:174
 #: packages/admin/src/components/BylineCreditsEditor.tsx:501
 #: packages/admin/src/components/MenuEditor.tsx:441
-#: packages/admin/src/components/TaxonomySidebar.tsx:619
 msgid "Add"
 msgstr "დამატება"
 
@@ -888,10 +891,6 @@ msgstr "დამატება"
 msgid "Add {0}"
 msgstr "{0}-ის დამატება"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:316
-msgid "Add {label}"
-msgstr "{label}-ის დამატება"
-
 #: packages/admin/src/components/settings/SecuritySettings.tsx:160
 msgid "Add a new passkey"
 msgstr "ახალი პასკის დამატება"
@@ -900,7 +899,7 @@ msgstr "ახალი პასკის დამატება"
 msgid "Add another byline"
 msgstr "კიდევ ერთი ბაილაინის დამატება"
 
-#: packages/admin/src/components/FieldEditor.tsx:583
+#: packages/admin/src/components/FieldEditor.tsx:586
 msgid "Add at least one sub-field to define the repeater structure."
 msgstr "რეპიტერის სტრუქტურის განსასაზღვრად დაამატეთ მინიმუმ ერთი ქვეველი."
 
@@ -939,7 +938,7 @@ msgstr "დომენის დამატება"
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:647
 #: packages/admin/src/components/FieldEditor.tsx:378
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Add Field"
 msgstr "ველის დამატება"
 
@@ -995,11 +994,6 @@ msgstr "MIME ტიპის ან გაფართოების დამ�
 msgid "Add New"
 msgstr "ახლის დამატება"
 
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:631
-msgid "Add new {0}"
-msgstr "ახალი {0}-ის დამატება"
-
 #: packages/admin/src/components/MediaFolderDialog.tsx:127
 #: packages/admin/src/components/MediaLibrary.tsx:852
 #: packages/admin/src/components/MediaLibrary.tsx:857
@@ -1031,13 +1025,9 @@ msgstr "მწკრივის დამატება ქვემოთ"
 msgid "Add SEO metadata fields (title, description, image) and include in sitemap"
 msgstr "SEO მეტამონაცემების ველების დამატება (სათაური, აღწერა, სურათი) და sitemap-ში ჩართვა"
 
-#: packages/admin/src/components/FieldEditor.tsx:577
+#: packages/admin/src/components/FieldEditor.tsx:580
 msgid "Add Sub-Field"
 msgstr "ქვეველის დამატება"
-
-#: packages/admin/src/components/TaxonomySidebar.tsx:318
-msgid "Add tags..."
-msgstr "თეგების დამატება..."
 
 #: packages/admin/src/components/Widgets.tsx:403
 msgid "Add Widget Area"
@@ -1262,8 +1252,8 @@ msgstr "დაშიფრული ციფრული გასაღებ�
 #: packages/admin/src/components/settings/SocialSettings.tsx:67
 #: packages/admin/src/components/settings/SocialSettings.tsx:111
 #: packages/admin/src/components/settings/SocialSettings.tsx:112
-#: packages/admin/src/components/TaxonomySidebar.tsx:416
-#: packages/admin/src/components/TaxonomySidebar.tsx:476
+#: packages/admin/src/components/TaxonomySidebar.tsx:680
+#: packages/admin/src/components/TaxonomySidebar.tsx:776
 #: packages/admin/src/components/ThemeMarketplaceBrowse.tsx:114
 #: packages/admin/src/router.tsx:469
 #: packages/admin/src/router.tsx:484
@@ -1534,7 +1524,7 @@ msgid "Available bylines"
 msgstr "ხელმისაწვდომი ბაილაინები"
 
 #. placeholder {0}: assignment.availableLocales.map((locale) => locale.toUpperCase()).join(", ")
-#: packages/admin/src/components/TaxonomySidebar.tsx:545
+#: packages/admin/src/components/TaxonomySidebar.tsx:839
 msgid "Available in {0}"
 msgstr "ხელმისაწვდომია {0}-ში"
 
@@ -1670,7 +1660,7 @@ msgstr "მუქი"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:55
 #: packages/admin/src/components/FieldEditor.tsx:206
-#: packages/admin/src/components/FieldEditor.tsx:622
+#: packages/admin/src/components/FieldEditor.tsx:625
 msgid "Boolean"
 msgstr "ლოგიკური"
 
@@ -1782,7 +1772,7 @@ msgstr "შეუძლია შიგთავსის ნახვა"
 #: packages/admin/src/components/editor/ImageNode.tsx:299
 #: packages/admin/src/components/editor/ImageNode.tsx:300
 #: packages/admin/src/components/editor/PluginBlockNode.tsx:406
-#: packages/admin/src/components/FieldEditor.tsx:701
+#: packages/admin/src/components/FieldEditor.tsx:704
 #: packages/admin/src/components/MediaDetailPanel.tsx:1835
 #: packages/admin/src/components/MediaFolderDialog.tsx:152
 #: packages/admin/src/components/MediaPickerModal.tsx:1588
@@ -1888,7 +1878,7 @@ msgstr "ცენტრში"
 
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:76
 #: packages/admin/src/components/BlockKitMediaPickerField.tsx:107
-#: packages/admin/src/components/FieldEditor.tsx:438
+#: packages/admin/src/components/FieldEditor.tsx:441
 #: packages/admin/src/components/SeoImageField.tsx:58
 msgid "Change"
 msgstr "შეცვლა"
@@ -2011,6 +2001,12 @@ msgstr "მოწმდება, რამდენი შენახული
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:493
 msgid "Checking this device for passkey support..."
 msgstr "მოწმდება ამ მოწყობილობის პასკის მხარდაჭერა..."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:394
+#: packages/admin/src/components/TaxonomySidebar.tsx:395
+#: packages/admin/src/components/TaxonomySidebar.tsx:488
+msgid "Choose {label}"
+msgstr ""
 
 #: packages/admin/src/components/auth/PasskeyRegistration.tsx:577
 msgid "Choose a credential manager on this device, another device, or a security key."
@@ -2164,6 +2160,7 @@ msgstr "შესასვლელად გადადით ელფოს�
 #: packages/admin/src/components/TaxonomyManager.tsx:807
 #: packages/admin/src/components/TaxonomyManager.tsx:813
 #: packages/admin/src/components/TaxonomyManager.tsx:817
+#: packages/admin/src/components/TaxonomySidebar.tsx:602
 #: packages/admin/src/components/ThemeMarketplaceDetail.tsx:298
 #: packages/admin/src/components/users/InviteUserModal.tsx:88
 #: packages/admin/src/components/users/InviteUserModal.tsx:94
@@ -2624,7 +2621,7 @@ msgstr "შექმნა"
 msgid "Create “{0}”"
 msgstr "„{0}“-ის შექმნა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
 msgid "Create \"{trimmedInput}\""
 msgstr "„{trimmedInput}“-ის შექმნა"
 
@@ -2634,7 +2631,7 @@ msgid "Create {0}"
 msgstr "{0}-ის შექმნა"
 
 #. placeholder {0}: resolvedEntryLocale.toUpperCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:556
+#: packages/admin/src/components/TaxonomySidebar.tsx:850
 msgid "Create {0} translation"
 msgstr "{0} თარგმანის შექმნა"
 
@@ -2646,6 +2643,10 @@ msgstr "მარკირებული სიის შექმნა"
 #: packages/admin/src/components/TaxonomyManager.tsx:562
 msgid "Create a new {0}"
 msgstr "ახალი {0}-ის შექმნა"
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:580
+msgid "Create a new {singularLabel}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1624
 msgid "Create a numbered list"
@@ -2832,7 +2833,6 @@ msgstr "იქმნება მოჭრილი ასლი..."
 #: packages/admin/src/components/Sections.tsx:212
 #: packages/admin/src/components/settings/ApiTokenSettings.tsx:540
 #: packages/admin/src/components/TaxonomyManager.tsx:891
-#: packages/admin/src/components/TaxonomySidebar.tsx:339
 msgid "Creating..."
 msgstr "იქმნება..."
 
@@ -2903,7 +2903,7 @@ msgstr "მორგებული ტაქსონომიები"
 msgid "Daily automatic backups"
 msgstr "ყოველდღიური ავტომატური სარეზერვო ასლები"
 
-#: packages/admin/src/components/FieldEditor.tsx:688
+#: packages/admin/src/components/FieldEditor.tsx:691
 #: packages/admin/src/components/ImageFieldRenderer.tsx:396
 msgid "Dark mode variant"
 msgstr "მუქი რეჟიმის ვარიანტი"
@@ -2922,7 +2922,7 @@ msgid "Date"
 msgstr "თარიღი"
 
 #: packages/admin/src/components/FieldEditor.tsx:212
-#: packages/admin/src/components/FieldEditor.tsx:623
+#: packages/admin/src/components/FieldEditor.tsx:626
 msgid "Date & Time"
 msgstr "თარიღი და დრო"
 
@@ -3655,6 +3655,11 @@ msgstr "{0} ველის რედაქტირება"
 msgid "Edit {itemLabel}"
 msgstr "{itemLabel}-ის რედაქტირება"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:414
+#: packages/admin/src/components/TaxonomySidebar.tsx:423
+msgid "Edit {label}"
+msgstr ""
+
 #: packages/admin/src/components/ContentList.tsx:1343
 msgid "Edit {title}"
 msgstr "{title}-ის რედაქტირება"
@@ -3776,7 +3781,7 @@ msgstr ""
 "რეპორტიორი\n"
 "ფოტოგრაფი"
 
-#: packages/admin/src/components/FieldEditor.tsx:691
+#: packages/admin/src/components/FieldEditor.tsx:694
 msgid "Editors can select a second image that the site shows in dark mode."
 msgstr "რედაქტორებს შეუძლიათ აირჩიონ მეორე სურათი, რომელსაც საიტი მუქ რეჟიმში აჩვენებს."
 
@@ -3997,6 +4002,10 @@ msgstr "სექციის შენახვისას შეცდომ�
 msgid "Error updating widget"
 msgstr "ვიჯეტის განახლებისას შეცდომა"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:600
+msgid "Esc"
+msgstr ""
+
 #: packages/admin/src/components/MediaDetailPanel.tsx:1974
 msgid "Every place using this image will update to the cropped version."
 msgstr "ყველგან, სადაც ეს სურათი გამოიყენება, განახლდება მოჭრილი ვერსიით."
@@ -4092,6 +4101,11 @@ msgstr "პლაგინთან კომუნიკაცია ვერ 
 msgid "Failed to confirm upload"
 msgstr "ატვირთვის დადასტურება ვერ მოხერხდა"
 
+#. placeholder {0}: failedLabels.join(", ")
+#: packages/admin/src/components/TaxonomySidebar.tsx:746
+msgid "Failed to create {0}"
+msgstr ""
+
 #: packages/admin/src/components/SetupWizard.tsx:486
 msgid "Failed to create admin"
 msgstr "ადმინისტრატორის შექმნა ვერ მოხერხდა"
@@ -4121,11 +4135,11 @@ msgstr "სექციის შექმნა ვერ მოხერხდ
 msgid "Failed to create some collections"
 msgstr "ზოგიერთი კოლექციის შექმნა ვერ მოხერხდა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:638
+#: packages/admin/src/components/TaxonomySidebar.tsx:725
 msgid "Failed to create term"
 msgstr "ტერმინის შექმნა ვერ მოხერხდა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:475
+#: packages/admin/src/components/TaxonomySidebar.tsx:775
 #: packages/admin/src/router.tsx:1366
 msgid "Failed to create translation"
 msgstr "თარგმანის შექმნა ვერ მოხერხდა"
@@ -4287,7 +4301,7 @@ msgstr "დაფის სტატისტიკის ჩატვირთ�
 msgid "Failed to fetch email settings"
 msgstr "ელფოსტის პარამეტრების ჩატვირთვა ვერ მოხერხდა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:140
+#: packages/admin/src/components/TaxonomySidebar.tsx:159
 msgid "Failed to fetch entry terms"
 msgstr "ჩანაწერის ტერმინების ჩატვირთვა ვერ მოხერხდა"
 
@@ -4357,7 +4371,7 @@ msgstr "პარამეტრების ჩატვირთვა ვე�
 msgid "Failed to fetch setup status"
 msgstr "დაყენების სტატუსის ჩატვირთვა ვერ მოხერხდა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:124
+#: packages/admin/src/components/TaxonomySidebar.tsx:143
 msgid "Failed to fetch terms"
 msgstr "ტერმინების ჩატვირთვა ვერ მოხერხდა"
 
@@ -4399,7 +4413,7 @@ msgid "Failed to import media"
 msgstr "მედიის იმპორტი ვერ მოხერხდა"
 
 #: packages/admin/src/lib/api/marketplace.ts:344
-#: packages/admin/src/lib/api/registry.ts:826
+#: packages/admin/src/lib/api/registry.ts:825
 msgid "Failed to install plugin"
 msgstr "პლაგინის დაყენება ვერ მოხერხდა"
 
@@ -4607,12 +4621,12 @@ msgstr "სატესტო ელფოსტის გაგზავნა 
 msgid "Failed to send verification email"
 msgstr "დამადასტურებელი ელფოსტის გაგზავნა ვერ მოხერხდა"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:159
+#: packages/admin/src/components/TaxonomySidebar.tsx:178
 msgid "Failed to set entry terms"
 msgstr "ჩანაწერის ტერმინების დაყენება ვერ მოხერხდა"
 
 #: packages/admin/src/lib/api/marketplace.ts:387
-#: packages/admin/src/lib/api/registry.ts:1040
+#: packages/admin/src/lib/api/registry.ts:1039
 msgid "Failed to uninstall plugin"
 msgstr "პლაგინის დეინსტალაცია ვერ მოხერხდა"
 
@@ -4629,7 +4643,7 @@ msgid "Failed to update"
 msgstr "განახლება ვერ მოხერხდა"
 
 #. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:415
+#: packages/admin/src/components/TaxonomySidebar.tsx:679
 msgid "Failed to update {0}"
 msgstr "{0}-ის განახლება ვერ მოხერხდა"
 
@@ -4651,7 +4665,7 @@ msgstr "მედიის განახლება ვერ მოხერ
 
 #: packages/admin/src/components/PluginManager.tsx:314
 #: packages/admin/src/lib/api/marketplace.ts:370
-#: packages/admin/src/lib/api/registry.ts:915
+#: packages/admin/src/lib/api/registry.ts:914
 msgid "Failed to update plugin"
 msgstr "პლაგინის განახლება ვერ მოხერხდა"
 
@@ -4733,15 +4747,15 @@ msgstr "ველი შეიქმნა"
 msgid "Field deleted"
 msgstr "ველი წაიშალა"
 
-#: packages/admin/src/components/FieldEditor.tsx:606
+#: packages/admin/src/components/FieldEditor.tsx:609
 msgid "Field label"
 msgstr "ველის იარლიყი"
 
-#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:453
 msgid "Field Label"
 msgstr "ველის იარლიყი"
 
-#: packages/admin/src/components/FieldEditor.tsx:462
+#: packages/admin/src/components/FieldEditor.tsx:465
 msgid "Field slugs cannot be changed after creation"
 msgstr "ველის სლაგები შექმნის შემდეგ ვერ შეიცვლება"
 
@@ -5225,7 +5239,7 @@ msgid "If an account exists for <0>{email}</0>, we've sent a sign-in link."
 msgstr "თუ <0>{email}</0>-ზე ანგარიში არსებობს, შესვლის ბმული გაიგზავნა."
 
 #: packages/admin/src/components/FieldEditor.tsx:236
-#: packages/admin/src/components/FieldEditor.tsx:626
+#: packages/admin/src/components/FieldEditor.tsx:629
 #: packages/admin/src/components/PortableTextEditor.tsx:2892
 msgid "Image"
 msgstr "სურათი"
@@ -5416,7 +5430,7 @@ msgstr "დამოუკიდებელი შემოწმება"
 msgid "Index existing content and keep Used in results up to date."
 msgstr "არსებული შიგთავსის ინდექსირება და გამოყენების შედეგების აქტუალურად შენარჩუნება."
 
-#: packages/admin/src/components/FieldEditor.tsx:491
+#: packages/admin/src/components/FieldEditor.tsx:494
 #: packages/admin/src/components/RegistryPluginDetail.tsx:575
 msgid "Indexed"
 msgstr "ინდექსირებულია"
@@ -5571,7 +5585,7 @@ msgid "Installing..."
 msgstr "ყენდება..."
 
 #: packages/admin/src/components/FieldEditor.tsx:200
-#: packages/admin/src/components/FieldEditor.tsx:621
+#: packages/admin/src/components/FieldEditor.tsx:624
 msgid "Integer"
 msgstr "მთელი რიცხვი"
 
@@ -5718,8 +5732,8 @@ msgid "Kotlin"
 msgstr "Kotlin"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:232
-#: packages/admin/src/components/FieldEditor.tsx:447
-#: packages/admin/src/components/FieldEditor.tsx:592
+#: packages/admin/src/components/FieldEditor.tsx:450
+#: packages/admin/src/components/FieldEditor.tsx:595
 #: packages/admin/src/components/MenuEditor.tsx:416
 #: packages/admin/src/components/MenuEditor.tsx:593
 #: packages/admin/src/components/MenuList.tsx:169
@@ -6073,7 +6087,7 @@ msgid "Long text"
 msgstr "გრძელი ტექსტი"
 
 #: packages/admin/src/components/FieldEditor.tsx:188
-#: packages/admin/src/components/FieldEditor.tsx:619
+#: packages/admin/src/components/FieldEditor.tsx:622
 msgid "Long Text"
 msgstr "გრძელი ტექსტი"
 
@@ -6188,15 +6202,15 @@ msgstr "მარკეტპლეისში დათვალიერე�
 msgid "Marketplace configuration is deprecated"
 msgstr "მარკეტპლეისის კონფიგურაცია მოძველებულია"
 
-#: packages/admin/src/components/FieldEditor.tsx:666
+#: packages/admin/src/components/FieldEditor.tsx:669
 msgid "Max Items"
 msgstr "ელემენტების მაქსიმუმი"
 
-#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:512
 msgid "Max Length"
 msgstr "მაქსიმალური სიგრძე"
 
-#: packages/admin/src/components/FieldEditor.tsx:539
+#: packages/admin/src/components/FieldEditor.tsx:542
 msgid "Max Value"
 msgstr "მაქსიმალური მნიშვნელობა"
 
@@ -6384,15 +6398,15 @@ msgstr "მიგრაციის სახელმძღვანელო"
 msgid "Migration key"
 msgstr "მიგრაციის გასაღები"
 
-#: packages/admin/src/components/FieldEditor.tsx:659
+#: packages/admin/src/components/FieldEditor.tsx:662
 msgid "Min Items"
 msgstr "ელემენტების მინიმუმი"
 
-#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:505
 msgid "Min Length"
 msgstr "მინიმალური სიგრძე"
 
-#: packages/admin/src/components/FieldEditor.tsx:532
+#: packages/admin/src/components/FieldEditor.tsx:535
 msgid "Min Value"
 msgstr "მინიმალური მნიშვნელობა"
 
@@ -6611,6 +6625,10 @@ msgstr "სახელი და იარლიყი სავალდებ
 msgid "Name must start with a letter and contain only lowercase letters, numbers, and underscores"
 msgstr "სახელი უნდა იწყებოდეს ასოთი და შეიცავდეს მხოლოდ პატარა ასოებს, რიცხვებსა და ქვედა ტირეს"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:590
+msgid "Navigate"
+msgstr ""
+
 #: packages/admin/src/components/AdminCommandPalette.tsx:342
 #: packages/admin/src/components/ContentTypeEditor.tsx:480
 msgid "Navigation"
@@ -6643,11 +6661,6 @@ msgstr "ახალი"
 #: packages/admin/src/components/CapabilityConsentDialog.tsx:185
 msgid "NEW"
 msgstr "ახალი"
-
-#. placeholder {0}: (taxonomy.labelSingular || taxonomy.label).toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:607
-msgid "New {0}"
-msgstr "ახალი {0}"
 
 #: packages/admin/src/components/ContentEditor.tsx:994
 msgid "New {itemLabel}"
@@ -6754,11 +6767,6 @@ msgstr "არა"
 msgid "No (shared across translations)"
 msgstr "არა (საერთო თარგმანებისთვის)"
 
-#. placeholder {0}: taxonomy.label.toLowerCase()
-#: packages/admin/src/components/TaxonomySidebar.tsx:576
-msgid "No {0} available."
-msgstr "{0} მიუწვდომელია."
-
 #. placeholder {0}: collectionLabel.toLowerCase()
 #: packages/admin/src/components/ContentList.tsx:658
 msgid "No {0} yet."
@@ -6768,6 +6776,10 @@ msgstr "{0} ჯერ არ არის."
 #: packages/admin/src/components/TaxonomyManager.tsx:1120
 msgid "No {0} yet. Create one to get started."
 msgstr "{0} ჯერ არ არის. დასაწყებად შექმენით ერთი."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:565
+msgid "No {label} found."
+msgstr ""
 
 #: packages/admin/src/components/Redirects.tsx:218
 msgid "No 404 errors recorded yet."
@@ -6905,7 +6917,7 @@ msgstr "მოწვევის ტოკენი მითითებულ�
 msgid "No items yet"
 msgstr "ელემენტები ჯერ არ არის"
 
-#: packages/admin/src/components/FieldEditor.tsx:670
+#: packages/admin/src/components/FieldEditor.tsx:673
 msgid "No limit"
 msgstr "ლიმიტის გარეშე"
 
@@ -6938,8 +6950,8 @@ msgstr "შესაბამისი მედია ვერ მოიძე
 msgid "No matching passkey found for this account."
 msgstr "ამ ანგარიშისთვის შესაბამისი პასკი ვერ მოიძებნა."
 
-#: packages/admin/src/components/FieldEditor.tsx:513
-#: packages/admin/src/components/FieldEditor.tsx:543
+#: packages/admin/src/components/FieldEditor.tsx:516
+#: packages/admin/src/components/FieldEditor.tsx:546
 msgid "No maximum"
 msgstr "მაქსიმუმი არ არის"
 
@@ -6960,8 +6972,8 @@ msgstr "მენიუს ელემენტები ჯერ არ ა�
 msgid "No menus yet"
 msgstr "მენიუები ჯერ არ არის"
 
-#: packages/admin/src/components/FieldEditor.tsx:506
-#: packages/admin/src/components/FieldEditor.tsx:536
+#: packages/admin/src/components/FieldEditor.tsx:509
+#: packages/admin/src/components/FieldEditor.tsx:539
 msgid "No minimum"
 msgstr "მინიმუმი არ არის"
 
@@ -7105,7 +7117,7 @@ msgid "Not set"
 msgstr "მითითებული არ არის"
 
 #: packages/admin/src/components/FieldEditor.tsx:194
-#: packages/admin/src/components/FieldEditor.tsx:620
+#: packages/admin/src/components/FieldEditor.tsx:623
 msgid "Number"
 msgstr "რიცხვი"
 
@@ -7207,7 +7219,7 @@ msgstr "Windows-ის პარამეტრების გახსნა"
 msgid "Open WordPress Profile"
 msgstr "WordPress-ის პროფილის გახსნა"
 
-#: packages/admin/src/components/FieldEditor.tsx:554
+#: packages/admin/src/components/FieldEditor.tsx:557
 msgid ""
 "Option 1\n"
 "Option 2\n"
@@ -7243,7 +7255,7 @@ msgid "Optional tooltip on hover"
 msgstr "სურვილისამებრ მინიშნება კურსორის მიტანისას"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:302
-#: packages/admin/src/components/FieldEditor.tsx:551
+#: packages/admin/src/components/FieldEditor.tsx:554
 msgid "Options (one per line)"
 msgstr "ვარიანტები (თითო ხაზზე)"
 
@@ -7426,7 +7438,7 @@ msgstr "ჩასვით მიგრაციის გასაღები"
 msgid "Path"
 msgstr "ბილიკი"
 
-#: packages/admin/src/components/FieldEditor.tsx:518
+#: packages/admin/src/components/FieldEditor.tsx:521
 msgid "Pattern (Regex)"
 msgstr "ნიმუში (Regex)"
 
@@ -7639,7 +7651,7 @@ msgid "Plugin uninstalled"
 msgstr "პლაგინი წაიშალა"
 
 #: packages/admin/src/lib/api/marketplace.ts:232
-#: packages/admin/src/lib/api/registry.ts:955
+#: packages/admin/src/lib/api/registry.ts:954
 msgid "Plugin update requires re-consent"
 msgstr "პლაგინის განახლება მოითხოვს ხელახალ თანხმობას"
 
@@ -8088,12 +8100,12 @@ msgid "Remove"
 msgstr "მოცილება"
 
 #. placeholder {0}: job.file.name
+#. placeholder {0}: option.term.label
 #. placeholder {0}: passkey.name
-#. placeholder {0}: row.file.name
 #: packages/admin/src/components/media/MediaBrowserItems.tsx:220
 #: packages/admin/src/components/MediaUploadDialog.tsx:162
 #: packages/admin/src/components/settings/PasskeyItem.tsx:181
-#: packages/admin/src/components/TaxonomySidebar.tsx:294
+#: packages/admin/src/components/TaxonomySidebar.tsx:457
 msgid "Remove {0}"
 msgstr "{0}-ის მოცილება"
 
@@ -8110,7 +8122,7 @@ msgstr "{entry}-ის მოცილება"
 msgid "Remove {label}"
 msgstr "{label}-ის მოცილება"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:565
+#: packages/admin/src/components/TaxonomySidebar.tsx:859
 msgid "Remove assignment"
 msgstr "მინიჭების მოცილება"
 
@@ -8168,7 +8180,7 @@ msgstr "მოვაცილოთ პასკი?"
 msgid "Remove schedule"
 msgstr "დაგეგმვის მოცილება"
 
-#: packages/admin/src/components/FieldEditor.tsx:650
+#: packages/admin/src/components/FieldEditor.tsx:653
 msgid "Remove sub-field"
 msgstr "ქვეველის მოცილება"
 
@@ -8300,8 +8312,8 @@ msgstr "სლაგი სავალდებულოა გამოქვ�
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:280
 #: packages/admin/src/components/ContentTypeEditor.tsx:789
-#: packages/admin/src/components/FieldEditor.tsx:473
-#: packages/admin/src/components/FieldEditor.tsx:632
+#: packages/admin/src/components/FieldEditor.tsx:476
+#: packages/admin/src/components/FieldEditor.tsx:635
 #: packages/admin/src/routes/byline-schema.tsx:246
 msgid "Required"
 msgstr "სავალდებულო"
@@ -8687,7 +8699,7 @@ msgstr "შენახულია"
 msgid "Saved \"{0}\"."
 msgstr "შენახულია „{0}“."
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 #: packages/admin/src/components/MediaDetailPanel.tsx:1866
 #: packages/admin/src/components/MediaFolderDialog.tsx:171
 #: packages/admin/src/components/MenuEditor.tsx:626
@@ -8827,6 +8839,14 @@ msgstr "{0}-ის ძებნა"
 msgid "Search {0}..."
 msgstr "{0}-ის ძებნა..."
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:499
+msgid "Search {label}"
+msgstr ""
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:519
+msgid "Search {label}…"
+msgstr ""
+
 #: packages/admin/src/components/MediaLibrary.tsx:966
 #: packages/admin/src/components/MediaPickerModal.tsx:1255
 msgid "Search by filename..."
@@ -8951,7 +8971,7 @@ msgid "Search..."
 msgstr "ძებნა..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:791
-#: packages/admin/src/components/FieldEditor.tsx:484
+#: packages/admin/src/components/FieldEditor.tsx:487
 msgid "Searchable"
 msgstr "ძებნადი"
 
@@ -9050,7 +9070,7 @@ msgstr "ნახეთ, სად გამოიყენება ეს ფ�
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:56
 #: packages/admin/src/components/FieldEditor.tsx:218
-#: packages/admin/src/components/FieldEditor.tsx:624
+#: packages/admin/src/components/FieldEditor.tsx:627
 #: packages/admin/src/components/MediaPickerModal.tsx:860
 #: packages/admin/src/components/Settings.tsx:149
 msgid "Select"
@@ -9172,6 +9192,10 @@ msgstr "აირჩიეთ, რომელი ტიპის შიგთ�
 #: packages/admin/src/components/RepeaterField.tsx:385
 msgid "Select..."
 msgstr "აირჩიეთ..."
+
+#: packages/admin/src/components/TaxonomySidebar.tsx:428
+msgid "Selected {label}"
+msgstr ""
 
 #: packages/admin/src/components/PortableTextEditor.tsx:1936
 msgid "Selected {selectedItemTitle}"
@@ -9353,7 +9377,7 @@ msgid "Short text"
 msgstr "მოკლე ტექსტი"
 
 #: packages/admin/src/components/FieldEditor.tsx:182
-#: packages/admin/src/components/FieldEditor.tsx:618
+#: packages/admin/src/components/FieldEditor.tsx:621
 msgid "Short Text"
 msgstr "მოკლე ტექსტი"
 
@@ -9517,7 +9541,7 @@ msgstr "გამოტოვებული"
 #: packages/admin/src/components/ContentTypeEditor.tsx:414
 #: packages/admin/src/components/ContentTypeList.tsx:181
 #: packages/admin/src/components/FieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:454
+#: packages/admin/src/components/FieldEditor.tsx:457
 #: packages/admin/src/components/SectionEditor.tsx:280
 #: packages/admin/src/components/Sections.tsx:184
 #: packages/admin/src/components/TaxonomyManager.tsx:593
@@ -9684,7 +9708,7 @@ msgstr "სტრუქტურა"
 msgid "Structured"
 msgstr "სტრუქტურირებული"
 
-#: packages/admin/src/components/FieldEditor.tsx:562
+#: packages/admin/src/components/FieldEditor.tsx:565
 msgid "Sub-Fields"
 msgstr "ქვეველები"
 
@@ -9799,7 +9823,7 @@ msgid "Target locale"
 msgstr "სამიზნე ლოკალი"
 
 #: packages/admin/src/components/ContentSettingsPanel.tsx:1144
-#: packages/admin/src/components/TaxonomySidebar.tsx:683
+#: packages/admin/src/components/TaxonomySidebar.tsx:891
 msgid "Taxonomies"
 msgstr "ტაქსონომიები"
 
@@ -10113,15 +10137,15 @@ msgstr "ეს ჩასმა ძალიან დიდია. ერთდ�
 msgid "This permanently deletes {0} from storage."
 msgstr "ეს სამუდამოდ შლის {0}-ს საცავიდან."
 
-#: packages/admin/src/lib/api/registry.ts:785
+#: packages/admin/src/lib/api/registry.ts:784
 msgid "This plugin cannot be installed because its publisher profile is missing valid verification metadata. Ask the publisher to republish it with the latest EmDash plugin CLI."
 msgstr "ამ პლაგინის დაყენება შეუძლებელია, რადგან მისი გამომცემლის პროფილს აკლია დადასტურების სწორი მეტამონაცემები. სთხოვეთ გამომცემელს, ხელახლა გამოაქვეყნოს ის EmDash-ის პლაგინის უახლესი CLI-ით."
 
-#: packages/admin/src/lib/api/registry.ts:793
+#: packages/admin/src/lib/api/registry.ts:792
 msgid "This plugin cannot be installed because its release provenance could not be verified. Ask the publisher to publish a new verified release."
 msgstr "ამ პლაგინის დაყენება შეუძლებელია, რადგან რელიზის წარმომავლობის დადასტურება ვერ მოხერხდა. სთხოვეთ გამომცემელს, გამოაქვეყნოს ახალი დადასტურებული რელიზი."
 
-#: packages/admin/src/lib/api/registry.ts:797
+#: packages/admin/src/lib/api/registry.ts:796
 msgid "This plugin cannot be installed because its signed publisher records failed verification. Ask the publisher to publish a corrected release."
 msgstr "ამ პლაგინის დაყენება შეუძლებელია, რადგან გამომცემლის ხელმოწერილი ჩანაწერები ვერ გადამოწმდა. სთხოვეთ გამომცემელს, გამოაქვეყნოს შესწორებული რელიზი."
 
@@ -10277,6 +10301,10 @@ msgstr "დახურვისთვის"
 msgid "to select"
 msgstr "არჩევისთვის"
 
+#: packages/admin/src/components/TaxonomySidebar.tsx:596
+msgid "Toggle"
+msgstr ""
+
 #: packages/admin/src/components/editor/TableControls.tsx:31
 msgid "Toggle header column"
 msgstr "სათაურის სვეტის გადართვა"
@@ -10342,7 +10370,7 @@ msgstr "ითარგმნება..."
 
 #: packages/admin/src/components/MenuEditor.tsx:143
 #: packages/admin/src/components/TaxonomyManager.tsx:1028
-#: packages/admin/src/components/TaxonomySidebar.tsx:471
+#: packages/admin/src/components/TaxonomySidebar.tsx:771
 #: packages/admin/src/router.tsx:1360
 msgid "Translation created"
 msgstr "თარგმანი შეიქმნა"
@@ -10454,7 +10482,7 @@ msgid "Twitter"
 msgstr "Twitter"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:260
-#: packages/admin/src/components/FieldEditor.tsx:610
+#: packages/admin/src/components/FieldEditor.tsx:613
 #: packages/admin/src/components/MediaLibrary.tsx:1206
 #: packages/admin/src/routes/byline-schema.tsx:240
 msgid "Type"
@@ -10511,7 +10539,7 @@ msgid "Uninstalling..."
 msgstr "მიმდინარეობს დეინსტალაცია..."
 
 #: packages/admin/src/components/ContentTypeEditor.tsx:790
-#: packages/admin/src/components/FieldEditor.tsx:478
+#: packages/admin/src/components/FieldEditor.tsx:481
 msgid "Unique"
 msgstr "უნიკალური"
 
@@ -10550,7 +10578,7 @@ msgstr "გამოუქვეყნებელი"
 msgid "Unregistered Content Tables Found"
 msgstr "აღმოჩენილია დაურეგისტრირებელი შიგთავსის ცხრილები"
 
-#: packages/admin/src/components/TaxonomySidebar.tsx:543
+#: packages/admin/src/components/TaxonomySidebar.tsx:837
 msgid "Unresolved assignment"
 msgstr "გადაუწყვეტელი მიკუთვნება"
 
@@ -10594,7 +10622,7 @@ msgstr "შეიძლება აირჩეს {MAX_SELECTED}-მდე ბ
 msgid "Update"
 msgstr "განახლება"
 
-#: packages/admin/src/components/FieldEditor.tsx:712
+#: packages/admin/src/components/FieldEditor.tsx:715
 msgid "Update Field"
 msgstr "ველის განახლება"
 
@@ -10731,7 +10759,7 @@ msgstr "იტვირთება სურათი…"
 
 #: packages/admin/src/components/BylineFieldEditor.tsx:54
 #: packages/admin/src/components/FieldEditor.tsx:266
-#: packages/admin/src/components/FieldEditor.tsx:625
+#: packages/admin/src/components/FieldEditor.tsx:628
 #: packages/admin/src/components/MenuEditor.tsx:418
 #: packages/admin/src/components/MenuEditor.tsx:596
 msgid "URL"
@@ -10901,8 +10929,8 @@ msgstr "ამ დომენების ელფოსტის მისა
 msgid "v{0} available"
 msgstr "v{0} ხელმისაწვდომია"
 
-#: packages/admin/src/components/FieldEditor.tsx:499
-#: packages/admin/src/components/FieldEditor.tsx:529
+#: packages/admin/src/components/FieldEditor.tsx:502
+#: packages/admin/src/components/FieldEditor.tsx:532
 msgid "Validation"
 msgstr "ვალიდაცია"
 

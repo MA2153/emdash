@@ -671,7 +671,10 @@ export function FieldEditor({
 						})}
 					</div>
 				) : (
-					<div className="space-y-6">
+					<div
+						className="space-y-6 max-h-[60vh] overflow-y-auto"
+						data-testid="field-editor-config-content"
+					>
 						{/* Type indicator */}
 						{typeConfig && (
 							<div className="flex items-center space-x-3 p-3 bg-kumo-tint/50 rounded-lg">
