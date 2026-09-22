@@ -64,6 +64,9 @@ const SEO_FOLDED_COLUMN = "_emdash_seo";
 /** Folded boolean field slugs used to restore SQLite integer values. */
 const BOOLEAN_FIELDS_FOLDED_COLUMN = "_emdash_boolean_fields";
 
+/** Rank of a row among its translation group's variants, in {@link loadEntriesByGroups}. */
+const VARIANT_RANK_COLUMN = "_emdash_variant_rank";
+
 /**
  * System columns excluded from entry.data
  * Note: slug is intentionally NOT excluded - it's useful as data.slug in templates
@@ -97,6 +100,7 @@ const SYSTEM_COLUMNS = new Set([
 	"_emdash_bylines_exist",
 	SEO_FOLDED_COLUMN,
 	BOOLEAN_FIELDS_FOLDED_COLUMN,
+	VARIANT_RANK_COLUMN,
 ]);
 
 /** Markers for byline/taxonomy hydration folded into the content query. */
@@ -598,40 +602,54 @@ export interface LoadedEntry {
 }
 
 /**
- * Load every locale variant of each translation group, in one query per
+ * Load one locale variant of each translation group, in one query per
  * `SQL_BATCH_SIZE` chunk of groups.
  *
- * Reference resolution is the caller: a selection names translation groups, and
- * the group's variants are what a render picks a locale from. The rows go
- * through the same {@link mapRowToData} as a direct entry load, so a referenced
- * entry's `data` carries the same dates, booleans and normalized media values a
- * caller would get from `getEmDashEntry` — a hand-rolled row mapper would drift
- * from it silently.
+ * A group's variant is the first of `localeChain` it has, or else its lowest
+ * locale code: a reference names a translation group, so a target that exists
+ * only outside the chain is still a real reference. Groups with no surviving
+ * variant are absent from the result.
  *
- * Byline and taxonomy hydration is deliberately not folded in: those are
- * per-row correlated subqueries, and a referenced entry is rendered as a link
- * or a card far more often than as a full page.
+ * The rows go through the same {@link mapRowToData} as a direct entry load, so
+ * a referenced entry's `data` carries the same dates, booleans and normalized
+ * media values a caller would get from `getEmDashEntry`. Bylines and taxonomy
+ * terms are not hydrated; each would cost a correlated subquery per row.
  */
 export async function loadEntriesByGroups(
 	type: string,
 	translationGroups: string[],
-	options: { publishedOnly?: boolean } = {},
+	options: { publishedOnly?: boolean; localeChain?: readonly string[] } = {},
 ): Promise<LoadedEntry[]> {
 	if (translationGroups.length === 0) return [];
 	const db = await getDb();
 	const tableName = getTableName(type);
 	const statusFilter = options.publishedOnly ? sql`AND status = ${"published"}` : sql``;
 	const booleanFieldsSelect = foldedBooleanFieldsSelect(db, type);
+	const localeChain = options.localeChain ?? [];
+	const chainPosition =
+		localeChain.length > 0
+			? sql`CASE locale ${sql.join(
+					localeChain.map((locale, index) => sql`WHEN ${locale} THEN ${sql.lit(index)}`),
+					sql` `,
+				)} ELSE ${sql.lit(localeChain.length)} END,`
+			: sql``;
 
 	const entries: LoadedEntry[] = [];
 	try {
 		for (const chunk of chunks(translationGroups, SQL_BATCH_SIZE)) {
 			const result = await sql<Record<string, unknown>>`
-				SELECT *, ${booleanFieldsSelect} FROM ${sql.ref(tableName)}
-				WHERE translation_group IN (${sql.join(chunk.map((group) => sql`${group}`))})
-				AND deleted_at IS NULL
-				${statusFilter}
-				ORDER BY translation_group ASC, locale ASC
+				SELECT * FROM (
+					SELECT *, ${booleanFieldsSelect},
+						ROW_NUMBER() OVER (
+							PARTITION BY translation_group ORDER BY ${chainPosition} locale ASC
+						) AS ${sql.ref(VARIANT_RANK_COLUMN)}
+					FROM ${sql.ref(tableName)}
+					WHERE translation_group IN (${sql.join(chunk.map((group) => sql`${group}`))})
+					AND deleted_at IS NULL
+					${statusFilter}
+				) AS variants
+				WHERE ${sql.ref(VARIANT_RANK_COLUMN)} = 1
+				ORDER BY translation_group ASC
 			`.execute(db);
 			const booleanFields = parseFoldedBooleanFields(result.rows[0]);
 			for (const row of result.rows) {

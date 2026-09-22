@@ -425,6 +425,66 @@ describeEachDialect("public reference queries", (dialect) => {
 		}
 	});
 
+	async function translatePage(pageId: string, title: string, locale: string) {
+		const result = await handleContentCreate(db, "pages", {
+			data: { title },
+			slug: title.toLowerCase().replaceAll(" ", "-"),
+			locale,
+			translationOf: pageId,
+		});
+		if (!result.success) throw new Error(`Translation setup failed: ${result.error.message}`);
+		const published = await runtime.handleContentPublish("pages", result.data.item.id);
+		if (!published.success) throw new Error("Translation publish failed");
+	}
+
+	it("falls back along the site's locale chain, not to the lowest locale code", async () => {
+		setI18nConfig({ defaultLocale: "en", locales: ["en", "fr", "de"], fallback: { fr: "en" } });
+		try {
+			const page = await createPage("English Page");
+			await translatePage(page.id, "Deutsche Seite", "de");
+			const post = await createPost("Hello", [page.id]);
+
+			const result = await resolvePublic(
+				"posts",
+				await groupOf("posts", post.id),
+				{ related_pages: true },
+				{ locale: "fr" },
+			);
+			expect(result.related_pages?.entries.map((entry) => entry.data.title)).toEqual([
+				"English Page",
+			]);
+		} finally {
+			setI18nConfig(null);
+		}
+	});
+
+	it("still resolves a target that exists only outside the locale chain", async () => {
+		setI18nConfig({ defaultLocale: "en", locales: ["en", "fr", "de"], fallback: { fr: "en" } });
+		try {
+			const page = await handleContentCreate(db, "pages", {
+				data: { title: "Deutsche Seite" },
+				slug: "deutsche-seite",
+				locale: "de",
+			});
+			if (!page.success) throw new Error("Page setup failed");
+			const published = await runtime.handleContentPublish("pages", page.data.item.id);
+			if (!published.success) throw new Error("Page publish failed");
+			const post = await createPost("Hello", [page.data.item.id]);
+
+			const result = await resolvePublic(
+				"posts",
+				await groupOf("posts", post.id),
+				{ related_pages: true },
+				{ locale: "fr" },
+			);
+			expect(result.related_pages?.entries.map((entry) => entry.data.title)).toEqual([
+				"Deutsche Seite",
+			]);
+		} finally {
+			setI18nConfig(null);
+		}
+	});
+
 	it("names the rows a standalone page read, so a cached route can tag them", async () => {
 		const pages = [await createPage("Page One"), await createPage("Page Two")];
 		const post = await createPost(

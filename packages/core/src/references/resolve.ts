@@ -11,6 +11,7 @@
 
 import { RelationRepository } from "../database/repositories/relation.js";
 import { RevisionRepository } from "../database/repositories/revision.js";
+import { getFallbackChain, isI18nEnabled } from "../i18n/config.js";
 import { getDb, loadEntriesByGroups, type LoadedEntry } from "../loader.js";
 import { getReferenceFieldMap } from "./field-map.js";
 import {
@@ -59,17 +60,9 @@ function pageOptions(query: ReferenceQuery): { limit: number; cursor?: string } 
 	};
 }
 
-/**
- * Pick the locale variant matching `locale`, falling back to the first (lowest
- * locale code). A link names a translation group, not one locale's row of it,
- * so a target that exists only in another locale is still a real reference.
- *
- * Mirrors `pickVariant` in `api/handlers/relations.ts`, which answers the same
- * question for the admin's resolved refs.
- */
-function pickVariant(variants: LoadedEntry[], locale: string | null): LoadedEntry | undefined {
-	if (locale === null) return variants[0];
-	return variants.find((entry) => entry.data.locale === locale) ?? variants[0];
+function localeChainFor(locale: string | null): string[] {
+	if (locale === null) return [];
+	return isI18nEnabled() ? getFallbackChain(locale) : [locale];
 }
 
 export async function resolveReferencePages(
@@ -130,19 +123,18 @@ export async function resolveReferencePages(
 		groupsByCollection.set(target, groups);
 	}
 
-	const variantsByCollection = new Map<string, Map<string, LoadedEntry[]>>();
+	const localeChain = localeChainFor(options.locale);
+	const variantsByCollection = new Map<string, Map<string, LoadedEntry>>();
 	await Promise.all(
 		Array.from(groupsByCollection, async ([collection, groups]) => {
 			const loaded = await loadEntriesByGroups(collection, [...groups], {
 				publishedOnly: !options.serveDrafts,
+				localeChain,
 			});
-			const byGroup = new Map<string, LoadedEntry[]>();
+			const byGroup = new Map<string, LoadedEntry>();
 			for (const entry of loaded) {
 				const group = entry.data.translationGroup;
-				if (typeof group !== "string") continue;
-				const variants = byGroup.get(group);
-				if (variants) variants.push(entry);
-				else byGroup.set(group, [entry]);
+				if (typeof group === "string") byGroup.set(group, entry);
 			}
 			variantsByCollection.set(collection, byGroup);
 		}),
@@ -157,7 +149,7 @@ export async function resolveReferencePages(
 		const byGroup = variantsByCollection.get(collection);
 		const entries: LoadedEntry[] = [];
 		for (const group of page.groups) {
-			const variant = pickVariant(byGroup?.get(group) ?? [], options.locale);
+			const variant = byGroup?.get(group);
 			if (variant) entries.push(variant);
 		}
 		resolved[slug] = page.nextCursor
