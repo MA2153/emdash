@@ -255,11 +255,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * content item, keyed by field slug — the same key the create and update bodies
  * take a selection under.
  *
- * Opt-in only: callers must have already decided `includeDrafts` (draft
- * visibility is enforced by the caller, not this helper) because a resolved
- * entry can carry a draft/scheduled entry's id and slug. See
- * `handleContentGet`'s `referenceOptions` param — the REST GET route is the
- * only caller that currently opts in.
+ * Callers must have already decided `includeDrafts` — draft visibility is
+ * enforced by the caller, not this helper — because a resolved entry can carry
+ * a draft or scheduled entry's id and slug. The admin's REST GET route is the
+ * only caller, and it asks for every entry it serves, so a collection with no
+ * reference field still pays the two lookups below.
  *
  * For a caller that opted into drafts, a field whose selection is staged in the
  * entry's draft revision is answered from that revision; every other field, and
@@ -559,37 +559,81 @@ async function resolveSearchColumns(db: Kysely<Database>, collection: string): P
 }
 
 /**
- * Remove storage-less field keys (e.g. a reference field bound to a relation)
- * from a content `data` payload before it reaches the column writer, which would
- * otherwise throw "no such column". Defensive for direct API users; the admin
- * sends references in the dedicated `references` key, not in `data`.
+ * The keys of `data` that name a storage-less field — a reference field bound
+ * to a relation, whose selection lives in the edge table and reaches the API
+ * under the separate `references` key.
  *
- * A reference field with no relation still owns its column, so its value passes
- * through untouched.
+ * A reference field with no relation still owns its column, so its value in
+ * `data` is exactly where it belongs and is not returned here.
  */
-async function stripStoragelessDataKeys(
+async function storagelessDataKeys(
 	db: Kysely<Database>,
 	collection: string,
 	data: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+): Promise<string[]> {
 	const collectionRow = await db
 		.selectFrom("_emdash_collections")
 		.select("id")
 		.where("slug", "=", collection)
 		.executeTakeFirst();
-	if (!collectionRow) return data;
+	if (!collectionRow) return [];
 	const fields = await db
 		.selectFrom("_emdash_fields")
 		.select(["slug", "type", "validation"])
 		.where("collection_id", "=", collectionRow.id)
 		.execute();
 	const storageless = new Set(fields.filter(isStoragelessFieldRow).map((f) => f.slug));
-	if (storageless.size === 0) return data;
-	const cleaned: Record<string, unknown> = {};
-	for (const [k, v] of Object.entries(data)) {
-		if (!storageless.has(k)) cleaned[k] = v;
-	}
-	return cleaned;
+	if (storageless.size === 0) return [];
+	return Object.keys(data).filter((key) => storageless.has(key));
+}
+
+/**
+ * Refuse a `data` payload that tries to set a storage-less field.
+ *
+ * Such a key would otherwise reach the column writer and throw "no such
+ * column". Dropping it instead is worse than refusing it: a client that can
+ * only write `data` would be told its write succeeded while nothing was linked.
+ * On a collection that keeps drafts the key never reaches the column writer at
+ * all — it is merged into the draft revision's JSON — so the runtime applies
+ * this before staging rather than leaving it to the write below.
+ */
+export function storagelessDataKeyError(keys: string[]): {
+	success: false;
+	error: { code: string; message: string };
+} {
+	return {
+		success: false,
+		error: {
+			code: "VALIDATION_ERROR",
+			message: `Reference fields bound to a relation are set through 'references', not 'data': ${keys.join(", ")}`,
+		},
+	};
+}
+
+/**
+ * The storage-less keys in `data` that an update is actually trying to change.
+ *
+ * A field bound to a relation after its column existed keeps that column, and
+ * every read hands the value frozen in it back under the field's own slug. A
+ * read-then-write client — the admin editor among them — therefore echoes a key
+ * it never touched, and refusing that would make such an entry unsaveable. An
+ * echo asks for nothing; a different value is an attempt to set a selection
+ * through the one channel that cannot carry it.
+ *
+ * A key the entry does not store counts as changed, which is every key of a
+ * field that never had a column: there is nothing for such a payload to be
+ * echoing, and letting it through would reach the column writer.
+ */
+export function changedStoragelessDataKeys(
+	storageless: ReadonlySet<string>,
+	data: Record<string, unknown>,
+	stored: Record<string, unknown>,
+): string[] {
+	return Object.keys(data).filter(
+		(key) =>
+			storageless.has(key) &&
+			(!Object.hasOwn(stored, key) || JSON.stringify(data[key]) !== JSON.stringify(stored[key])),
+	);
 }
 
 /**
@@ -1052,7 +1096,8 @@ export async function handleContentCreate(
 			};
 		}
 
-		body.data = await stripStoragelessDataKeys(db, collection, body.data);
+		const storagelessKeys = await storagelessDataKeys(db, collection, body.data);
+		if (storagelessKeys.length > 0) return storagelessDataKeyError(storagelessKeys);
 
 		const mimeCheck = await validateMediaFields(db, collection, body.data);
 		if (!mimeCheck.success) return mimeCheck;
@@ -1333,7 +1378,6 @@ export async function handleContentUpdate(
 		}
 
 		if (body.data) {
-			body.data = await stripStoragelessDataKeys(db, collection, body.data);
 			const mimeCheck = await validateMediaFields(db, collection, body.data);
 			if (!mimeCheck.success) return mimeCheck;
 		}
@@ -1342,6 +1386,19 @@ export async function handleContentUpdate(
 
 		// Resolve slug → ID if needed
 		const resolvedId = (await resolveId(repo, collection, id, body.locale)) ?? id;
+
+		if (body.data) {
+			const storagelessKeys = await storagelessDataKeys(db, collection, body.data);
+			if (storagelessKeys.length > 0) {
+				const stored = await repo.findById(collection, resolvedId);
+				const changed = changedStoragelessDataKeys(
+					new Set(storagelessKeys),
+					body.data,
+					stored?.data ?? {},
+				);
+				if (changed.length > 0) return storagelessDataKeyError(changed);
+			}
+		}
 
 		// Wrap content + SEO writes in a transaction for atomicity.
 		// The _rev check is inside the transaction so the read-then-write

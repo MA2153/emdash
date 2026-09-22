@@ -8,6 +8,7 @@ import type { Kysely } from "kysely";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
 import type { EmDashConfig } from "../../src/astro/integration/runtime.js";
+import { RelationRepository } from "../../src/database/repositories/relation.js";
 import type { Database } from "../../src/database/types.js";
 import { EmDashRuntime } from "../../src/emdash-runtime.js";
 import { createHookPipeline } from "../../src/plugins/hooks.js";
@@ -93,6 +94,55 @@ describeEachDialect("manifest reference field validation", (dialect) => {
 		expect(entry?.validation).toMatchObject({
 			relation: "grp_x",
 			targetCollection: "posts",
+			multiple: true,
+		});
+	});
+
+	it("reports the relation's cardinality as a bound field's `multiple`", async () => {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createCollection({ slug: "authors", label: "Authors", labelSingular: "Author" });
+		const relations = new RelationRepository(ctx.db);
+		await relations.create({
+			slug: "post_author",
+			parentCollection: "posts",
+			childCollection: "authors",
+			parentLabel: "Author",
+			childLabel: "Posts",
+			maxChildrenPerParent: 1,
+		});
+		// The relation owns cardinality, so whatever the field row still carries
+		// from before it was bound has no say in what the picker allows.
+		await registry.createField("posts", {
+			slug: "author",
+			label: "Author",
+			type: "reference",
+			validation: {
+				relation: "post_author",
+				relationSide: "parent",
+				targetCollection: "authors",
+				multiple: true,
+			},
+		});
+		await registry.createField("authors", {
+			slug: "posts",
+			label: "Posts",
+			type: "reference",
+			validation: {
+				relation: "post_author",
+				relationSide: "child",
+				targetCollection: "posts",
+			},
+		});
+
+		const manifest = await buildRuntime(ctx.db).getManifest();
+
+		// One author per post: the parent side holds at most one child.
+		expect(manifest.collections.posts?.fields.author?.validation).toMatchObject({
+			multiple: false,
+		});
+		// Unlimited parents per child: the author's own field lists many posts.
+		expect(manifest.collections.authors?.fields.posts?.validation).toMatchObject({
 			multiple: true,
 		});
 	});

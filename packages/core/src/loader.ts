@@ -831,6 +831,38 @@ function isWhereRange(value: WhereValue): value is WhereRange {
 }
 
 /**
+ * Keys a `where` or `orderBy` can name that belong to the table rather than to
+ * a field. `slug` is one of them; {@link SYSTEM_COLUMNS} leaves it out because
+ * it is kept in `entry.data` for templates.
+ */
+const SYSTEM_QUERY_KEYS: ReadonlySet<string> = new Set([...SYSTEM_COLUMNS, "slug"]);
+
+/**
+ * The first of `keys` that names a reference field bound to a relation, or
+ * undefined.
+ *
+ * Such a field has no column: a `WHERE` on it fails with "no such column", which
+ * the catch below reads as an empty collection, and a field bound after its
+ * column existed answers from values it stopped writing. Both read to a template
+ * as "nothing matched", so the key has to be caught before the query is built.
+ *
+ * System columns are answered without a lookup, and the lookup itself is cached
+ * per request and in the schema object-cache namespace, so a render that filters
+ * by an ordinary field pays for this at most once between schema changes, and a
+ * render that filters by nothing never pays at all.
+ */
+async function findStoragelessQueryKey(
+	collection: string,
+	keys: string[],
+): Promise<string | undefined> {
+	const candidates = keys.filter((key) => !SYSTEM_QUERY_KEYS.has(key));
+	if (candidates.length === 0) return undefined;
+	const { getReferenceFieldMap } = await import("./references/field-map.js");
+	const bound = await getReferenceFieldMap(collection);
+	return candidates.find((key) => bound.has(key));
+}
+
+/**
  * Build AND conditions for non-taxonomy field filters.
  * Returns an array of sql fragments; empty if no field filters apply.
  * Field names are validated against FIELD_NAME_PATTERN to prevent injection.
@@ -1382,6 +1414,19 @@ export function emdashLoader(): LiveLoader<EntryData, EntryFilter, CollectionFil
 							fieldFilters[key] = value;
 						}
 					}
+				}
+
+				const storagelessKey = await findStoragelessQueryKey(type, [
+					...Object.keys(fieldFilters),
+					...Object.keys(orderBy ?? {}),
+				]);
+				if (storagelessKey) {
+					const message = `Cannot filter or sort "${type}" by "${storagelessKey}": it is a reference field bound to a relation, and its links are not stored on the entry. Read them with getEmDashEntry(..., { references }) or getEmDashReferences().`;
+					// Warned as well as returned, the way the missing-column catch
+					// below warns: a template that renders `entries` without reading
+					// `error` would otherwise see the same empty list this replaced.
+					console.warn(`[emdash] where filter: ${message}`);
+					return { error: new Error(message) };
 				}
 
 				// A byline or taxonomy filter with no values matches nothing —

@@ -2777,6 +2777,10 @@ function ContentTypesEditPage() {
 			updateRelation(id, input),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["relations"] });
+			// The relation's limits are what the manifest reports as a bound
+			// field's `multiple`, so the entry editor's picker is stale without
+			// this.
+			void queryClient.invalidateQueries({ queryKey: ["manifest"] });
 		},
 	});
 

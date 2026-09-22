@@ -301,6 +301,60 @@ describeEachDialect("RelationRepository", (dialect) => {
 		await expect(repo.setParents("unknown-relation", "c1", ["p1"])).resolves.toEqual([]);
 	});
 
+	it("setParents leaves a kept parent's position among its children alone", async () => {
+		const rel = await repo.create({ ...baseInput });
+		await repo.setChildren(rel.id, "p1", ["c1", "c2", "c3"]);
+
+		// Saving c1's own backlink field re-states the parent it already has.
+		// `sort_order` belongs to p1's list, so c1 must not be moved to the end of it.
+		await repo.setParents(rel.id, "c1", ["p1"]);
+
+		const children = await repo.getChildren(rel.id, "p1");
+		expect(children.map((edge) => edge.childGroup)).toEqual(["c1", "c2", "c3"]);
+		expect(children.map((edge) => edge.sortOrder)).toEqual([0, 1, 2]);
+	});
+
+	it("setChildren keeps the previous selection when the far side refuses an addition", async () => {
+		const rel = await repo.create({ ...baseInput, maxParentsPerChild: 1 });
+		await repo.setChildren(rel.id, "p1", ["a", "b"]);
+		// "x" has spent its one parent slot elsewhere.
+		await repo.setChildren(rel.id, "p2", ["x"]);
+
+		const rejected = await repo.setChildren(rel.id, "p1", ["x"]);
+
+		expect(rejected).toEqual(["x"]);
+		// The caller is told the save failed, so the save must not have happened.
+		expect((await repo.getChildren(rel.id, "p1")).map((edge) => edge.childGroup)).toEqual([
+			"a",
+			"b",
+		]);
+	});
+
+	it("setParents keeps the previous selection when the far side refuses an addition", async () => {
+		const rel = await repo.create({ ...baseInput, maxChildrenPerParent: 1 });
+		await repo.setParents(rel.id, "c1", ["p1"]);
+		// "p2" has spent its one child slot elsewhere.
+		await repo.setChildren(rel.id, "p2", ["other"]);
+
+		const rejected = await repo.setParents(rel.id, "c1", ["p2"]);
+
+		expect(rejected).toEqual(["p2"]);
+		expect((await repo.getParents(rel.id, "c1")).map((edge) => edge.parentGroup)).toEqual(["p1"]);
+	});
+
+	it("setChildren under a far-side limit re-states an unchanged selection", async () => {
+		const rel = await repo.create({ ...baseInput, maxParentsPerChild: 1 });
+		await repo.setChildren(rel.id, "p1", ["a", "b"]);
+
+		// Every child already holds its one parent slot — this parent's own. A
+		// re-save must recognize them rather than refuse them as somebody else's.
+		await expect(repo.setChildren(rel.id, "p1", ["a", "b"])).resolves.toEqual([]);
+		expect((await repo.getChildren(rel.id, "p1")).map((edge) => edge.childGroup)).toEqual([
+			"a",
+			"b",
+		]);
+	});
+
 	it("clearReferencesForGroup removes edges where the group is parent OR child", async () => {
 		const rel = await repo.create({ ...baseInput });
 		await repo.addReference(rel.id, "X", "a"); // X as parent

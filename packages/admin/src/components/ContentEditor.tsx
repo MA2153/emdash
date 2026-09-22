@@ -3,6 +3,7 @@ import {
 	Banner,
 	Button,
 	Checkbox,
+	Field,
 	Input,
 	InputArea,
 	Label,
@@ -2226,6 +2227,9 @@ function FieldRenderer({
 				typeof field.validation?.targetCollection === "string"
 					? field.validation.targetCollection
 					: undefined;
+			// For a bound field the manifest reports the relation's own cardinality
+			// here; the field row's `multiple` is only the create-time input that set
+			// it, and a later schema edit can rewrite the row without it.
 			const multiple = field.validation?.multiple !== false;
 			// A reference field created before relations existed keeps its own column
 			// holding one entry id, so it stays the text input it has always been
@@ -2247,6 +2251,7 @@ function FieldRenderer({
 				<ReferenceFieldRenderer
 					label={label}
 					labelClass={labelClass}
+					required={field.required}
 					targetCollection={targetCollection}
 					multiple={multiple}
 					reorderable={field.validation?.relationSide !== "child"}
@@ -2320,6 +2325,7 @@ function referenceRowKey(row: ReferenceEntryRow): string {
 function ReferenceFieldRenderer({
 	label,
 	labelClass,
+	required,
 	targetCollection,
 	multiple,
 	reorderable,
@@ -2331,6 +2337,7 @@ function ReferenceFieldRenderer({
 }: {
 	label: string;
 	labelClass?: string;
+	required?: boolean;
 	targetCollection: string;
 	multiple: boolean;
 	/**
@@ -2400,12 +2407,18 @@ function ReferenceFieldRenderer({
 		}
 	};
 
+	// A required field with nothing picked is the one rejection the editor can
+	// make on its own: the save's own message is built server-side in English,
+	// with no code to localize against.
+	const missingRequired = required && rows.length === 0;
+
 	return (
-		<div>
-			<span className={cn("text-sm font-medium leading-none text-kumo-default", labelClass)}>
-				{label}
-			</span>
-			<div className="mt-2 space-y-2">
+		<Field
+			label={<span className={labelClass}>{label}</span>}
+			required={required}
+			error={missingRequired ? { message: t`Select at least one entry.`, match: true } : undefined}
+		>
+			<div className="space-y-2">
 				{rows.length === 0 ? (
 					<p className="text-sm text-kumo-subtle">{t`No references selected.`}</p>
 				) : (
@@ -2521,7 +2534,7 @@ function ReferenceFieldRenderer({
 				onConfirm={handleConfirm}
 				locale={entryLocale ?? undefined}
 			/>
-		</div>
+		</Field>
 	);
 }
 

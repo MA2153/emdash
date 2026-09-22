@@ -19,6 +19,41 @@ export const REFERENCE_INSERT_BATCH_SIZE = Math.floor(
 	D1_MAX_BOUND_PARAMETERS / REFERENCE_INSERT_BIND_COLUMNS,
 );
 
+// Repositioning binds an edge id twice — once to match the CASE branch, once in
+// the row filter. The new position is a literal and binds nothing.
+const REFERENCE_REPOSITION_BIND_COLUMNS = 2;
+const REFERENCE_REPOSITION_BATCH_SIZE = Math.floor(
+	D1_MAX_BOUND_PARAMETERS / REFERENCE_REPOSITION_BIND_COLUMNS,
+);
+
+/** A reference edge as it is written. */
+interface EdgeInsert {
+	id: string;
+	relation_id: string;
+	parent_group: string;
+	child_group: string;
+	sort_order: number;
+	created_at: string;
+}
+
+/** Where an existing edge should sit in its parent's list. */
+interface EdgePosition {
+	id: string;
+	sortOrder: number;
+}
+
+/**
+ * Narrow a computed position to a non-negative integer before it is written as
+ * a SQL literal. Every caller passes an array index; this is what keeps that
+ * true at the one place the value stops being a bound parameter.
+ */
+function asPosition(sortOrder: number): number {
+	if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+		throw new TypeError(`Invalid reference sort order: ${sortOrder}`);
+	}
+	return sortOrder;
+}
+
 /**
  * A relation definition. Not localized: a relation joins the same two
  * collections whatever language you read it in, and its role labels are
@@ -231,14 +266,7 @@ export class RelationRepository {
 	 * when the limit refused the row.
 	 */
 	private async insertEdgeWithinLimit(
-		row: {
-			id: string;
-			relation_id: string;
-			parent_group: string;
-			child_group: string;
-			sort_order: number;
-			created_at: string;
-		},
+		row: EdgeInsert,
 		limitedSide: "parent" | "child",
 		limit: number,
 	): Promise<boolean> {
@@ -255,6 +283,87 @@ export class RelationRepository {
 			) < ${limit}
 		`.execute(this.db);
 		return (result.numAffectedRows ?? 0n) > 0n;
+	}
+
+	/**
+	 * Write new edges, taking back the ones already written if the limited end
+	 * refuses a later one.
+	 *
+	 * Returns the refused group in a one-element array, or an empty array when
+	 * every row went in. The rollback is what lets a replacement add before it
+	 * removes: on D1 nothing else can take a partial write back.
+	 *
+	 * An unlimited end cannot refuse anything, so its rows go in as batches; a
+	 * limited one takes a statement per edge, because a limit enforced only by a
+	 * count before the write is one two requests can both walk past.
+	 */
+	private async insertEdges(
+		rows: EdgeInsert[],
+		limitedSide: "parent" | "child",
+		limit: number | null,
+	): Promise<string[]> {
+		if (rows.length === 0) return [];
+
+		if (limit === null) {
+			for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
+				// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
+				await this.db
+					.insertInto("_emdash_content_references")
+					.values(rowBatch)
+					.onConflict((oc) => oc.doNothing())
+					.execute();
+			}
+			return [];
+		}
+
+		const written: string[] = [];
+		for (const row of rows) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per edge is what makes the limit hold
+			const inserted = await this.insertEdgeWithinLimit(row, limitedSide, limit);
+			if (inserted) {
+				written.push(row.id);
+				continue;
+			}
+			await this.deleteEdgesById(written);
+			return [limitedSide === "parent" ? row.parent_group : row.child_group];
+		}
+		return [];
+	}
+
+	/** Remove edges by id, in D1-safe batches. */
+	private async deleteEdgesById(ids: string[]): Promise<void> {
+		for (const idBatch of chunks(ids, SQL_BATCH_SIZE)) {
+			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+			await this.db.deleteFrom("_emdash_content_references").where("id", "in", idBatch).execute();
+		}
+	}
+
+	/**
+	 * Move kept edges to their new positions, a statement per batch rather than
+	 * one per edge: dragging one entry up a long list moves every entry below it,
+	 * and that is a single editor action.
+	 */
+	private async repositionEdges(moves: EdgePosition[]): Promise<void> {
+		for (const moveBatch of chunks(moves, REFERENCE_REPOSITION_BATCH_SIZE)) {
+			// The position is a literal, not a bind: it is an index this method
+			// computed, and every branch of a CASE binding one would leave Postgres
+			// inferring the result type from parameters alone.
+			const branches = moveBatch.map(
+				(move) => sql`WHEN ${move.id} THEN ${sql.lit(asPosition(move.sortOrder))}`,
+			);
+			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+			await this.db
+				.updateTable("_emdash_content_references")
+				.set({
+					sort_order: sql<number>`CASE ${sql.ref("id")} ${sql.join(branches, sql` `)} END`,
+				})
+				.where(
+					"id",
+					"in",
+					moveBatch.map((move) => move.id),
+				)
+				.execute();
+		}
 	}
 
 	/** Normalize a relation id OR slug to its id. Returns null for an unknown
@@ -470,30 +579,35 @@ export class RelationRepository {
 
 	/**
 	 * Replace all children of `parentGroup` under a relation with `childGroups`,
-	 * assigning positional sort_order (index in the deduped array). Deletes the
-	 * old set for this (relation, parent) and re-inserts in D1-safe batches.
+	 * assigning positional sort_order (index in the deduped array).
 	 * Mirrors the intent of `TaxonomyRepository.setTermsForEntry`.
 	 *
 	 * A parent references a given child at most once (the unique edge), so
 	 * duplicate `childGroups` are collapsed first-occurrence-wins rather than
-	 * relying on the insert's onConflict to silently drop them. Not wrapped in a
-	 * transaction: an interruption after the delete can leave the parent with an
-	 * empty or partial replacement. A retry restores the complete requested set.
+	 * relying on the insert's onConflict to silently drop them.
+	 *
+	 * Written as a diff, in the order add → remove → reposition, rather than as a
+	 * delete of the whole end followed by a re-insert. There is no transaction on
+	 * D1: a replacement that removed first would leave the parent holding nothing
+	 * the moment the far side refused one of the additions, and report a failed
+	 * save over an emptied field. Additions already written come back out when a
+	 * later one is refused, so a refused call leaves the selection as it found it.
+	 * The diff also keeps an edge the caller is merely re-stating out of the far
+	 * side's count, which a delete-and-reinsert survives only because its delete
+	 * frees the slot a moment before it asks for it back.
 	 *
 	 * Concurrency: two simultaneous replace-all calls for the same (relation,
-	 * parent) can interleave their deletes and inserts and merge into the union of
-	 * both sets (a lost update — neither "replace" wins). This is non-corrupting —
-	 * keyset pagination stays totally ordered via the `(sort_order, id)` tiebreak
-	 * even with duplicate sort_orders — and a single client editing one parent's
-	 * children serially never hits it. A D1-portable fix isn't available (no
-	 * multi-statement transactions), so concurrent replace-all on one parent is
-	 * unsupported by design rather than guarded here.
+	 * parent) can interleave and merge into the union of both sets (a lost update
+	 * — neither "replace" wins). This is non-corrupting — keyset pagination stays
+	 * totally ordered via the `(sort_order, id)` tiebreak even with duplicate
+	 * sort_orders — and a single client editing one parent's children serially
+	 * never hits it. A D1-portable fix isn't available (no multi-statement
+	 * transactions), so concurrent replace-all on one parent is unsupported by
+	 * design rather than guarded here.
 	 *
-	 * Returns the child groups `maxParentsPerChild` refused — empty unless the
-	 * relation limits that end and something else has taken the slot since the
-	 * caller resolved its selection. Under such a limit each edge goes in through
-	 * {@link insertEdgeWithinLimit} instead of a batch, because a limit enforced
-	 * only by a count before the write is one two requests can both walk past.
+	 * Returns the child group `maxParentsPerChild` refused, in a one-element
+	 * array — empty unless the relation limits that end and something else has
+	 * taken the slot since the caller resolved its selection.
 	 */
 	async setChildren(
 		relation: string,
@@ -503,47 +617,43 @@ export class RelationRepository {
 		const rel = await this.resolveRelationLimits(relation);
 		if (!rel) return [];
 
-		await this.db
-			.deleteFrom("_emdash_content_references")
+		const existing = await this.db
+			.selectFrom("_emdash_content_references")
+			.select(["id", "child_group", "sort_order"])
 			.where("relation_id", "=", rel.id)
 			.where("parent_group", "=", parentGroup)
 			.execute();
+		const existingChildren = new Set(existing.map((row) => row.child_group));
 
 		// Collapse duplicates so positional sort_order has no gaps.
 		const uniqueChildGroups = [...new Set(childGroups)];
-		if (uniqueChildGroups.length === 0) return [];
+		const positions = new Map(uniqueChildGroups.map((childGroup, index) => [childGroup, index]));
 
 		const now = new Date().toISOString();
-		const rows = uniqueChildGroups.map((childGroup, index) => ({
-			id: ulid(),
-			relation_id: rel.id,
-			parent_group: parentGroup,
-			child_group: childGroup,
-			sort_order: index,
-			created_at: now,
-		}));
+		const additions = uniqueChildGroups
+			.map((childGroup, index) => ({ childGroup, index }))
+			.filter(({ childGroup }) => !existingChildren.has(childGroup))
+			.map(({ childGroup, index }) => ({
+				id: ulid(),
+				relation_id: rel.id,
+				parent_group: parentGroup,
+				child_group: childGroup,
+				sort_order: index,
+				created_at: now,
+			}));
 
-		if (rel.maxParentsPerChild !== null) {
-			const rejected: string[] = [];
-			for (const row of rows) {
-				// oxlint-disable-next-line no-await-in-loop -- one statement per edge is what makes the limit hold
-				const written = await this.insertEdgeWithinLimit(row, "child", rel.maxParentsPerChild);
-				if (!written) rejected.push(row.child_group);
-			}
-			return rejected;
-		}
+		const rejected = await this.insertEdges(additions, "child", rel.maxParentsPerChild);
+		if (rejected.length > 0) return rejected;
 
-		for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
-			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
-			await this.db
-				.insertInto("_emdash_content_references")
-				.values(rowBatch)
-				// Belt-and-suspenders: the DELETE above already cleared this
-				// (relation, parent), so no conflict is possible within one call.
-				// This is NOT a concurrency guarantee — delete-then-insert is not atomic.
-				.onConflict((oc) => oc.doNothing())
-				.execute();
+		const removals: string[] = [];
+		const repositions: EdgePosition[] = [];
+		for (const row of existing) {
+			const position = positions.get(row.child_group);
+			if (position === undefined) removals.push(row.id);
+			else if (position !== row.sort_order) repositions.push({ id: row.id, sortOrder: position });
 		}
+		await this.deleteEdgesById(removals);
+		await this.repositionEdges(repositions);
 		return [];
 	}
 
@@ -551,16 +661,19 @@ export class RelationRepository {
 	 * Replace all parents of `childGroup` under a relation with `parentGroups`:
 	 * the mirror of `setChildren`, for a field bound to the child side.
 	 *
-	 * Duplicates collapse first-occurrence-wins, and the same
+	 * Duplicates collapse first-occurrence-wins, and the same diff ordering and
 	 * non-transactional caveats apply — see `setChildren`, including that two
 	 * concurrent replace-all calls for one (relation, child) can merge.
 	 *
 	 * `sort_order` orders children within a parent and has no counterpart on this
-	 * side, so each new edge takes the next position among that parent's existing
-	 * children rather than a position in this child's list. A child-side field
-	 * therefore has no order of its own; `getParents` reads by `id`.
+	 * side, so a *new* edge takes the next position among that parent's existing
+	 * children rather than a position in this child's list. A parent the caller
+	 * re-states keeps the position it already holds: that position is the other
+	 * side's list order, and saving a backlink field must not rewrite it. A
+	 * child-side field therefore has no order of its own; `getParents` reads by
+	 * `id`.
 	 *
-	 * Returns the parent groups `maxChildrenPerParent` refused, the mirror of what
+	 * Returns the parent group `maxChildrenPerParent` refused, the mirror of what
 	 * `setChildren` returns.
 	 */
 	async setParents(
@@ -572,19 +685,24 @@ export class RelationRepository {
 		if (!rel) return [];
 		const relationId = rel.id;
 
-		await this.db
-			.deleteFrom("_emdash_content_references")
+		const existing = await this.db
+			.selectFrom("_emdash_content_references")
+			.select(["id", "parent_group"])
 			.where("relation_id", "=", relationId)
 			.where("child_group", "=", childGroup)
 			.execute();
+		const existingParents = new Set(existing.map((row) => row.parent_group));
 
 		const uniqueParentGroups = [...new Set(parentGroups)];
-		if (uniqueParentGroups.length === 0) return [];
+		const selected = new Set(uniqueParentGroups);
+		const newParents = uniqueParentGroups.filter(
+			(parentGroup) => !existingParents.has(parentGroup),
+		);
 
 		// One query for every new parent's highest position, so appending stays a
 		// fixed number of round trips rather than one per parent.
 		const nextSortOrder = new Map<string, number>();
-		for (const groupBatch of chunks(uniqueParentGroups, REFERENCE_INSERT_BATCH_SIZE)) {
+		for (const groupBatch of chunks(newParents, REFERENCE_INSERT_BATCH_SIZE)) {
 			// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
 			const maxima = await this.db
 				.selectFrom("_emdash_content_references")
@@ -599,7 +717,7 @@ export class RelationRepository {
 		}
 
 		const now = new Date().toISOString();
-		const rows = uniqueParentGroups.map((parentGroup) => ({
+		const additions = newParents.map((parentGroup) => ({
 			id: ulid(),
 			relation_id: relationId,
 			parent_group: parentGroup,
@@ -608,24 +726,12 @@ export class RelationRepository {
 			created_at: now,
 		}));
 
-		if (rel.maxChildrenPerParent !== null) {
-			const rejected: string[] = [];
-			for (const row of rows) {
-				// oxlint-disable-next-line no-await-in-loop -- one statement per edge is what makes the limit hold
-				const written = await this.insertEdgeWithinLimit(row, "parent", rel.maxChildrenPerParent);
-				if (!written) rejected.push(row.parent_group);
-			}
-			return rejected;
-		}
+		const rejected = await this.insertEdges(additions, "parent", rel.maxChildrenPerParent);
+		if (rejected.length > 0) return rejected;
 
-		for (const rowBatch of chunks(rows, REFERENCE_INSERT_BATCH_SIZE)) {
-			// oxlint-disable-next-line no-await-in-loop -- one statement per D1-safe batch
-			await this.db
-				.insertInto("_emdash_content_references")
-				.values(rowBatch)
-				.onConflict((oc) => oc.doNothing())
-				.execute();
-		}
+		await this.deleteEdgesById(
+			existing.filter((row) => !selected.has(row.parent_group)).map((row) => row.id),
+		);
 		return [];
 	}
 

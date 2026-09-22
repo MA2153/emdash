@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 
 import {
 	handleContentCreate,
@@ -12,7 +12,10 @@ import {
 import { setReferenceSelection } from "../../../src/api/handlers/relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
+import { setI18nConfig } from "../../../src/i18n/config.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
+import { createLegacyReferenceField } from "../../utils/legacy-reference-field.js";
+import { createTestRuntime } from "../../utils/mcp-runtime.js";
 import {
 	asInlineTransaction,
 	describeEachDialect,
@@ -21,34 +24,250 @@ import {
 } from "../../utils/test-db.js";
 import type { DialectTestContext } from "../../utils/test-db.js";
 
-describeEachDialect("content write strips storage-less data keys", (dialect) => {
+describeEachDialect("content write refuses storage-less data keys", (dialect) => {
 	let ctx: DialectTestContext;
 
-	it("does not error and does not persist a reference key placed in data", async () => {
+	async function setupPosts(): Promise<void> {
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+		await registry.createField("posts", {
+			slug: "related",
+			label: "Related",
+			type: "reference",
+			validation: { relation: "grp_x", targetCollection: "posts", multiple: true },
+		});
+	}
+
+	it("rejects a reference key placed in data on create, naming the key that takes it", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await setupPosts();
+
+			const res = await handleContentCreate(ctx.db, "posts", {
+				data: { title: "A", related: ["some-entry-id"] },
+			});
+
+			expect(res).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
+			if (!res.success) {
+				expect(res.error.message).toContain("related");
+				expect(res.error.message).toContain("references");
+			}
+			// Nothing was written: the rejection precedes the row.
+			expect(await new ContentRepository(ctx.db).findMany("posts")).toMatchObject({ items: [] });
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("rejects a reference key placed in data on update", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			await setupPosts();
+			const created = await handleContentCreate(ctx.db, "posts", { data: { title: "A" } });
+			if (!created.success) throw new Error(created.error.message);
+
+			const res = await handleContentUpdate(ctx.db, "posts", created.data.item.id, {
+				data: { title: "B", related: ["some-entry-id"] },
+			});
+
+			expect(res).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
+			const after = await handleContentGet(ctx.db, "posts", created.data.item.id);
+			if (!after.success) throw new Error(after.error.message);
+			expect(after.data.item.data).toMatchObject({ title: "A" });
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+
+	it("still writes an unbound reference field's value to its own column", async () => {
 		ctx = await setupForDialect(dialect);
 		try {
 			const registry = new SchemaRegistry(ctx.db);
 			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
 			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+			// No `validation.relation`: the field keeps its TEXT column and behaves
+			// like a string, so `data` is exactly where its value belongs.
+			await registry.createField("posts", {
+				slug: "author",
+				label: "Author",
+				type: "reference",
+				validation: { targetCollection: "posts" },
+			});
+
+			const res = await handleContentCreate(ctx.db, "posts", {
+				data: { title: "A", author: "post_abc" },
+			});
+
+			expect(res.success).toBe(true);
+			if (res.success) expect(res.data.item.data).toMatchObject({ author: "post_abc" });
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+});
+
+describeEachDialect("a reference key in data on a collection that keeps drafts", (dialect) => {
+	let ctx: DialectTestContext;
+
+	it("is refused rather than staged into the draft revision", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+			await new RelationRepository(ctx.db).create({
+				slug: "posts_related",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Post",
+				childLabel: "Related post",
+			});
 			await registry.createField("posts", {
 				slug: "related",
 				label: "Related",
 				type: "reference",
-				validation: { relation: "grp_x", targetCollection: "posts", multiple: true },
+				validation: {
+					relation: "posts_related",
+					relationSide: "parent",
+					targetCollection: "posts",
+				},
 			});
 
-			const res = await handleContentCreate(ctx.db, "posts", {
-				data: { title: "A", related: ["should-be-ignored"] },
+			const runtime = createTestRuntime(ctx.db);
+			const created = await runtime.handleContentCreate("posts", { data: { title: "A" } });
+			if (!created.success) throw new Error(created.error.message);
+
+			// A draft save never reaches the column writer, so nothing downstream
+			// would notice the key. It has to be refused on the way in.
+			const res = await runtime.handleContentUpdate("posts", created.data.item.id, {
+				data: { title: "B", related: [created.data.item.id] },
 			});
 
-			expect(res.success).toBe(true);
-			if (res.success) {
-				// The reference key must not have been written as a column value.
-				expect(res.data.item.data).not.toHaveProperty("related");
-			}
+			expect(res).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
 		} finally {
 			await teardownForDialect(ctx);
 		}
+	});
+});
+
+describeEachDialect("saving an entry whose reference field was bound later", (dialect) => {
+	let ctx: DialectTestContext;
+
+	it("accepts the entry's own data back unchanged", async () => {
+		ctx = await setupForDialect(dialect);
+		try {
+			const registry = new SchemaRegistry(ctx.db);
+			await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+			// The shape migration 084 leaves behind: the field is bound to a
+			// relation and the column it filled before relations existed still holds
+			// the value it last wrote, so every read hands that key back in `data`.
+			await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "posts" });
+			const created = await handleContentCreate(ctx.db, "posts", {
+				data: { title: "A", author: "post_abc" },
+			});
+			if (!created.success) throw new Error(created.error.message);
+
+			await new RelationRepository(ctx.db).create({
+				slug: "posts_author",
+				parentCollection: "posts",
+				childCollection: "posts",
+				parentLabel: "Author",
+				childLabel: "Posts",
+			});
+			await ctx.db
+				.updateTable("_emdash_fields")
+				.set({
+					validation: JSON.stringify({
+						relation: "posts_author",
+						relationSide: "parent",
+						targetCollection: "posts",
+					}),
+				})
+				.where("slug", "=", "author")
+				.execute();
+
+			const read = await handleContentGet(ctx.db, "posts", created.data.item.id);
+			if (!read.success) throw new Error(read.error.message);
+			expect(read.data.item.data).toMatchObject({ author: "post_abc" });
+
+			// A read-then-write client — the admin editor among them — echoes the
+			// key it was handed. That is not an attempt to set a selection.
+			const res = await handleContentUpdate(ctx.db, "posts", created.data.item.id, {
+				data: { ...read.data.item.data, title: "B" },
+			});
+
+			expect(res).toMatchObject({ success: true });
+		} finally {
+			await teardownForDialect(ctx);
+		}
+	});
+});
+
+describeEachDialect("translating an entry whose reference field was bound later", (dialect) => {
+	let ctx: DialectTestContext;
+
+	afterEach(async () => {
+		setI18nConfig(null);
+		await teardownForDialect(ctx);
+	});
+
+	it("does not carry the frozen column value into the translation's data", async () => {
+		setI18nConfig({ defaultLocale: "en", locales: ["en", "fr"] });
+		ctx = await setupForDialect(dialect);
+		const registry = new SchemaRegistry(ctx.db);
+		await registry.createCollection({ slug: "posts", label: "Posts", labelSingular: "Post" });
+		await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+		// The shape migration 084 leaves behind: the field is bound to a relation,
+		// and the column it filled before relations existed is still there holding
+		// the value it last wrote. A non-translatable field is copied from the
+		// source entry when a translation is created.
+		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "posts" });
+		await ctx.db
+			.updateTable("_emdash_fields")
+			.set({ translatable: 0 })
+			.where("slug", "=", "author")
+			.execute();
+
+		const runtime = createTestRuntime(ctx.db);
+		const target = await runtime.handleContentCreate("posts", {
+			data: { title: "Target" },
+			locale: "en",
+		});
+		if (!target.success) throw new Error(target.error.message);
+		const source = await runtime.handleContentCreate("posts", {
+			data: { title: "Hello", author: target.data.item.id },
+			locale: "en",
+		});
+		if (!source.success) throw new Error(source.error.message);
+
+		await new RelationRepository(ctx.db).create({
+			slug: "posts_author",
+			parentCollection: "posts",
+			childCollection: "posts",
+			parentLabel: "Author",
+			childLabel: "Posts",
+		});
+		await ctx.db
+			.updateTable("_emdash_fields")
+			.set({
+				validation: JSON.stringify({
+					relation: "posts_author",
+					relationSide: "parent",
+					targetCollection: "posts",
+				}),
+			})
+			.where("slug", "=", "author")
+			.execute();
+
+		const translation = await runtime.handleContentCreate("posts", {
+			data: { title: "Bonjour" },
+			locale: "fr",
+			translationOf: source.data.item.id,
+		});
+
+		expect(translation.success).toBe(true);
 	});
 });
 

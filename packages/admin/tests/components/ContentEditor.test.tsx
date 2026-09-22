@@ -2698,6 +2698,33 @@ describe("ContentEditor", () => {
 		});
 	});
 
+	describe("reference field requiredness", () => {
+		function referenceField(required: boolean): Record<string, FieldDescriptor> {
+			return {
+				title: { kind: "string", label: "Title" },
+				related: {
+					kind: "reference",
+					label: "Related",
+					required,
+					validation: { relation: "rel-group-1", targetCollection: "posts", multiple: true },
+				},
+			};
+		}
+
+		it("says a required reference field needs an entry while none is selected", async () => {
+			const screen = await renderEditor({ fields: referenceField(true) });
+
+			await expect.element(screen.getByText("Select at least one entry.")).toBeInTheDocument();
+		});
+
+		it("marks an optional reference field the way every other field is marked", async () => {
+			const screen = await renderEditor({ fields: referenceField(false) });
+
+			await expect.element(screen.getByText("(optional)")).toBeInTheDocument();
+			expect(screen.getByText("Select at least one entry.").query()).toBeNull();
+		});
+	});
+
 	describe("reference field that predates relations", () => {
 		// No relation means the field still owns a column holding one entry id, so
 		// it keeps the text input it had before reference pickers existed.

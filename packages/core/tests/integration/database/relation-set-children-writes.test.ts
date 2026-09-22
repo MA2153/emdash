@@ -45,6 +45,10 @@ function referenceInserts(): CapturedQuery[] {
 	return captured.filter((query) => /insert into ["`]?_emdash_content_references/i.test(query.sql));
 }
 
+function referenceUpdates(): CapturedQuery[] {
+	return captured.filter((query) => /update ["`]?_emdash_content_references/i.test(query.sql));
+}
+
 it("chunks large child replacements within D1's bound-parameter ceiling", async () => {
 	const relation = await repo.create({
 		slug: "related_pages",
@@ -67,6 +71,37 @@ it("chunks large child replacements within D1's bound-parameter ceiling", async 
 	const stored = await repo.getChildren(relation.slug, "parent-1");
 	expect(stored.map((edge) => edge.childGroup)).toEqual(childGroups);
 	expect(stored.map((edge) => edge.sortOrder)).toEqual(childGroups.map((_, index) => index));
+});
+
+it("chunks a large reorder within D1's bound-parameter ceiling", async () => {
+	const relation = await repo.create({
+		slug: "reordered_pages",
+		parentCollection: "posts",
+		childCollection: "pages",
+		parentLabel: "Post",
+		childLabel: "Related page",
+	});
+	// More children than one repositioning statement can bind, so the chunking
+	// is what the assertions below see.
+	const childGroups = Array.from({ length: 120 }, (_, index) => `reorder-child-${index}`);
+	await repo.setChildren(relation.id, "parent-1", childGroups);
+
+	// Reversing moves every edge, so the repositioning statements are the only
+	// thing this replacement issues.
+	const reversed = childGroups.toReversed();
+	captured = [];
+	await repo.setChildren(relation.id, "parent-1", reversed);
+
+	const updates = referenceUpdates();
+	expect(updates.length).toBeGreaterThan(1);
+	for (const update of updates) {
+		expect(update.parameters.length).toBeLessThanOrEqual(100);
+	}
+	expect(referenceInserts()).toHaveLength(0);
+
+	const stored = await repo.getChildren(relation.slug, "parent-1");
+	expect(stored.map((edge) => edge.childGroup)).toEqual(reversed);
+	expect(stored.map((edge) => edge.sortOrder)).toEqual(reversed.map((_, index) => index));
 });
 
 it("chunks copied parent edges within D1's bound-parameter ceiling", async () => {
