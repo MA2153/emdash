@@ -863,6 +863,16 @@ async function findStoragelessQueryKey(
 }
 
 /**
+ * A boolean field owns an INTEGER column (`FIELD_TYPE_TO_COLUMN`) and its
+ * values are written as 0/1, so binding a native `true` against one is a type
+ * error on PostgreSQL. SQLite accepts the boolean and compares it as 1, which
+ * is why filtering by a boolean field only ever broke on one dialect.
+ */
+function bindableFilterValue(value: unknown): unknown {
+	return typeof value === "boolean" ? (value ? 1 : 0) : value;
+}
+
+/**
  * Build AND conditions for non-taxonomy field filters.
  * Returns an array of sql fragments; empty if no field filters apply.
  * Field names are validated against FIELD_NAME_PATTERN to prevent injection.
@@ -882,16 +892,19 @@ function buildFieldConditions(
 		const ref = tablePrefix ? sql.ref(`${tablePrefix}.${key}`) : sql.ref(key);
 
 		if (isWhereRange(value)) {
-			if (value.gt !== undefined) conditions.push(sql`${ref} > ${value.gt}`);
-			if (value.gte !== undefined) conditions.push(sql`${ref} >= ${value.gte}`);
-			if (value.lt !== undefined) conditions.push(sql`${ref} < ${value.lt}`);
-			if (value.lte !== undefined) conditions.push(sql`${ref} <= ${value.lte}`);
+			const { gt, gte, lt, lte } = value;
+			if (gt !== undefined) conditions.push(sql`${ref} > ${bindableFilterValue(gt)}`);
+			if (gte !== undefined) conditions.push(sql`${ref} >= ${bindableFilterValue(gte)}`);
+			if (lt !== undefined) conditions.push(sql`${ref} < ${bindableFilterValue(lt)}`);
+			if (lte !== undefined) conditions.push(sql`${ref} <= ${bindableFilterValue(lte)}`);
 		} else if (Array.isArray(value)) {
 			if (value.length > 0) {
-				conditions.push(sql`${ref} IN (${sql.join(value.map((v) => sql`${v}`))})`);
+				conditions.push(
+					sql`${ref} IN (${sql.join(value.map((v) => sql`${bindableFilterValue(v)}`))})`,
+				);
 			}
 		} else {
-			conditions.push(sql`${ref} = ${value}`);
+			conditions.push(sql`${ref} = ${bindableFilterValue(value)}`);
 		}
 	}
 
