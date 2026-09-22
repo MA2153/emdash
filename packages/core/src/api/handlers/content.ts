@@ -1856,6 +1856,9 @@ export async function handleContentPermanentDelete(
 				const revisionRepo = new RevisionRepository(trx);
 				await revisionRepo.deleteByEntry(collection, resolvedId);
 				await new EntryLockRepository(trx).releaseEntry(collection, resolvedId);
+				// Credits belong to this row alone — no other row reads them, so they
+				// go with it whether or not the group survives.
+				await new BylineRepository(trx).deleteContentBylines(collection, resolvedId);
 				if (lastOfGroup && item?.translationGroup) {
 					await new TaxonomyRepository(trx).clearEntryGroupTerms(collection, item.translationGroup);
 				}

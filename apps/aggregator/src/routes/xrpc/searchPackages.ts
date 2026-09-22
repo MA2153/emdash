@@ -204,6 +204,8 @@ function buildPublisherSearchSql(
 		SELECT ${packageColumns("p.")}
 		FROM packages p
 		WHERE p.did = ?
+		AND p.installability_status = 'valid'
+		AND p.emdash_extension IS NOT NULL
 		${hasSlug ? "AND p.slug = ?" : ""}
 		AND ${ACTIVE_PROFILE_SQL}
 		${policy.mode === "allowlist" ? `AND ${ALLOWLIST_PROFILE_SQL}` : ""}
@@ -306,7 +308,9 @@ function buildBrowseSql(policy: ListingPolicyConfig, hasCapability: boolean): st
 	return `
 		SELECT ${packageColumns("p.")}
 		FROM packages p
-		WHERE ${ACTIVE_PROFILE_SQL}
+		WHERE p.installability_status = 'valid'
+		AND p.emdash_extension IS NOT NULL
+		AND ${ACTIVE_PROFILE_SQL}
 		${policy.mode === "allowlist" ? `AND ${ALLOWLIST_PROFILE_SQL}` : ""}
 		AND ${ACTIVE_PROFILE_REDACTION_SQL}
 		${hasCapability ? CAPABILITY_FILTER_SQL : ""}

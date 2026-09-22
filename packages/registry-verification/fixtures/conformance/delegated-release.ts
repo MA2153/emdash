@@ -2,17 +2,13 @@ import {
 	declaredAccessToCapabilities,
 	type DeclaredAccess,
 	type ManifestRouteEntry,
+	type PluginManifest,
 } from "@emdash-cms/plugin-types";
 import type { PackageProfile, PackageRelease } from "@emdash-cms/registry-lexicons";
 import { packTar, type TarEntry } from "modern-tar";
 
-import {
-	compareDigestBytes,
-	computeMultihash,
-	decodeMultihash,
-	type ProvenanceVerifier,
-	type ReleaseProvenance,
-} from "../../src/index.js";
+import { compareDigestBytes, computeMultihash, decodeMultihash } from "../../src/checksum.js";
+import type { ProvenanceVerifier, ReleaseProvenance } from "../../src/provenance.js";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -26,6 +22,8 @@ export interface DelegatedReleaseFixtureOptions {
 	declaredAccess?: DeclaredAccess;
 	manifestDeclaredAccess?: DeclaredAccess;
 	routes?: Array<ManifestRouteEntry | string>;
+	manifest?: PluginManifest;
+	backendCode?: string;
 	provenanceDigestAlgorithm?: "sha256" | "sha384" | "sha512";
 	provenance?: Partial<ReleaseProvenance>;
 }
@@ -87,13 +85,19 @@ export async function createDelegatedReleaseConformanceFixture(
 	const invocationId = `${repository}/actions/runs/100/attempts/1`;
 	const artifactUrl = "https://artifact.example.test/gallery.tgz";
 	const provenanceUrl = "https://provenance.example.test/gallery.sigstore.json";
-	const declaredAccess = options.declaredAccess ?? { content: { read: {} } };
-	const manifestDeclaredAccess = options.manifestDeclaredAccess ?? declaredAccess;
+	const declaredAccess = options.declaredAccess ??
+		options.manifest?.declaredAccess ?? { content: { read: {} } };
+	const manifestDeclaredAccess =
+		options.manifestDeclaredAccess ?? options.manifest?.declaredAccess ?? declaredAccess;
 	const enforcement = declaredAccessToCapabilities(manifestDeclaredAccess);
-	const artifactBytes = await bundle([
-		file(
-			"manifest.json",
-			JSON.stringify({
+	const manifest: PluginManifest = options.manifest
+		? {
+				...options.manifest,
+				id: options.manifestId ?? options.manifest.id,
+				version: options.manifestVersion ?? options.manifest.version,
+				declaredAccess: manifestDeclaredAccess,
+			}
+		: {
 				id: options.manifestId ?? packageSlug,
 				version: options.manifestVersion ?? version,
 				declaredAccess: manifestDeclaredAccess,
@@ -103,9 +107,10 @@ export async function createDelegatedReleaseConformanceFixture(
 				hooks: [],
 				routes: options.routes ?? [],
 				admin: {},
-			}),
-		),
-		file("backend.js", "export default {};"),
+			};
+	const artifactBytes = await bundle([
+		file("manifest.json", JSON.stringify(manifest)),
+		file("backend.js", options.backendCode ?? "export default {};"),
 		file("admin.js", "export default {};"),
 	]);
 	const artifact = await checksumAndDigest(artifactBytes);

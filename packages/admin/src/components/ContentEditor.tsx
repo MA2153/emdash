@@ -50,6 +50,7 @@ import {
 import { getContentPublishingState } from "../lib/content-publishing-state.js";
 import { fromDatetimeLocalInputValue, toDatetimeLocalInputValue } from "../lib/datetime-local.js";
 import { getEntryTitle } from "../lib/entryTitle.js";
+import { getFieldLabel } from "../lib/field-label.js";
 import { formatFileSize, getFileIcon, localMediaFileUrl } from "../lib/media-utils";
 import { usePluginAdmins } from "../lib/plugin-context.js";
 import { resolveSandboxedEditorActions } from "../lib/sandboxed-editor-extensions.js";
@@ -65,6 +66,7 @@ import {
 	DiscardDraftDialog,
 	PreviewButton,
 	PublishActions,
+	ScheduleActions,
 	SettingsActionBar,
 } from "./ContentSettingsPanel.js";
 import { ImageFieldRenderer, type ImageFieldValue } from "./ImageFieldRenderer.js";
@@ -1179,6 +1181,7 @@ export function ContentEditor({
 		hasPendingChanges,
 		scheduledAt: item?.scheduledAt,
 	});
+	const publishingPending = Boolean(isScheduling || isUnscheduling);
 	const [scheduleDialogOpen, setScheduleDialogOpen] = React.useState(false);
 	const [publishingMenuOpen, setPublishingMenuOpen] = React.useState(false);
 	const scheduleEntryKey = `${item?.id ?? "new"}:${item?.locale ?? entryLocale ?? ""}`;
@@ -1243,13 +1246,13 @@ export function ContentEditor({
 				}
 			>
 				<div className={cn(isDistractionFree ? "w-full" : "flex-1 min-w-0 overflow-y-auto p-6")}>
-					{/* In distraction-free mode the header is an always-visible overlay
+					{/* In distraction-free mode the header stays visible while the editor scrolls
 					    so readers can discover the exit affordance without hovering. */}
 					<div
 						className={cn(
 							"flex flex-wrap items-center justify-between gap-y-2",
 							isDistractionFree
-								? "fixed top-0 start-0 end-0 mx-auto w-[calc(100%-4rem)] max-w-3xl bg-kumo-elevated/95 py-4 backdrop-blur z-10"
+								? "sticky top-0 z-10 mx-auto w-full max-w-3xl bg-kumo-elevated/95 py-4 backdrop-blur"
 								: cn(
 										"mx-auto mb-6 max-w-3xl",
 										isBelowLg && "bg-kumo-elevated/95 py-3 backdrop-blur",
@@ -1280,7 +1283,15 @@ export function ContentEditor({
 						{/* The distraction-free toggles stay outside the disabled fieldsets:
 						    they change the view, not the entry, and a reader must be able to
 						    leave the overlay. */}
-						<div className="flex items-center gap-2">
+						<div
+							className={cn(
+								"flex items-center gap-2",
+								isDistractionFree &&
+									(isBelowLg
+										? "w-full flex-wrap justify-end"
+										: "min-w-0 max-w-full flex-wrap justify-end"),
+							)}
+						>
 							{!isDistractionFree ? (
 								// Below lg, actions move here from the (hidden) panel.
 								<>
@@ -1318,14 +1329,10 @@ export function ContentEditor({
 												isLive={isLive}
 												hasPendingChanges={hasPendingChanges}
 												publishingState={publishingState}
-												canSchedule={canSchedule}
-												isScheduling={isScheduling}
-												isUnscheduling={isUnscheduling}
+												isPending={publishingPending}
 												disabled={hasSaveConflict}
 												onPublish={handlePublish}
 												onUnpublish={handleUnpublish}
-												onOpenSchedule={onSchedule ? handleOpenSchedule : undefined}
-												onUnschedule={onUnschedule ? handleUnschedule : undefined}
 												onMenuOpenChange={setPublishingMenuOpen}
 											/>
 											<MobileSettingsButton />
@@ -1394,19 +1401,25 @@ export function ContentEditor({
 														triggerSize="sm"
 													/>
 												)}
+												<ScheduleActions
+													publishingState={publishingState}
+													canSchedule={canSchedule}
+													isScheduling={isScheduling}
+													isUnscheduling={isUnscheduling}
+													disabled={publishingPending || hasSaveConflict}
+													onOpenSchedule={onSchedule ? handleOpenSchedule : undefined}
+													onUnschedule={onUnschedule ? handleUnschedule : undefined}
+													inline
+												/>
 												<PublishActions
 													collectionLabel={collectionLabel}
 													isLive={isLive}
 													hasPendingChanges={hasPendingChanges}
 													publishingState={publishingState}
-													canSchedule={canSchedule}
-													isScheduling={isScheduling}
-													isUnscheduling={isUnscheduling}
+													isPending={publishingPending}
 													disabled={hasSaveConflict}
 													onPublish={handlePublish}
 													onUnpublish={handleUnpublish}
-													onOpenSchedule={onSchedule ? handleOpenSchedule : undefined}
-													onUnschedule={onUnschedule ? handleUnschedule : undefined}
 													onMenuOpenChange={setPublishingMenuOpen}
 													size="sm"
 												/>
@@ -1429,9 +1442,7 @@ export function ContentEditor({
 					</div>
 
 					<div
-						className={cn(
-							isDistractionFree ? "mx-auto max-w-3xl pt-16" : "mx-auto max-w-3xl space-y-6",
-						)}
+						className={cn(isDistractionFree ? "mx-auto max-w-3xl" : "mx-auto max-w-3xl space-y-6")}
 					>
 						{notice}
 						<fieldset disabled={readOnly} className="contents">
@@ -1530,9 +1541,7 @@ export function ContentEditor({
 								isLive={isLive}
 								hasPendingChanges={hasPendingChanges}
 								publishingState={publishingState}
-								canSchedule={canSchedule}
-								isScheduling={isScheduling}
-								isUnscheduling={isUnscheduling}
+								publishingPending={publishingPending}
 								publishDisabled={hasSaveConflict}
 								liveViewUrl={liveViewUrl}
 								supportsPreview={supportsPreview}
@@ -1540,8 +1549,6 @@ export function ContentEditor({
 								onPreview={handlePreview}
 								onPublish={handlePublish}
 								onUnpublish={handleUnpublish}
-								onOpenSchedule={onSchedule ? handleOpenSchedule : undefined}
-								onUnschedule={onUnschedule ? handleUnschedule : undefined}
 								onMenuOpenChange={setPublishingMenuOpen}
 								announceSaveStatus={!isDistractionFree}
 							/>
@@ -1568,6 +1575,12 @@ export function ContentEditor({
 								isLive={isLive}
 								hasPendingChanges={hasPendingChanges}
 								publishingState={publishingState}
+								publishingDisabled={publishingPending || hasSaveConflict}
+								canSchedule={canSchedule}
+								isScheduling={isScheduling}
+								isUnscheduling={isUnscheduling}
+								onOpenSchedule={onSchedule ? handleOpenSchedule : undefined}
+								onUnschedule={onUnschedule ? handleUnschedule : undefined}
 								supportsRevisions={supportsRevisions}
 								onPublishedAtChange={onPublishedAtChange ? handlePublishedAtChange : undefined}
 								isUpdatingPublishedAt={isUpdatingPublishedAt}
@@ -1890,7 +1903,7 @@ function FieldRenderer({
 }: FieldRendererProps) {
 	const { t } = useLingui();
 	const pluginAdmins = usePluginAdmins();
-	const label = field.label || name.charAt(0).toUpperCase() + name.slice(1);
+	const label = getFieldLabel(name, field);
 	const id = `field-${name}`;
 	const labelClass = minimal ? "text-kumo-subtle/50 text-xs font-normal" : undefined;
 
