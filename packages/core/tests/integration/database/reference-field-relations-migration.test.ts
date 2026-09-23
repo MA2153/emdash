@@ -1,4 +1,12 @@
-import { sql } from "kysely";
+import {
+	sql,
+	type KyselyPlugin,
+	type PluginTransformQueryArgs,
+	type PluginTransformResultArgs,
+	type QueryResult,
+	type RootOperationNode,
+	type UnknownRow,
+} from "kysely";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
 import { columnExists } from "../../../src/database/dialect-helpers.js";
@@ -18,6 +26,32 @@ interface FieldValidation {
 	relationSide?: string;
 	targetCollection?: string;
 	multiple?: boolean;
+}
+
+/** Rows per edge INSERT that keep its six binds a row under D1's 100-parameter ceiling. */
+const EDGES_PER_STATEMENT = Math.floor(100 / 6);
+
+/**
+ * Counts the statements that insert edges, and fails the one after `failAfter`
+ * of them have gone through, the way a Worker cut off mid-migration would.
+ */
+class EdgeInsertCounter implements KyselyPlugin {
+	statements = 0;
+
+	constructor(private readonly failAfter = Number.POSITIVE_INFINITY) {}
+
+	transformQuery({ node }: PluginTransformQueryArgs): RootOperationNode {
+		const text = JSON.stringify(node);
+		if (text.includes("INSERT INTO") && text.includes("_emdash_content_references")) {
+			if (this.statements >= this.failAfter) throw new Error("interrupted");
+			this.statements += 1;
+		}
+		return node;
+	}
+
+	transformResult(args: PluginTransformResultArgs): Promise<QueryResult<UnknownRow>> {
+		return Promise.resolve(args.result);
+	}
 }
 
 describeEachDialect("reference field relations migration (084)", (dialect) => {
@@ -205,6 +239,109 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		expect(relations.rows[0]?.id).toBe(relationId);
 		expect((await readEdges()).rows).toHaveLength(1);
 		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
+	});
+
+	/**
+	 * A multiple-reference field on ten posts, each selecting thirty of forty
+	 * authors in its own order: 300 edges, several statements' worth per post.
+	 * Returns the edges the column describes, ordered as `readEdges` reads them.
+	 */
+	async function seedLargeMultipleReference() {
+		await createLegacyReferenceField(ctx.db, "posts", "related", {
+			targetCollection: "authors",
+			allowMultiple: true,
+		});
+		const content = new ContentRepository(ctx.db);
+		const authors = [];
+		for (let index = 0; index < 40; index++) {
+			authors.push(
+				// oxlint-disable-next-line no-await-in-loop -- fixture setup
+				await content.create({
+					type: "authors",
+					slug: `author-${index}`,
+					data: { name: `Author ${index}` },
+				}),
+			);
+		}
+
+		const expected: Array<{ parent_group: string; child_group: string; sort_order: number }> = [];
+		for (let postIndex = 0; postIndex < 10; postIndex++) {
+			// oxlint-disable-next-line no-await-in-loop -- fixture setup
+			const post = await content.create({
+				type: "posts",
+				slug: `post-${postIndex}`,
+				data: { title: `Post ${postIndex}` },
+			});
+			const selected = Array.from(
+				{ length: 30 },
+				(_, offset) => authors[(postIndex * 7 + offset * 3) % authors.length]!,
+			);
+			// oxlint-disable-next-line no-await-in-loop -- fixture setup
+			await writeColumn(
+				"posts",
+				post.id,
+				"related",
+				JSON.stringify(selected.map((author) => author.id)),
+			);
+			for (const [sortOrder, author] of selected.entries()) {
+				expected.push({
+					parent_group: post.translationGroup!,
+					child_group: author.translationGroup!,
+					sort_order: sortOrder,
+				});
+			}
+		}
+		expected.sort((a, b) =>
+			a.parent_group === b.parent_group
+				? a.sort_order - b.sort_order
+				: a.parent_group < b.parent_group
+					? -1
+					: 1,
+		);
+		return expected;
+	}
+
+	async function readEdgeShapes() {
+		return (await readEdges()).rows.map(({ parent_group, child_group, sort_order }) => ({
+			parent_group,
+			child_group,
+			sort_order: Number(sort_order),
+		}));
+	}
+
+	it("copies a large field in multi-row statements rather than one per edge", async () => {
+		const expected = await seedLargeMultipleReference();
+		const counter = new EdgeInsertCounter();
+
+		await migration084.up(ctx.db.withPlugin(counter));
+
+		expect(await readEdgeShapes()).toEqual(expected);
+		expect(counter.statements).toBeGreaterThan(0);
+		expect(counter.statements).toBeLessThanOrEqual(
+			Math.ceil(expected.length / EDGES_PER_STATEMENT),
+		);
+		expect(await readValidation("posts", "related")).toMatchObject({ relation: "posts_related" });
+	});
+
+	it("resumes an edge copy that was cut off partway, sending only the missing edges", async () => {
+		const expected = await seedLargeMultipleReference();
+
+		await expect(migration084.up(ctx.db.withPlugin(new EdgeInsertCounter(4)))).rejects.toThrow(
+			"interrupted",
+		);
+		const copiedBefore = (await readEdges()).rows.length;
+		expect(copiedBefore).toBeGreaterThan(0);
+		expect(copiedBefore).toBeLessThan(expected.length);
+		expect(await readValidation("posts", "related")).toEqual({});
+
+		const rerun = new EdgeInsertCounter();
+		await migration084.up(ctx.db.withPlugin(rerun));
+
+		expect(await readEdgeShapes()).toEqual(expected);
+		expect(rerun.statements).toBe(
+			Math.ceil((expected.length - copiedBefore) / EDGES_PER_STATEMENT),
+		);
+		expect(await readValidation("posts", "related")).toMatchObject({ relation: "posts_related" });
 	});
 
 	it("leaves a field alone when its slug is held by a relation of another shape", async () => {

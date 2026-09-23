@@ -43,6 +43,9 @@ import { validateIdentifier } from "../validate.js";
 /** Ids per statement while resolving children, within D1's 100-parameter ceiling. */
 const ID_BATCH_SIZE = 50;
 
+/** Edges per INSERT: each binds six values, within D1's 100-parameter ceiling. */
+const EDGE_INSERT_BATCH_SIZE = Math.floor(100 / 6);
+
 /** Parsed `_emdash_fields` row for a reference field with no relation. */
 interface LegacyReferenceField {
 	fieldId: string;
@@ -206,7 +209,13 @@ async function resolveChildGroups(
 	return childGroups;
 }
 
-/** Copy one field's resolved selections in as edges. */
+/**
+ * Copy one field's resolved selections in as edges.
+ *
+ * Edges an interrupted run already wrote are not sent again, so a rerun only
+ * pays for what is still missing and a copy too large for one invocation
+ * finishes over several.
+ */
 async function backfillEdges(
 	db: Kysely<unknown>,
 	relationId: string,
@@ -215,22 +224,47 @@ async function backfillEdges(
 ): Promise<void> {
 	if (selections.size === 0) return;
 
-	const now = currentTimestampValue(db);
+	const copied = await sql<{ parent_group: string; child_group: string }>`
+		SELECT parent_group, child_group
+		FROM ${sql.ref("_emdash_content_references")}
+		WHERE relation_id = ${relationId}
+	`.execute(db);
+	const copiedByParent = new Map<string, Set<string>>();
+	for (const edge of copied.rows) {
+		const children = copiedByParent.get(edge.parent_group) ?? new Set<string>();
+		children.add(edge.child_group);
+		copiedByParent.set(edge.parent_group, children);
+	}
+
+	const rows: Array<{ parentGroup: string; childGroup: string; sortOrder: number }> = [];
 	for (const parentGroup of [...selections.keys()].toSorted()) {
 		const groups = selections.get(parentGroup) ?? [];
 		// The locale rows agree by now, so this only cuts a column that held more
 		// ids than the field's own shape allows.
 		const selected = maxChildren === null ? groups : groups.slice(0, maxChildren);
+		const alreadyCopied = copiedByParent.get(parentGroup);
 
 		for (const [sortOrder, childGroup] of selected.entries()) {
-			// oxlint-disable-next-line no-await-in-loop -- one insert per edge; the unique constraint makes a rerun a no-op
-			await sql`
-				INSERT INTO ${sql.ref("_emdash_content_references")}
-					(id, relation_id, parent_group, child_group, sort_order, created_at)
-				VALUES (${ulid()}, ${relationId}, ${parentGroup}, ${childGroup}, ${sortOrder}, ${now})
-				ON CONFLICT DO NOTHING
-			`.execute(db);
+			if (alreadyCopied?.has(childGroup)) continue;
+			rows.push({ parentGroup, childGroup, sortOrder });
 		}
+	}
+
+	const now = currentTimestampValue(db);
+	for (let offset = 0; offset < rows.length; offset += EDGE_INSERT_BATCH_SIZE) {
+		const values = rows
+			.slice(offset, offset + EDGE_INSERT_BATCH_SIZE)
+			.map(
+				(row) =>
+					sql`(${ulid()}, ${relationId}, ${row.parentGroup}, ${row.childGroup}, ${row.sortOrder}, ${now})`,
+			);
+		// oxlint-disable-next-line no-await-in-loop -- one statement per bind-parameter batch
+		await sql`
+			INSERT INTO ${sql.ref("_emdash_content_references")}
+				(id, relation_id, parent_group, child_group, sort_order, created_at)
+			VALUES ${sql.join(values)}
+			ON CONFLICT DO NOTHING
+		`.execute(db);
 	}
 }
 
