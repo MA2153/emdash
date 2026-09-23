@@ -218,32 +218,6 @@ export function injectCoreRoutes(
 		entrypoint: resolveRoute("api/content/[collection]/[id]/translations.ts"),
 	});
 
-	// Content relation routes
-	injectRoute({
-		pattern: "/_emdash/api/relations",
-		entrypoint: resolveRoute("api/relations/index.ts"),
-	});
-
-	injectRoute({
-		pattern: "/_emdash/api/relations/[id]",
-		entrypoint: resolveRoute("api/relations/[id]/index.ts"),
-	});
-
-	injectRoute({
-		pattern: "/_emdash/api/relations/[id]/translations",
-		entrypoint: resolveRoute("api/relations/[id]/translations.ts"),
-	});
-
-	injectRoute({
-		pattern: "/_emdash/api/content/[collection]/[id]/references/[relation]/children",
-		entrypoint: resolveRoute("api/content/[collection]/[id]/references/[relation]/children.ts"),
-	});
-
-	injectRoute({
-		pattern: "/_emdash/api/content/[collection]/[id]/references/[relation]/parents",
-		entrypoint: resolveRoute("api/content/[collection]/[id]/references/[relation]/parents.ts"),
-	});
-
 	// Scheduled publishing routes
 	injectRoute({
 		pattern: "/_emdash/api/content/[collection]/[id]/schedule",
