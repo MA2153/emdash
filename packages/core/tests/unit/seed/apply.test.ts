@@ -1,4 +1,5 @@
 import type {
+	CompiledQuery,
 	Kysely,
 	KyselyPlugin,
 	PluginTransformQueryArgs,
@@ -7,7 +8,7 @@ import type {
 	RootOperationNode,
 	UnknownRow,
 } from "kysely";
-import { sql } from "kysely";
+import { SqliteQueryCompiler, sql } from "kysely";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { BylineRepository } from "../../../src/database/repositories/byline.js";
@@ -15,6 +16,7 @@ import { ContentRepository } from "../../../src/database/repositories/content.js
 import { OptionsRepository } from "../../../src/database/repositories/options.js";
 import { RedirectRepository } from "../../../src/database/repositories/redirect.js";
 import { RelationRepository } from "../../../src/database/repositories/relation.js";
+import { selectTaxonomyDefs } from "../../../src/database/repositories/taxonomy-def.js";
 import { TaxonomyRepository } from "../../../src/database/repositories/taxonomy.js";
 import type { Database } from "../../../src/database/types.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
@@ -27,6 +29,20 @@ class QueryCountingPlugin implements KyselyPlugin {
 
 	transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
 		this.count += 1;
+		return args.node;
+	}
+
+	transformResult(args: PluginTransformResultArgs): Promise<QueryResult<UnknownRow>> {
+		return Promise.resolve(args.result);
+	}
+}
+
+class SqlRecordingPlugin implements KyselyPlugin {
+	readonly queries: CompiledQuery[] = [];
+	readonly #compiler = new SqliteQueryCompiler();
+
+	transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+		this.queries.push(this.#compiler.compileQuery(args.node, args.queryId));
 		return args.node;
 	}
 
@@ -1550,6 +1566,28 @@ describe("applySeed", () => {
 			expect(entry?.data.title).toBe("Existing");
 		});
 
+		it("skips an entry whose slug an earlier entry of the same seed took", async () => {
+			const registry = new SchemaRegistry(db);
+			await registry.createCollection({ slug: "posts", label: "Posts" });
+			await registry.createField("posts", { slug: "title", label: "Title", type: "string" });
+
+			const seed: SeedFile = {
+				version: "1",
+				content: {
+					posts: [
+						{ id: "post-1", slug: "hello", data: { title: "First" } },
+						{ id: "post-2", slug: "hello", data: { title: "Second" } },
+					],
+				},
+			};
+
+			const result = await applySeed(db, seed, { includeContent: true });
+
+			expect(result.content).toMatchObject({ created: 1, skipped: 1 });
+			const entry = await new ContentRepository(db).findBySlug("posts", "hello");
+			expect(entry?.data.title).toBe("First");
+		});
+
 		it("should resolve $ref: references between content into reference edges", async () => {
 			// Reference fields are storage-less (migration 043): a seed defines the
 			// field (with its target collection), apply creates the backing relation,
@@ -1699,6 +1737,101 @@ describe("applySeed", () => {
 				.execute();
 
 			expect(assignments).toHaveLength(2);
+		});
+
+		it("reads the site timezone and field definitions as often for ten entries as for one", async () => {
+			const lookupsFor = async (entriesPerCollection: number) => {
+				const target = await setupTestDatabase();
+				const recorder = new SqlRecordingPlugin();
+				const collections = ["pages", "posts"];
+				const seed: SeedFile = {
+					version: "1",
+					collections: collections.map((slug) => ({
+						slug,
+						label: slug,
+						fields: [{ slug: "title", label: "Title", type: "string" }],
+					})),
+					content: Object.fromEntries(
+						collections.map((slug) => [
+							slug,
+							Array.from({ length: entriesPerCollection }, (_, i) => ({
+								id: `${slug}-${i}`,
+								slug: `${slug}-${i}`,
+								data: { title: `${slug} ${i}` },
+							})),
+						]),
+					),
+				};
+				try {
+					await applySeed(target.withPlugin(recorder), seed, { includeContent: true });
+					await applySeed(target.withPlugin(recorder), seed, {
+						includeContent: true,
+						onConflict: "update",
+					});
+				} finally {
+					await teardownTestDatabase(target);
+				}
+				return {
+					timezone: recorder.queries.filter((query) => query.parameters.includes("site:timezone"))
+						.length,
+					fields: recorder.queries.filter((query) => query.sql.includes('from "_emdash_fields"'))
+						.length,
+				};
+			};
+
+			const single = await lookupsFor(1);
+
+			expect(single.timezone).toBeGreaterThan(0);
+			expect(await lookupsFor(10)).toEqual(single);
+		});
+
+		it("resolves seeded datetimes in the timezone and fields of the seed being applied", async () => {
+			await applySeed(
+				db,
+				{
+					version: "1",
+					collections: [
+						{
+							slug: "events",
+							label: "Events",
+							fields: [{ slug: "title", label: "Title", type: "string" }],
+						},
+					],
+					content: { events: [{ id: "first", slug: "first", data: { title: "First" } }] },
+				},
+				{ includeContent: true },
+			);
+
+			await applySeed(
+				db,
+				{
+					version: "1",
+					settings: { timezone: "Asia/Tokyo" },
+					collections: [
+						{
+							slug: "events",
+							label: "Events",
+							fields: [
+								{ slug: "title", label: "Title", type: "string" },
+								{ slug: "starts_at", label: "Starts at", type: "datetime" },
+							],
+						},
+					],
+					content: {
+						events: [
+							{
+								id: "second",
+								slug: "second",
+								data: { title: "Second", starts_at: "2026-03-01T09:00" },
+							},
+						],
+					},
+				},
+				{ includeContent: true, onConflict: "update" },
+			);
+
+			const entry = await new ContentRepository(db).findBySlug("events", "second");
+			expect(entry?.data.starts_at).toBe("2026-03-01T00:00:00.000Z");
 		});
 	});
 
@@ -1972,6 +2105,123 @@ describe("applySeed", () => {
 
 			expect(rows).toHaveLength(2);
 			expect(rows[0]?.translation_group).toBe(rows[1]?.translation_group);
+		});
+
+		it("takes a taxonomy translation's structure from the taxonomy", async () => {
+			const seed: SeedFile = {
+				version: "1",
+				taxonomies: [
+					{
+						id: "tax:topics:en",
+						name: "topics",
+						label: "Topics",
+						hierarchical: true,
+						collections: ["posts"],
+						locale: "en",
+					},
+					{
+						id: "tax:topics:es",
+						name: "topics",
+						label: "Temas",
+						locale: "es",
+						translationOf: "tax:topics:en",
+					},
+					{
+						id: "tax:topics:fr",
+						name: "topics",
+						label: "Sujets",
+						hierarchical: false,
+						collections: [],
+						locale: "fr",
+						translationOf: "tax:topics:en",
+					},
+				],
+			};
+
+			await applySeed(db, seed);
+
+			const rows = await selectTaxonomyDefs(db)
+				.where("d.name", "=", "topics")
+				.orderBy("d.locale", "asc")
+				.execute();
+			expect(
+				rows.map(({ locale, hierarchical, collections }) => ({
+					locale,
+					hierarchical,
+					collections,
+				})),
+			).toEqual(
+				["en", "es", "fr"].map((locale) => ({
+					locale,
+					hierarchical: 1,
+					collections: JSON.stringify(["posts"]),
+				})),
+			);
+		});
+
+		it("takes a taxonomy's structure from its source entry when translations come first", async () => {
+			const seed: SeedFile = {
+				version: "1",
+				taxonomies: [
+					{
+						name: "topics",
+						label: "Sujets",
+						hierarchical: false,
+						collections: [],
+						locale: "fr",
+						translationOf: "tax:topics:en",
+					},
+					{ name: "topics", label: "Temas", locale: "es", translationOf: "tax:topics:en" },
+					{
+						id: "tax:topics:en",
+						name: "topics",
+						label: "Topics",
+						hierarchical: true,
+						collections: ["posts"],
+						locale: "en",
+					},
+				],
+			};
+
+			await applySeed(db, seed);
+
+			const rows = await selectTaxonomyDefs(db).where("d.name", "=", "topics").execute();
+			expect(rows).toHaveLength(3);
+			for (const row of rows) {
+				expect(row).toMatchObject({ hierarchical: 1, collections: JSON.stringify(["posts"]) });
+			}
+		});
+
+		it("follows a chain of taxonomy translations to the entry that declares the structure", async () => {
+			const seed: SeedFile = {
+				version: "1",
+				taxonomies: [
+					{ name: "topics", label: "Sujets", locale: "fr", translationOf: "tax:topics:es" },
+					{
+						id: "tax:topics:es",
+						name: "topics",
+						label: "Temas",
+						locale: "es",
+						translationOf: "tax:topics:en",
+					},
+					{
+						id: "tax:topics:en",
+						name: "topics",
+						label: "Topics",
+						hierarchical: true,
+						collections: ["posts"],
+						locale: "en",
+					},
+				],
+			};
+
+			await applySeed(db, seed);
+
+			const rows = await selectTaxonomyDefs(db).where("d.name", "=", "topics").execute();
+			expect(rows).toHaveLength(3);
+			for (const row of rows) {
+				expect(row).toMatchObject({ hierarchical: 1, collections: JSON.stringify(["posts"]) });
+			}
 		});
 
 		it("imports menu item translations sharing one translation_group", async () => {

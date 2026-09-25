@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
 import { columnExists, tableExists } from "../../../src/database/dialect-helpers.js";
-import * as migration085 from "../../../src/database/migrations/085_relations_structural.js";
+import * as migration086 from "../../../src/database/migrations/086_relations_structural.js";
 import {
 	describeEachDialect,
 	setupForDialect,
@@ -120,7 +120,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			child: "cg1",
 		});
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const rows = await readRelations(ctx);
 		expect(rows).toHaveLength(1);
@@ -157,7 +157,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			},
 		]);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const rows = await readRelations(ctx);
 		expect(rows[0]).toMatchObject({ parent_label: "Beitraege", child_label: "Autor" });
@@ -169,7 +169,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			{ id: "bbb", name: "post_author", locale: "fr", translationGroup: "bbb" },
 		]);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const rows = await readRelations(ctx);
 		expect(rows.map((r) => r.slug)).toEqual(["post_author", "post_author_2"]);
@@ -180,7 +180,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			{ id: "grp1", name: "post_author", locale: "en", translationGroup: "grp1" },
 		]);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readRelations(ctx)).toEqual([
 			expect.objectContaining({
@@ -203,10 +203,10 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			child: "cg1",
 		});
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 		const first = await readRelations(ctx);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readRelations(ctx)).toEqual(first);
 		const edges = await sql<{ relation_id: string }>`
@@ -222,13 +222,13 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 
 		// Replay the rebuild up to the point the old table is gone and the new one
 		// has not been renamed into place yet.
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 		await sql
 			.raw(`ALTER TABLE "_emdash_relations" RENAME TO "_emdash_relations_new"`)
 			.execute(ctx.db);
 		expect(await tableExists(ctx.db, "_emdash_relations")).toBe(false);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await tableExists(ctx.db, "_emdash_relations")).toBe(true);
 		expect(await tableExists(ctx.db, "_emdash_relations_new")).toBe(false);
@@ -246,7 +246,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			child: "cg1",
 		});
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		// The table rebuild landed but the edge-column rename did not.
 		await sql
@@ -255,7 +255,7 @@ describeEachDialect("relations structural migration (076)", (dialect) => {
 			)
 			.execute(ctx.db);
 
-		await migration085.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await columnExists(ctx.db, "_emdash_content_references", "relation_id")).toBe(true);
 		expect(await columnExists(ctx.db, "_emdash_content_references", "relation_group")).toBe(false);

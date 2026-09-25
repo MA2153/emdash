@@ -63,6 +63,7 @@ import { CommentRepository } from "./database/repositories/comment.js";
 import type { CommentStatus } from "./database/repositories/comment.js";
 import { ContentRepository } from "./database/repositories/content.js";
 import { RevisionRepository } from "./database/repositories/revision.js";
+import { selectTaxonomyDefs } from "./database/repositories/taxonomy-def.js";
 import { ContentMutationConflictError } from "./database/repositories/types.js";
 import type {
 	ContentItem as ContentItemInternal,
@@ -233,6 +234,7 @@ import {
 	handleMediaList,
 	handleMediaGet,
 	handleMediaCreate,
+	handleMediaRegisterUpload,
 	handleMediaUpdate,
 	handleMediaReplaceMetadata,
 	handleMediaDelete,
@@ -1029,14 +1031,27 @@ export class EmDashRuntime {
 	async setPluginStatus(pluginId: string, status: "active" | "inactive"): Promise<void> {
 		this.pluginStates.set(pluginId, status);
 		if (status === "active") {
+			this.setSandboxedPluginActive(pluginId, true);
 			this.enabledPlugins.add(pluginId);
 			await this.rebuildHookPipeline();
 			await this._hooks.runPluginActivate(pluginId);
 		} else {
-			// Fire deactivate on the current pipeline while the plugin is still in it
-			await this._hooks.runPluginDeactivate(pluginId);
-			this.enabledPlugins.delete(pluginId);
-			await this.rebuildHookPipeline();
+			try {
+				// Deactivate hooks retain access until their cleanup has finished.
+				await this._hooks.runPluginDeactivate(pluginId);
+			} finally {
+				this.setSandboxedPluginActive(pluginId, false);
+				this.enabledPlugins.delete(pluginId);
+				await this.rebuildHookPipeline();
+			}
+		}
+	}
+
+	private setSandboxedPluginActive(pluginId: string, active: boolean): void {
+		for (const [key, plugin] of this.sandboxedPlugins) {
+			if (key.slice(0, key.lastIndexOf(":")) === pluginId) {
+				plugin.setActive?.(active);
+			}
 		}
 	}
 
@@ -1771,8 +1786,9 @@ export class EmDashRuntime {
 		}
 
 		// Register built-in default comment moderator.
-		// Always present — auto-selected as the sole comment:moderate provider
-		// unless a plugin (e.g. AI moderation) provides its own.
+		// Always present as a fallback: exclusive hook resolution selects a
+		// single plugin moderator (e.g. AI moderation) over it unless the site
+		// has already stored a comment:moderate selection.
 		try {
 			const defaultModeratorPlugin = definePlugin({
 				id: DEFAULT_COMMENT_MODERATOR_PLUGIN_ID,
@@ -1843,6 +1859,11 @@ export class EmDashRuntime {
 		const sandboxedPluginPool = await phase("rt.sandbox", "Sandboxed plugins", () =>
 			EmDashRuntime.loadSandboxedPlugins(deps, db, storage, siteInfo),
 		);
+		for (const [key, plugin] of sandboxedPluginPool) {
+			const pluginId = key.slice(0, key.lastIndexOf(":"));
+			const status = pluginStates.get(pluginId);
+			plugin.setActive?.(status === undefined || status === "active");
+		}
 
 		// Cold-start: load marketplace- and registry-installed plugins from
 		// site R2 via the sandbox runner. The two tiers only depend on the
@@ -2861,6 +2882,7 @@ export class EmDashRuntime {
 				await optionsRepo.delete(key);
 			},
 			preferredHints,
+			fallbackProviders: new Set([DEFAULT_COMMENT_MODERATOR_PLUGIN_ID]),
 		});
 	}
 
@@ -3038,11 +3060,7 @@ export class EmDashRuntime {
 		}> = [];
 		let taxonomyDefinitionLocales: string[] = [];
 		try {
-			const rows = await this.db
-				.selectFrom("_emdash_taxonomy_defs")
-				.selectAll()
-				.orderBy("name")
-				.execute();
+			const rows = await selectTaxonomyDefs(this.db).orderBy("d.name").execute();
 			taxonomyDefinitionLocales = rows.map((row) => row.locale);
 			manifestTaxonomies = rows.map((row) => ({
 				id: row.id,
@@ -4626,6 +4644,33 @@ export class EmDashRuntime {
 				createdAt: item.createdAt,
 			});
 		}
+		return result;
+	}
+
+	async handleMediaRegisterUpload(input: { storageKey: string; authorId?: string }) {
+		if (!this.storage) {
+			return {
+				success: false as const,
+				error: { code: "NO_STORAGE", message: "Storage not configured" },
+			};
+		}
+		const result = await handleMediaRegisterUpload(this.db, this.storage, input);
+
+		if (result.success && this.hooks.hasHooks("media:afterUpload")) {
+			const item = result.data.item;
+			const mediaItem: MediaItem = {
+				id: item.id,
+				filename: item.filename,
+				mimeType: item.mimeType,
+				size: item.size,
+				url: `/media/${item.id}/${item.filename}`,
+				createdAt: item.createdAt,
+			};
+			this.hooks
+				.runMediaAfterUpload(mediaItem)
+				.catch((err) => console.error("EmDash afterUpload hook error:", err));
+		}
+
 		return result;
 	}
 

@@ -290,7 +290,7 @@ interface RelationCardinality {
  * The limits of every relation a bound reference field names, by relation slug.
  *
  * Empty when nothing is bound, so a site with no reference fields never issues
- * the query, and empty before migration 085 has created the table.
+ * the query, and empty before migration 086 has created the table.
  */
 async function relationCardinality(
 	db: Kysely<Database>,

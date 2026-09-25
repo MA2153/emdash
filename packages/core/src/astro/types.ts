@@ -469,6 +469,11 @@ export interface EmDashHandlers {
 		folderId?: string | null;
 	}) => Promise<HandlerResponse>;
 
+	handleMediaRegisterUpload: (input: {
+		storageKey: string;
+		authorId?: string;
+	}) => Promise<HandlerResponse>;
+
 	handleMediaUpdate: (
 		id: string,
 		input: {

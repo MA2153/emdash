@@ -638,6 +638,11 @@ export function injectCoreRoutes(
 	});
 
 	injectRoute({
+		pattern: "/_emdash/api/admin/plugins/registry/publisher-handle",
+		entrypoint: resolveRoute("api/admin/plugins/registry/publisher-handle.ts"),
+	});
+
+	injectRoute({
 		pattern: "/_emdash/api/admin/plugins/registry/[id]/update",
 		entrypoint: resolveRoute("api/admin/plugins/registry/[id]/update.ts"),
 	});

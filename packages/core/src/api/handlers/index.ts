@@ -56,6 +56,7 @@ export {
 	handleMediaList,
 	handleMediaGet,
 	handleMediaCreate,
+	handleMediaRegisterUpload,
 	handleMediaUpdate,
 	handleMediaReplaceMetadata,
 	handleMediaDelete,
@@ -86,6 +87,7 @@ export {
 	type MediaUsageProgress,
 	type MediaUsageProgressAdvanceResponse,
 	type MediaUsageRepairResponse,
+	type MediaUsageSiteSettingDetail,
 	type MediaUsageSourceDetail,
 	type MediaUsageSummary,
 } from "./media-usage.js";

@@ -48,6 +48,11 @@ export interface ContentTaxonomyTable {
 	created_at: Generated<string | null>;
 }
 
+/**
+ * One locale's definition of a taxonomy. `hierarchical` and `collections` are
+ * copies of the taxonomy's `_emdash_taxonomy_def_groups` row, kept for code that
+ * reads them directly, such as the plugin sandbox bridges; read them from the group.
+ */
 export interface TaxonomyDefTable {
 	id: string;
 	name: string;
@@ -58,6 +63,15 @@ export interface TaxonomyDefTable {
 	created_at: Generated<string>;
 	locale: Generated<string>;
 	translation_group: string | null;
+}
+
+/** What a taxonomy is in every locale. `id` is its definitions' `translation_group`. */
+export interface TaxonomyDefGroupTable {
+	id: string;
+	name: string;
+	hierarchical: Generated<number>; // 0 or 1 (SQLite boolean)
+	collections: Generated<string>; // JSON array
+	created_at: Generated<string>;
 }
 
 export interface MediaTable {
@@ -748,6 +762,7 @@ export interface Database {
 	taxonomies: TaxonomyTable;
 	content_taxonomies: ContentTaxonomyTable;
 	_emdash_taxonomy_defs: TaxonomyDefTable;
+	_emdash_taxonomy_def_groups: TaxonomyDefGroupTable;
 	media: MediaTable;
 	media_folders: MediaFolderTable;
 	_emdash_media_upload_attempts: MediaUploadAttemptTable;
@@ -964,7 +979,7 @@ export interface BylineFieldGroupValueTable {
 /**
  * A relation definition. Not localized — a relation joins the same two
  * collections whatever language you read it in, and its role labels are
- * single-valued like a collection's. See migration 085.
+ * single-valued like a collection's. See migration 086.
  */
 export interface RelationTable {
 	id: string;
@@ -998,7 +1013,7 @@ export interface ContentReferenceTable {
 // Rate Limits
 
 export interface RateLimitTable {
-	key: string; // {ip}:{endpoint}
+	key: string; // {ip or IP hash}:{endpoint}
 	window: string; // ISO timestamp truncated to window size
 	count: number;
 }
