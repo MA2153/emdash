@@ -348,6 +348,47 @@ describeEachDialect("versioned reference selections", (dialect) => {
 		expect(await liveGroups(id)).toEqual([a.translationGroup]);
 	});
 
+	it("restores the selection an entry was first published with", async () => {
+		const [a, b] = [await createPage("A"), await createPage("B")];
+		const id = await publishedPost("Original", [a.id]);
+		const initialRevisionId = (await new ContentRepository(ctx.db).findById("posts", id))!
+			.liveRevisionId!;
+
+		await runtime.handleContentUpdate("posts", id, {
+			data: { title: "Edited" },
+			references: { related_pages: [b.id, a.id] },
+		});
+		await runtime.handleContentPublish("posts", id);
+		expect(await liveGroups(id)).toEqual([b.translationGroup, a.translationGroup]);
+
+		const restored = await runtime.handleRevisionRestore(initialRevisionId, "user-1");
+		expect(restored.success).toBe(true);
+		expect(await stagedGroups(id)).toEqual([a.translationGroup]);
+
+		const published = await runtime.handleContentPublish("posts", id);
+		expect(published.success).toBe(true);
+		if (published.success) expect(published.data.item.data.title).toBe("Original");
+		expect(await liveGroups(id)).toEqual([a.translationGroup]);
+	});
+
+	it("restores the selection a revision published without naming", async () => {
+		const [a, b] = [await createPage("A"), await createPage("B")];
+		const id = await publishedPost("Untouched", [a.id]);
+
+		await runtime.handleContentUpdate("posts", id, { data: { title: "Retitled" } });
+		await runtime.handleContentPublish("posts", id);
+		const retitledRevisionId = (await new ContentRepository(ctx.db).findById("posts", id))!
+			.liveRevisionId!;
+
+		await runtime.handleContentUpdate("posts", id, { references: { related_pages: [b.id] } });
+		await runtime.handleContentPublish("posts", id);
+		expect(await liveGroups(id)).toEqual([b.translationGroup]);
+
+		await runtime.handleRevisionRestore(retitledRevisionId, "user-1");
+		await runtime.handleContentPublish("posts", id);
+		expect(await liveGroups(id)).toEqual([a.translationGroup]);
+	});
+
 	it("refuses to restore a selection the relation has since outgrown", async () => {
 		const [a, b] = [await createPage("A"), await createPage("B")];
 		const id = await publishedPost("Outgrown", [a.id]);

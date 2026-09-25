@@ -1,8 +1,9 @@
 import type { Kysely } from "kysely";
 
 import { RelationRepository } from "../../database/repositories/relation.js";
+import { RevisionRepository } from "../../database/repositories/revision.js";
 import type { Database } from "../../database/types.js";
-import type { StagedReferences } from "../../references/staged.js";
+import { STAGED_REFERENCES_KEY, type StagedReferences } from "../../references/staged.js";
 import type { ApiResult } from "../types.js";
 import { validateOppositeSideLimit, writeReferenceSelection } from "./relations.js";
 import {
@@ -94,6 +95,24 @@ export async function liveReferenceSelection(
 		selection[field.slug] = await liveFieldSelection(repo, field, entryGroup);
 	}
 	return selection;
+}
+
+/**
+ * Record the complete live selection in the revision publication just made live.
+ *
+ * A draft stages only the fields its saves named, and a revision written from
+ * the columns stages none. Restoring either would otherwise leave whatever was
+ * published after it linked in the fields it does not carry.
+ */
+export async function recordPublishedReferences(
+	db: Kysely<Database>,
+	collection: string,
+	revisionId: string,
+	entryGroup: string,
+): Promise<void> {
+	const selection = await liveReferenceSelection(db, collection, entryGroup);
+	if (Object.keys(selection).length === 0) return;
+	await new RevisionRepository(db).mergeData(revisionId, { [STAGED_REFERENCES_KEY]: selection });
 }
 
 /**

@@ -68,6 +68,7 @@ import {
 	liveReferenceSelection,
 	pageStagedGroups,
 	readStagedReferences,
+	recordPublishedReferences,
 	STAGED_REFERENCES_KEY,
 	type StagedReferences,
 	validateStagedReferences,
@@ -2356,6 +2357,19 @@ export async function handleContentPublish(
 				expectedRevision,
 				options.currentTime,
 			);
+
+			if (
+				publishConfig.supportsRevisions &&
+				published.liveRevisionId &&
+				published.translationGroup
+			) {
+				await recordPublishedReferences(
+					trx,
+					collection,
+					published.liveRevisionId,
+					published.translationGroup,
+				);
+			}
 
 			if (
 				existing &&
