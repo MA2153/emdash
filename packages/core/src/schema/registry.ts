@@ -174,6 +174,12 @@ function assertIndexableField(
 	}
 }
 
+/** A field record's `validation`, which the package carries as any JSON value. */
+function importFieldValidation(value: unknown): FieldValidation | undefined {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+	return value;
+}
+
 function isCollectionSupport(value: unknown): value is CollectionSupport {
 	return typeof value === "string" && VALID_COLLECTION_SUPPORTS.has(value);
 }
@@ -974,7 +980,8 @@ export class SchemaRegistry {
 					"INVALID_FIELD_TYPE",
 				);
 			}
-			assertIndexableField({ type: field.type }, field.indexed, field.slug);
+			const validation = importFieldValidation(field.validation);
+			assertIndexableField({ type: field.type, validation }, field.indexed, field.slug);
 			if (field.indexed) this.getFieldIndexName(field.id);
 			return {
 				slug: field.slug,
@@ -982,6 +989,7 @@ export class SchemaRegistry {
 				type: field.type,
 				required: field.required,
 				defaultValue: field.defaultValue,
+				validation,
 			};
 		});
 	}
