@@ -289,14 +289,18 @@ export function FieldEditor({
 	// after it, but the picker names it before that answer arrives.
 	const [createdRelation, setCreatedRelation] = React.useState<RelationWithUsage | null>(null);
 
+	const isReferenceType = formState.selectedType === "reference";
+
 	const { data: collections = [] } = useQuery({
 		queryKey: ["collections"],
 		queryFn: fetchCollections,
+		enabled: open && isReferenceType,
 	});
 
 	const { data: fetchedRelations = [] } = useQuery({
 		queryKey: ["relations"],
 		queryFn: () => fetchRelations(),
+		enabled: open && isReferenceType,
 		// A relationship made in another tab has to show up on the way back.
 		refetchOnWindowFocus: "always",
 	});
