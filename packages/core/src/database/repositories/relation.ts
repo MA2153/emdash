@@ -58,7 +58,7 @@ function asPosition(sortOrder: number): number {
  * A relation definition. Not localized: a relation joins the same two
  * collections whatever language you read it in, and its role labels are
  * single-valued like a collection's or a field's. That is what lets `slug` be
- * unique outright (migration 083) and resolve without a locale.
+ * unique outright (migration 085) and resolve without a locale.
  */
 export interface Relation {
 	id: string;
@@ -116,7 +116,7 @@ export interface ContentReference {
  *
  * A relation is schema, so it is not localized — it sits with
  * `_emdash_collections` and `_emdash_fields`, not with the row-per-locale
- * tables. See migration 083.
+ * tables. See migration 085.
  *
  * Like `TaxonomyRepository`, this is not the validation boundary: it trusts its
  * typed inputs. The API slice supplies Zod schemas at the route and enforces
@@ -169,7 +169,7 @@ export class RelationRepository {
 
 	/**
 	 * Find a relation by its slug. No locale: a slug identifies a relation
-	 * outright (`UNIQUE(slug)`, migration 083), which is what lets an entry in
+	 * outright (`UNIQUE(slug)`, migration 085), which is what lets an entry in
 	 * any locale address it.
 	 */
 	async findBySlug(slug: string): Promise<Relation | null> {

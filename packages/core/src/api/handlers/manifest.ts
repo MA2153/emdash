@@ -5,6 +5,7 @@
 import type { Kysely } from "kysely";
 
 import type { Database } from "../../database/types.js";
+import { expandCollectionBlockFields } from "../../schema/block-values.js";
 import { SchemaRegistry } from "../../schema/registry.js";
 import { isStoragelessField, MAX_COLLECTION_LIST_COLUMNS } from "../../schema/types.js";
 import type {
@@ -57,6 +58,7 @@ const FIELD_TYPE_TO_KIND: Record<FieldType, string> = {
 	reference: "reference",
 	json: "json",
 	repeater: "repeater",
+	blocks: "blocks",
 };
 
 // Collection definition shape for manifest generation
@@ -136,7 +138,10 @@ export async function buildManifestCollections(
 
 	try {
 		const registry = new SchemaRegistry(db);
-		const dbCollections = await registry.listCollectionsWithFields();
+		const storedCollections = await registry.listCollectionsWithFields();
+		const dbCollections = await Promise.all(
+			storedCollections.map((collection) => expandCollectionBlockFields(db, collection)),
+		);
 		const cardinality = await relationCardinality(db, dbCollections);
 		for (const collection of dbCollections) {
 			if (manifestCollections[collection.slug]) continue;
@@ -285,7 +290,7 @@ interface RelationCardinality {
  * The limits of every relation a bound reference field names, by relation slug.
  *
  * Empty when nothing is bound, so a site with no reference fields never issues
- * the query, and empty before migration 083 has created the table.
+ * the query, and empty before migration 085 has created the table.
  */
 async function relationCardinality(
 	db: Kysely<Database>,
@@ -346,6 +351,8 @@ function dbFieldDescriptor(
 		id: field.id,
 	};
 	if (field.unsupportedType) entry.unsupportedType = field.unsupportedType;
+	if (field.blockTypes) entry.blockTypes = field.blockTypes;
+	if (field.blockTypeFingerprint) entry.blockTypeFingerprint = field.blockTypeFingerprint;
 
 	if (field.widget) entry.widget = field.widget;
 	if (field.options) entry.options = field.options;

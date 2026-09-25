@@ -5,6 +5,7 @@
  * collections, fields, menus, settings, taxonomies, redirects, widget areas, and optional sample content.
  */
 
+import type { BlockFieldDefinition } from "../schema/block-types.js";
 import type { CollectionAdminConfig, FieldType } from "../schema/types.js";
 import type { SiteSettings } from "../settings/types.js";
 import type { Storage } from "../storage/types.js";
@@ -41,6 +42,9 @@ export interface SeedFile {
 	/** Collection definitions */
 	collections?: SeedCollection[];
 
+	/** Database-owned block types, applied before collections that reference them. */
+	blockTypes?: SeedBlockType[];
+
 	/** Relations joining two collections, which reference fields bind to */
 	relations?: SeedRelation[];
 
@@ -64,6 +68,19 @@ export interface SeedFile {
 
 	/** Sample content (organized by collection) */
 	content?: Record<string, SeedContentEntry[]>;
+}
+
+export interface SeedBlockType {
+	slug: string;
+	label: string;
+	description?: string;
+	icon?: string;
+	category?: string;
+	currentVersion: number;
+	versions: Array<{
+		version: number;
+		fields: BlockFieldDefinition[];
+	}>;
 }
 
 /**
@@ -384,10 +401,11 @@ export interface SeedApplyOptions {
  * Result of applying a seed
  */
 export interface SeedApplyResult {
+	blockTypes: { created: number; skipped: number; updated: number };
 	collections: { created: number; skipped: number; updated: number };
 	fields: { created: number; skipped: number; updated: number };
 	relations: { created: number; skipped: number; updated: number };
-	taxonomies: { created: number; terms: number };
+	taxonomies: { created: number; skipped: number; terms: number };
 	bylines: { created: number; skipped: number; updated: number };
 	menus: { created: number; items: number };
 	redirects: { created: number; skipped: number; updated: number };

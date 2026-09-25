@@ -12,6 +12,7 @@ import { ulid } from "ulidx";
 
 import { setReferenceSelection } from "../api/handlers/relations.js";
 import { bindReferenceField, createFieldRelation } from "../api/handlers/schema.js";
+import { sanitizeGalleryImages } from "../content/converters/gallery.js";
 import { BylineRepository } from "../database/repositories/byline.js";
 import { ContentRepository } from "../database/repositories/content.js";
 import { MediaRepository } from "../database/repositories/media.js";
@@ -25,8 +26,10 @@ import type { MediaValue } from "../fields/types.js";
 import { getI18nConfig, resolveConfiguredLocale } from "../i18n/config.js";
 import { ssrfSafeFetch, validateExternalUrl } from "../import/ssrf.js";
 import { markContentMediaUsageCollectionStaleSafely } from "../media/usage/content-refresh.js";
+import { BlockTypeRegistry } from "../schema/block-type-registry.js";
+import { normalizeBlocksData, resolveBlockTypes } from "../schema/block-values.js";
 import { SchemaError, SchemaRegistry } from "../schema/registry.js";
-import type { Field } from "../schema/types.js";
+import type { CollectionWithFields, Field } from "../schema/types.js";
 import { FTSManager } from "../search/fts-manager.js";
 import { invalidateSiteSettingsCache, setSiteSettings } from "../settings/index.js";
 import type { SiteSettings } from "../settings/types.js";
@@ -111,6 +114,36 @@ const SANITIZE_PATTERN = /[^a-zA-Z0-9_-]/g;
 /** Pattern to collapse multiple hyphens */
 const MULTIPLE_HYPHENS_PATTERN = /-+/g;
 
+/** The `category` and `tag` defs that migrations insert on every new database. */
+const BUILT_IN_TAXONOMY_DEFS = new Map([
+	[
+		"taxdef_category",
+		{ label: "Categories", label_singular: "Category", hierarchical: 1, collections: '["posts"]' },
+	],
+	[
+		"taxdef_tag",
+		{ label: "Tags", label_singular: "Tag", hierarchical: 0, collections: '["posts"]' },
+	],
+]);
+
+/** Whether `def` is a built-in `category`/`tag` definition still holding its migration defaults. */
+function isUntouchedBuiltInTaxonomyDef(def: {
+	id: string;
+	label: string;
+	label_singular: string | null;
+	hierarchical: number | null;
+	collections: string | null;
+}): boolean {
+	const builtIn = BUILT_IN_TAXONOMY_DEFS.get(def.id);
+	return (
+		builtIn !== undefined &&
+		def.label === builtIn.label &&
+		def.label_singular === builtIn.label_singular &&
+		def.hierarchical === builtIn.hierarchical &&
+		def.collections === builtIn.collections
+	);
+}
+
 /**
  * Apply a seed file to the database
  *
@@ -141,10 +174,11 @@ export async function applySeed(
 
 	// Result counters
 	const result: SeedApplyResult = {
+		blockTypes: { created: 0, skipped: 0, updated: 0 },
 		collections: { created: 0, skipped: 0, updated: 0 },
 		fields: { created: 0, skipped: 0, updated: 0 },
 		relations: { created: 0, skipped: 0, updated: 0 },
-		taxonomies: { created: 0, terms: 0 },
+		taxonomies: { created: 0, skipped: 0, terms: 0 },
 		bylines: { created: 0, skipped: 0, updated: 0 },
 		menus: { created: 0, items: 0 },
 		redirects: { created: 0, skipped: 0, updated: 0 },
@@ -221,6 +255,17 @@ export async function applySeed(
 	// 2. Declared relations, before the fields that name them
 	if (seed.relations) {
 		await applySeedRelations(db, seed.relations, seed.collections ?? [], onConflict, result);
+	}
+
+	if (seed.blockTypes) {
+		const registry = new BlockTypeRegistry(db);
+		for (const blockType of seed.blockTypes) {
+			const existing = await registry.getBlockType(blockType.slug);
+			await registry.applySeedBlockType(blockType, onConflict);
+			if (!existing) result.blockTypes.created++;
+			else if (onConflict === "update") result.blockTypes.updated++;
+			else result.blockTypes.skipped++;
+		}
 	}
 
 	// 3. Collections and Fields
@@ -407,10 +452,13 @@ export async function applySeed(
 			if (existingDef) {
 				defId = existingDef.id;
 				defTranslationGroup = existingDef.translation_group ?? existingDef.id;
-				if (onConflict === "error") {
+				const unclaimed = isUntouchedBuiltInTaxonomyDef(existingDef);
+				if (onConflict === "error" && !unclaimed) {
 					throw new Error(`Conflict: taxonomy "${taxonomy.name}" (${defLocale}) already exists`);
 				}
-				if (onConflict === "update") {
+				if (onConflict === "skip" && !unclaimed) {
+					result.taxonomies.skipped++;
+				} else {
 					await db
 						.updateTable("_emdash_taxonomy_defs")
 						.set({
@@ -589,9 +637,12 @@ export async function applySeed(
 		try {
 			// Create content entries
 			for (const [collectionSlug, entries] of Object.entries(seed.content)) {
-				const collectionRoutable =
-					(await schemaRegistry.getCollection(collectionSlug))?.routable !== false;
-				const referenceFields = await referenceFieldsOf(schemaRegistry, collectionSlug);
+				const collectionInfo = await schemaRegistry.getCollectionWithFields(collectionSlug);
+				const collectionRoutable = collectionInfo?.routable !== false;
+				const referenceFields = referenceFieldsOf(collectionInfo);
+				const resolvedBlockTypes = collectionInfo?.fields.some((field) => field.type === "blocks")
+					? await resolveBlockTypes(db)
+					: undefined;
 				for (const entry of entries) {
 					const entrySlug =
 						typeof entry.slug === "string" && entry.slug.trim().length > 0 ? entry.slug : null;
@@ -615,12 +666,23 @@ export async function applySeed(
 
 						if (onConflict === "update") {
 							// Resolve $ref and $media in data
-							const resolvedData = await resolveReferences(
+							let resolvedData = await resolveReferences(
 								entry.data,
 								seedIdMap,
 								mediaContext,
 								result,
 							);
+							if (collectionInfo) {
+								resolvedData = await normalizeBlocksData(
+									db,
+									collectionInfo,
+									resolvedData,
+									existing.data,
+									{ restoreBlocks: true },
+									false,
+									resolvedBlockTypes,
+								);
+							}
 							// Reference fields are storage-less — route their resolved values to
 							// edges and keep them out of the column/revision data.
 							const { columnData, edges } = splitReferenceFields(
@@ -714,7 +776,18 @@ export async function applySeed(
 					}
 
 					// Resolve $ref and $media in data
-					const resolvedData = await resolveReferences(entry.data, seedIdMap, mediaContext, result);
+					let resolvedData = await resolveReferences(entry.data, seedIdMap, mediaContext, result);
+					if (collectionInfo) {
+						resolvedData = await normalizeBlocksData(
+							db,
+							collectionInfo,
+							resolvedData,
+							{},
+							{ restoreBlocks: true },
+							false,
+							resolvedBlockTypes,
+						);
+					}
 					// Reference fields are storage-less — route their resolved values to
 					// edges and keep them out of the column/revision data.
 					const { columnData, edges } = splitReferenceFields(
@@ -1483,11 +1556,7 @@ async function upsertSeedField(
  */
 /** One collection's reference fields by slug, read once per collection: the
  * schema phase has finished by the time content is applied. */
-async function referenceFieldsOf(
-	registry: SchemaRegistry,
-	collectionSlug: string,
-): Promise<Map<string, Field>> {
-	const collection = await registry.getCollectionWithFields(collectionSlug);
+function referenceFieldsOf(collection: CollectionWithFields | null): Map<string, Field> {
 	return new Map(
 		(collection?.fields ?? []).filter((f) => f.type === "reference").map((f) => [f.slug, f]),
 	);
@@ -1784,6 +1853,10 @@ async function resolveValue(
 		const resolved: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(value)) {
 			resolved[k] = await resolveValue(v, seedIdMap, mediaContext, result);
+		}
+		// Gallery renderers read `asset._ref`/`asset.url`, not the MediaValue that `$media` yields.
+		if (resolved._type === "gallery" && Array.isArray(resolved.images)) {
+			resolved.images = sanitizeGalleryImages(resolved.images, ulid);
 		}
 		return resolved;
 	}

@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, expect, it } from "vitest";
 
 import { columnExists } from "../../../src/database/dialect-helpers.js";
-import * as migration084 from "../../../src/database/migrations/084_reference_field_relations.js";
+import * as migration086 from "../../../src/database/migrations/086_reference_field_relations.js";
 import { ContentRepository } from "../../../src/database/repositories/content.js";
 import { SchemaRegistry } from "../../../src/schema/registry.js";
 import { createLegacyReferenceField } from "../../utils/legacy-reference-field.js";
@@ -54,7 +54,7 @@ class EdgeInsertCounter implements KyselyPlugin {
 	}
 }
 
-describeEachDialect("reference field relations migration (084)", (dialect) => {
+describeEachDialect("reference field relations migration (086)", (dialect) => {
 	let ctx: DialectTestContext;
 
 	beforeEach(async () => {
@@ -129,7 +129,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		const post = await content.create({ type: "posts", slug: "hello", data: { title: "Hello" } });
 		await writeColumn("posts", post.id, "author", author.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const relations = await readRelations();
 		expect(relations.rows).toHaveLength(1);
@@ -186,7 +186,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 			JSON.stringify([second.id, "gone-entry-id", first.id]),
 		);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const relations = await readRelations();
 		expect(relations.rows[0]?.max_children_per_parent).toBeNull();
@@ -206,11 +206,11 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		const post = await content.create({ type: "posts", slug: "hello", data: { title: "Hello" } });
 		await writeColumn("posts", post.id, "author", author.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 		const relationsAfterFirst = (await readRelations()).rows;
 		const edgesAfterFirst = (await readEdges()).rows;
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect((await readRelations()).rows).toEqual(relationsAfterFirst);
 		expect((await readEdges()).rows).toEqual(edgesAfterFirst);
@@ -223,7 +223,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		const post = await content.create({ type: "posts", slug: "hello", data: { title: "Hello" } });
 		await writeColumn("posts", post.id, "author", author.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 		const relationId = (await readRelations()).rows[0]!.id;
 
 		// Roll the completion fence back: the relation and its edges landed, the
@@ -232,7 +232,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 			UPDATE ${sql.ref("_emdash_fields")} SET validation = NULL WHERE slug = 'author'
 		`.execute(ctx.db);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const relations = await readRelations();
 		expect(relations.rows).toHaveLength(1);
@@ -313,7 +313,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		const expected = await seedLargeMultipleReference();
 		const counter = new EdgeInsertCounter();
 
-		await migration084.up(ctx.db.withPlugin(counter));
+		await migration086.up(ctx.db.withPlugin(counter));
 
 		expect(await readEdgeShapes()).toEqual(expected);
 		expect(counter.statements).toBeGreaterThan(0);
@@ -326,7 +326,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 	it("resumes an edge copy that was cut off partway, sending only the missing edges", async () => {
 		const expected = await seedLargeMultipleReference();
 
-		await expect(migration084.up(ctx.db.withPlugin(new EdgeInsertCounter(4)))).rejects.toThrow(
+		await expect(migration086.up(ctx.db.withPlugin(new EdgeInsertCounter(4)))).rejects.toThrow(
 			"interrupted",
 		);
 		const copiedBefore = (await readEdges()).rows.length;
@@ -335,7 +335,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		expect(await readValidation("posts", "related")).toEqual({});
 
 		const rerun = new EdgeInsertCounter();
-		await migration084.up(ctx.db.withPlugin(rerun));
+		await migration086.up(ctx.db.withPlugin(rerun));
 
 		expect(await readEdgeShapes()).toEqual(expected);
 		expect(rerun.statements).toBe(
@@ -354,7 +354,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		`.execute(ctx.db);
 		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toEqual({});
 		expect((await readRelations()).rows).toHaveLength(1);
@@ -377,7 +377,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		`.execute(ctx.db);
 		await createLegacyReferenceField(ctx.db, "posts", "author", { targetCollection: "authors" });
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		// Two fields over one relation and side have no defined merge, so the
 		// unbound field stays unbound even though the relation's shape matches.
@@ -397,7 +397,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await createLegacyReferenceField(ctx.db, "posts", first, { targetCollection: "authors" });
 		await createLegacyReferenceField(ctx.db, "posts", second, { targetCollection: "authors" });
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		const firstValidation = await readValidation("posts", first);
 		const secondValidation = await readValidation("posts", second);
@@ -410,7 +410,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 			validationTargetCollection: "authors",
 		});
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toMatchObject({
 			relation: "posts_author",
@@ -422,7 +422,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await createLegacyReferenceField(ctx.db, "posts", "author", {});
 		await createLegacyReferenceField(ctx.db, "posts", "editor", { targetCollection: "gone" });
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect((await readRelations()).rows).toEqual([]);
 		expect(await readValidation("posts", "author")).toEqual({});
@@ -439,7 +439,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 			searchable: true,
 		});
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect((await readRelations()).rows).toEqual([]);
 		expect(await readValidation("posts", "author")).toEqual({});
@@ -467,7 +467,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await writeColumn("posts", english.id, "author", jane.id);
 		await writeColumn("posts", french.id, "author", rosa.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		// A link is shared across an entry's translations, so there is no answer
 		// here that keeps both choices. Binding would have to discard one, so the
@@ -506,7 +506,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await writeColumn("posts", english.id, "author", JSON.stringify([jane.id]));
 		await writeColumn("posts", french.id, "author", JSON.stringify([rosa.id]));
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		// The union would hand each locale the other's entry, which is a different
 		// selection from the one either of them had.
@@ -535,7 +535,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await writeColumn("posts", english.id, "author", jane.id);
 		await writeColumn("posts", french.id, "author", jane.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
 		const edges = await readEdges();
@@ -572,7 +572,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		await writeColumn("posts", english.id, "author", jane.id);
 		await writeColumn("posts", french.id, "author", jeanne.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
 		const edges = await readEdges();
@@ -601,7 +601,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		// nothing, so the group's one answer carries across its translations.
 		await writeColumn("posts", english.id, "author", jane.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toMatchObject({ relation: "posts_author" });
 		const edges = await readEdges();
@@ -625,7 +625,7 @@ describeEachDialect("reference field relations migration (084)", (dialect) => {
 		const post = await content.create({ type: "posts", slug: "hello", data: { title: "Hello" } });
 		await writeColumn("posts", post.id, "author", author.id);
 
-		await migration084.up(ctx.db);
+		await migration086.up(ctx.db);
 
 		expect(await readValidation("posts", "author")).toEqual({});
 		expect((await readRelations()).rows).toHaveLength(1);
