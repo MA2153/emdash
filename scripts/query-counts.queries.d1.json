@@ -247,6 +247,7 @@
 		"SELECT taxonomy_id, SUM(count) AS count FROM ( SELECT ct.taxonomy_id AS taxonomy_id, COUNT(DISTINCT e.translation_group) AS count FROM content_taxonomies AS ct CROSS JOIN \"ec_posts\" AS e WHERE e.translation_group = ct.entry_id AND ct.collection = ? AND ct.taxonomy_id IN (SELECT translation_group FROM taxonomies WHERE name = ?) AND \"e\".\"status\" = ? AND e.deleted_at IS NULL GROUP BY ct.taxonomy_id) AS per_collection GROUP BY taxonomy_id": 1
 	},
 	"GET /related (cold)": {
+		"select \"d\".\"id\", \"d\".\"name\", \"d\".\"label\", \"d\".\"label_singular\", \"d\".\"created_at\", \"d\".\"locale\", \"d\".\"translation_group\", coalesce(g.hierarchical, d.hierarchical) as \"hierarchical\", coalesce(g.collections, d.collections) as \"collections\" from \"_emdash_taxonomy_defs\" as \"d\" left join \"_emdash_taxonomy_def_groups\" as \"g\" on \"g\".\"name\" = \"d\".\"name\" order by \"d\".\"name\" asc, \"d\".\"locale\" asc": 1,
 		"select \"name\", \"value\" from \"options\" where \"name\" in (...)": 2,
 		"select \"name\", \"value\" from \"options\" where name LIKE ? ESCAPE '\\' order by \"name\" asc": 1,
 		"select \"plugin_id\", \"status\" from \"_plugin_state\"": 1,
@@ -258,7 +259,6 @@
 		"select * from \"_emdash_menus\" where \"name\" = ? order by \"locale\" asc": 1,
 		"select * from \"_emdash_migrations\" limit ?": 1,
 		"select * from \"_emdash_redirects\" where \"enabled\" = ?": 1,
-		"select * from \"_emdash_taxonomy_defs\"": 1,
 		"select * from \"_emdash_widget_areas\"": 1,
 		"select * from \"_emdash_widgets\" order by \"sort_order\" asc": 1,
 		"select * from \"taxonomies\" where \"name\" = ? order by \"sort_order\" asc, \"label\" asc": 2,
@@ -285,6 +285,7 @@
 		"SELECT f.slug AS slug, f.validation AS validation, r.id AS relation_id FROM \"_emdash_fields\" AS f INNER JOIN \"_emdash_collections\" AS c ON c.id = f.collection_id LEFT JOIN \"_emdash_relations\" AS r ON r.slug = json_extract(validation, '$.relation') WHERE c.slug = ? AND f.type = 'reference'": 1
 	},
 	"GET /related-baseline (cold)": {
+		"select \"d\".\"id\", \"d\".\"name\", \"d\".\"label\", \"d\".\"label_singular\", \"d\".\"created_at\", \"d\".\"locale\", \"d\".\"translation_group\", coalesce(g.hierarchical, d.hierarchical) as \"hierarchical\", coalesce(g.collections, d.collections) as \"collections\" from \"_emdash_taxonomy_defs\" as \"d\" left join \"_emdash_taxonomy_def_groups\" as \"g\" on \"g\".\"name\" = \"d\".\"name\" order by \"d\".\"name\" asc, \"d\".\"locale\" asc": 1,
 		"select \"name\", \"value\" from \"options\" where \"name\" in (...)": 2,
 		"select \"name\", \"value\" from \"options\" where name LIKE ? ESCAPE '\\' order by \"name\" asc": 1,
 		"select \"plugin_id\", \"status\" from \"_plugin_state\"": 1,
@@ -295,7 +296,6 @@
 		"select * from \"_emdash_menus\" where \"name\" = ? order by \"locale\" asc": 1,
 		"select * from \"_emdash_migrations\" limit ?": 1,
 		"select * from \"_emdash_redirects\" where \"enabled\" = ?": 1,
-		"select * from \"_emdash_taxonomy_defs\"": 1,
 		"select * from \"_emdash_widget_areas\"": 1,
 		"select * from \"_emdash_widgets\" order by \"sort_order\" asc": 1,
 		"select * from \"taxonomies\" where \"name\" = ? order by \"sort_order\" asc, \"label\" asc": 2,
