@@ -39,7 +39,7 @@ msgstr ""
 #. placeholder {0}: item.filename
 #: packages/admin/src/components/MediaDetailPanel.tsx:1904
 msgid "\"{0}\" will be permanently deleted."
-msgstr ""
+msgstr "Something else"
 
 #: packages/admin/src/components/RegistryPluginDetail.tsx:608
 msgid "(pre-release)"
