@@ -2404,27 +2404,11 @@ msgstr ""
 msgid "Character between page title and site name (e.g., \"My Post | My Site\")"
 msgstr "სიმბოლო გვერდის სათაურსა და საიტის სახელს შორის (მაგ., „ჩემი პოსტი | ჩემი საიტი“)"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:35
-msgid "Check experimental.registry in astro.config.mjs, then restart EmDash."
-msgstr "შეამოწმეთ experimental.registry astro.config.mjs-ში, შემდეგ გადატვირთეთ EmDash."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:23
-msgid "Check experimental.registry.aggregatorUrl in astro.config.mjs, then restart EmDash."
-msgstr "შეამოწმეთ experimental.registry.aggregatorUrl astro.config.mjs-ში, შემდეგ გადატვირთეთ EmDash."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:26
-msgid "Check experimental.registry.policy.minimumReleaseAge in astro.config.mjs, then restart EmDash."
-msgstr "შეამოწმეთ experimental.registry.policy.minimumReleaseAge astro.config.mjs-ში, შემდეგ გადატვირთეთ EmDash."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:29
-msgid "Check experimental.registry.policy.minimumReleaseAgeExclude in astro.config.mjs, then restart EmDash."
-msgstr "შეამოწმეთ experimental.registry.policy.minimumReleaseAgeExclude astro.config.mjs-ში, შემდეგ გადატვირთეთ EmDash."
-
 #: packages/admin/src/components/PluginManager.tsx:205
 msgid "Check for updates"
 msgstr "განახლებების შემოწმება"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:34
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:23
 msgid "Check registry in astro.config.mjs, then restart EmDash."
 msgstr "შეამოწმეთ registry astro.config.mjs-ში, შემდეგ გადატვირთეთ EmDash."
 
@@ -5239,7 +5223,7 @@ msgstr "მომხმარებლის ჩართვა ვერ მო
 msgid "Failed to execute import"
 msgstr "იმპორტის შესრულება ვერ მოხერხდა"
 
-#: packages/admin/src/lib/api/client.ts:369
+#: packages/admin/src/lib/api/client.ts:366
 msgid "Failed to fetch auth mode"
 msgstr "ავტორიზაციის რეჟიმის ჩატვირთვა ვერ მოხერხდა"
 
@@ -5264,7 +5248,7 @@ msgstr "ელფოსტის პარამეტრების ჩატ�
 msgid "Failed to fetch entry terms"
 msgstr "ჩანაწერის ტერმინების ჩატვირთვა ვერ მოხერხდა"
 
-#: packages/admin/src/lib/api/client.ts:352
+#: packages/admin/src/lib/api/client.ts:349
 msgid "Failed to fetch manifest"
 msgstr "მანიფესტის ჩატვირთვა ვერ მოხერხდა"
 
@@ -9094,8 +9078,8 @@ msgstr "პლაგინის ნებართვები"
 msgid "Plugin Registry"
 msgstr "პლაგინების რეესტრი"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:43
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:44
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:30
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:31
 msgid "Plugin registry configuration error"
 msgstr "პლაგინების რეესტრის კონფიგურაციის შეცდომა"
 
@@ -9925,7 +9909,7 @@ msgstr "რეპოზიტორია"
 msgid "Request a new link"
 msgstr "ახალი ბმულის მოთხოვნა"
 
-#: packages/admin/src/lib/api/client.ts:340
+#: packages/admin/src/lib/api/client.ts:337
 msgid "Request failed"
 msgstr "მოთხოვნა ვერ მოხერხდა"
 

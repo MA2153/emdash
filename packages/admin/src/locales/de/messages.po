@@ -2404,27 +2404,11 @@ msgstr ""
 msgid "Character between page title and site name (e.g., \"My Post | My Site\")"
 msgstr "Trennzeichen zwischen Seitentitel und Webseitenname (z. B. Mein Beitrag | Meine Webseite)"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:35
-msgid "Check experimental.registry in astro.config.mjs, then restart EmDash."
-msgstr "Prüfe experimental.registry in deiner astro.config.mjs und starte EmDash anschließend neu."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:23
-msgid "Check experimental.registry.aggregatorUrl in astro.config.mjs, then restart EmDash."
-msgstr "Prüfe experimental.registry.aggregatorUrl in deiner astro.config.mjs und starte EmDash anschließend neu."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:26
-msgid "Check experimental.registry.policy.minimumReleaseAge in astro.config.mjs, then restart EmDash."
-msgstr "Prüfe experimental.registry.policy.minimumReleaseAge in deiner astro.config.mjs und starte EmDash anschließend neu."
-
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:29
-msgid "Check experimental.registry.policy.minimumReleaseAgeExclude in astro.config.mjs, then restart EmDash."
-msgstr "Prüfe experimental.registry.policy.minimumReleaseAgeExclude in deiner astro.config.mjs und starte EmDash anschließend neu."
-
 #: packages/admin/src/components/PluginManager.tsx:205
 msgid "Check for updates"
 msgstr "Nach Aktualisierungen suchen"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:34
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:23
 msgid "Check registry in astro.config.mjs, then restart EmDash."
 msgstr "Prüfe registry in deiner astro.config.mjs und starte EmDash anschließend neu."
 
@@ -5239,7 +5223,7 @@ msgstr "Aktivieren des Benutzers fehlgeschlagen"
 msgid "Failed to execute import"
 msgstr "Ausführen des Imports fehlgeschlagen"
 
-#: packages/admin/src/lib/api/client.ts:369
+#: packages/admin/src/lib/api/client.ts:366
 msgid "Failed to fetch auth mode"
 msgstr "Abrufen des Auth-Modus fehlgeschlagen"
 
@@ -5264,7 +5248,7 @@ msgstr "Abrufen der E-Mail-Einstellungen fehlgeschlagen"
 msgid "Failed to fetch entry terms"
 msgstr "Abrufen der Begriffe des Eintrags fehlgeschlagen"
 
-#: packages/admin/src/lib/api/client.ts:352
+#: packages/admin/src/lib/api/client.ts:349
 msgid "Failed to fetch manifest"
 msgstr "Abrufen des Manifests fehlgeschlagen"
 
@@ -9094,8 +9078,8 @@ msgstr "Erweiterungsberechtigungen"
 msgid "Plugin Registry"
 msgstr "Erweiterungsverzeichnis"
 
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:43
-#: packages/admin/src/components/RegistryConfigurationBanner.tsx:44
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:30
+#: packages/admin/src/components/RegistryConfigurationBanner.tsx:31
 msgid "Plugin registry configuration error"
 msgstr "Erweiterungsverzeichnis falsch konfiguriert"
 
@@ -9925,7 +9909,7 @@ msgstr "Repository"
 msgid "Request a new link"
 msgstr "Einen neuen Link anfragen"
 
-#: packages/admin/src/lib/api/client.ts:340
+#: packages/admin/src/lib/api/client.ts:337
 msgid "Request failed"
 msgstr "Anfrage fehlgeschlagen"
 
