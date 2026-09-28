@@ -2074,7 +2074,7 @@ msgstr "تم مسح المراجع المعطّلة"
 
 #: packages/admin/src/components/RegistryBrowse.tsx:106
 msgid "Browse and install plugins published to the decentralized registry."
-msgstr "تصفّح وثبّت الإضافات المنشورة في المستودع اللامركزي."
+msgstr "تصفّح وثبّت الإضافات المنشورة في السجل اللامركزي."
 
 #: packages/admin/src/components/MarketplaceBrowse.tsx:89
 msgid "Browse and install plugins to extend your site."
@@ -5447,7 +5447,7 @@ msgstr "فشل في تحميل الإضافات: {0}"
 
 #: packages/admin/src/components/RegistryBrowse.tsx:131
 msgid "Failed to load plugins. The registry aggregator may be unreachable."
-msgstr "فشل تحميل الإضافات. قد يكون مجمّع المستودع غير متاح."
+msgstr "فشل تحميل الإضافات. قد يكون مجمّع السجل غير متاح."
 
 #: packages/admin/src/components/RevisionHistory.tsx:200
 msgid "Failed to load revisions"
@@ -8378,7 +8378,7 @@ msgstr "لم يتم العثور على إضافات"
 
 #: packages/admin/src/components/RegistryBrowse.tsx:153
 msgid "No plugins have been published to this registry yet."
-msgstr "لم يُنشر بعد أي إضافة في هذا المستودع."
+msgstr "لم تُنشر أي إضافة في هذا السجل بعد."
 
 #: packages/admin/src/components/RegistryBrowse.tsx:152
 msgid "No plugins match \"{debouncedQuery}\"."
@@ -9076,7 +9076,7 @@ msgstr "صلاحيات الإضافة"
 
 #: packages/admin/src/components/RegistryBrowse.tsx:104
 msgid "Plugin Registry"
-msgstr "مستودع الإضافات"
+msgstr "سجل الإضافات"
 
 #: packages/admin/src/components/RegistryConfigurationBanner.tsx:30
 #: packages/admin/src/components/RegistryConfigurationBanner.tsx:31
@@ -9628,7 +9628,7 @@ msgstr "تم إلغاء التسجيل أو انتهت مهلته. يرجى ال
 #: packages/admin/src/components/PluginManager.tsx:447
 #: packages/admin/src/components/Sidebar.tsx:475
 msgid "Registry"
-msgstr "المستودع"
+msgstr "السجل"
 
 #: packages/admin/src/components/ContentTypeList.tsx:138
 #: packages/admin/src/components/RelationList.tsx:68
