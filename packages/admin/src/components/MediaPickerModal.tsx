@@ -1124,6 +1124,7 @@ export function MediaPickerModal({
 														aria-hidden="true"
 													/>
 													<Input
+														dir="ltr"
 														id="media-picker-url"
 														type="url"
 														aria-label={t`Image URL`}
