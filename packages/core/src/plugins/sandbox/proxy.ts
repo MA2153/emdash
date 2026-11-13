@@ -8,10 +8,11 @@ import type { SandboxedPluginInstance } from "./types.js";
 
 const SANDBOX_REJECTION = Symbol("emdash:sandbox-save-rejection");
 
-export interface SandboxSaveRejectionDetails {
+// A type alias, not an interface, so it satisfies `details?: Record<string, unknown>`.
+export type SandboxSaveRejectionDetails = {
 	pluginId: string;
 	reason: string;
-}
+};
 
 const VALID_METADATA_KINDS = new Set(["meta", "property", "link", "jsonld"]);
 const VALID_LINK_REL = new Set([

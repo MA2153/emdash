@@ -49,6 +49,7 @@ import {
 import { encodeRev, validateRev } from "./api/rev.js";
 import { resolveSiteTitle } from "./api/site-title.js";
 import { getSiteBaseUrl, resolveSiteOrigin } from "./api/site-url.js";
+import type { ApiResult, ContentResponse } from "./api/types.js";
 import type {
 	EmDashConfig,
 	PluginAdminPage,
@@ -119,6 +120,7 @@ import type { PluginContentCacheInvalidator } from "./plugins/routes.js";
 import {
 	createSandboxedPluginProxy,
 	getSandboxSaveRejectionDetails,
+	type SandboxSaveRejectionDetails,
 } from "./plugins/sandbox/proxy.js";
 import { createSandboxRunnerOptions } from "./plugins/sandbox/runner-options.js";
 import { getSandboxRouteErrorDetails, SandboxUnavailableError } from "./plugins/sandbox/types.js";
@@ -632,12 +634,29 @@ function listConflict() {
 	};
 }
 
+type BeforeSaveFailure =
+	| {
+			success: false;
+			error: { code: "SAVE_REJECTED"; message: string; details: SandboxSaveRejectionDetails };
+	  }
+	| { success: false; error: { code: "SAVE_REJECTED"; message: string; details?: undefined } }
+	| {
+			success: false;
+			error: { code: "CONTENT_HOOK_ERROR"; message: string; details?: undefined };
+	  };
+
+type ContentUpdateResult =
+	| Extract<ApiResult<never>, { success: false }>
+	| BeforeSaveFailure
+	| { liveContentChanged: boolean; saved: ContentWrite; success: true; data: ContentResponse }
+	| { liveContentChanged: boolean; success: true; data: ContentResponse };
+
 /**
  * A `ContentSaveRejectedError` carries a message the plugin wrote for the
  * editor; every other exception stays internal and is replaced by a generic
  * message so hook internals cannot leak through the API.
  */
-function beforeSaveFailure(error: unknown) {
+function beforeSaveFailure(error: unknown): BeforeSaveFailure {
 	if (isContentSaveRejection(error)) {
 		const sandbox = getSandboxSaveRejectionDetails(error);
 		if (sandbox) {
@@ -4251,7 +4270,7 @@ export class EmDashRuntime {
 			migrateBlocks?: boolean;
 			replaceBlocks?: boolean;
 		},
-	) {
+	): Promise<ContentUpdateResult> {
 		const actor = body.actor ? { ...body.actor } : undefined;
 
 		// Resolve slug → ID if needed (before any lookups)
