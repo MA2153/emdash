@@ -285,7 +285,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "dev": "tsdown --watch",
+    "dev": "tsdown --watch --no-dts --no-clean",
     "prepublishOnly": "node --run build",
     "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.components.json && tsgo --noEmit -p tsconfig.typecheck.json",
     "check": "publint && attw --pack --ignore-rules=cjs-resolves-to-esm --ignore-rules=no-resolution --ignore-rules=internal-resolution-error",

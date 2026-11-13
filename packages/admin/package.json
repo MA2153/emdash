@@ -65,7 +65,7 @@
   },
   "scripts": {
     "build": "node --run locale:compile && tsdown && node --run locale:copy && npx @tailwindcss/cli -i src/styles.css -o dist/styles.css --minify",
-    "dev": "tsdown --watch",
+    "dev": "tsdown --watch --no-dts --no-clean",
     "prepublishOnly": "node --run build",
     "check": "publint && attw --pack --ignore-rules=cjs-resolves-to-esm --ignore-rules=no-resolution",
     "test": "pnpm exec tailwindcss -i src/styles.css -o dist/styles.css --minify && vitest",

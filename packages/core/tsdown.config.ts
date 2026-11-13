@@ -161,7 +161,7 @@ export default defineConfig({
 	],
 	format: "esm",
 	dts: true,
-	hooks: { "build:done": buildUiTypes },
+	hooks: { "build:done": ({ options }) => (options.dts ? buildUiTypes() : undefined) },
 	clean: true,
 	// pnpm applies the image-size patch only inside this workspace, so bundle
 	// the patched implementation into every published entry that uses it.

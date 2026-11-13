@@ -77,6 +77,8 @@ cd demos/simple && pnpm dev
 
 Core changes propagate to the demo automatically.
 
+`pnpm dev` in `packages/core` and `packages/admin` rebuilds JavaScript only. Type declarations in `dist/` stay as the last `pnpm build` left them, so run `pnpm build` again after you change exported types that another package or demo uses.
+
 ## Repository Layout
 
 | Directory                 | What it is                                                                                                                                        |
