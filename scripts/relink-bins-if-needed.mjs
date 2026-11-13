@@ -1,24 +1,19 @@
 #!/usr/bin/env node
-// Relink workspace bin symlinks after build, but only when needed.
-// pnpm only creates bin links when the target file exists at install time.
-// Since the CLI lives in dist/, it doesn't exist until after the first build.
+// pnpm links a package's bins only if the target exists at install time. The
+// workspace CLIs (emdash, em, emdash-plugin) live in dist/, so after a fresh
+// install every dependent's node_modules/.bin lacks them until relinked.
+// `pnpm install` can't relink them: with an unchanged lockfile it reports
+// "Already up to date" and skips linking. `pnpm rebuild` relinks bins for
+// every project it visits, and --pending keeps it from rerunning build scripts.
 
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-// Skip in CI — bins are handled by the CI setup step
 if (process.env.CI) process.exit(0);
 
-const CLI_SRC = "packages/core/dist/cli/index.mjs";
+if (!existsSync("packages/core/dist/cli/index.mjs")) process.exit(0);
 
-// If the built CLI doesn't exist, the build itself failed — nothing to relink
-if (!existsSync(CLI_SRC)) process.exit(0);
-
-const binDir = execSync("pnpm bin", { encoding: "utf-8" }).trim();
-const cliBin = `${binDir}/emdash`;
-
-// If the bin symlink is missing or broken, relink
-if (!existsSync(cliBin)) {
-	console.log("CLI bin missing — relinking...");
-	execSync("pnpm install --frozen-lockfile", { stdio: "inherit" });
+if (!existsSync("node_modules/.bin/emdash")) {
+	console.log("Workspace CLI bins missing — relinking...");
+	execSync("pnpm --recursive rebuild --pending", { stdio: "inherit" });
 }
