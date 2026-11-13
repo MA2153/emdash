@@ -19,7 +19,7 @@
 		"ux:site:start": "node scripts/ux-acceptance-site.mjs start",
 		"ux:site:status": "node scripts/ux-acceptance-site.mjs status",
 		"ux:site:stop": "node scripts/ux-acceptance-site.mjs stop",
-		"build": "pnpm run --filter {./packages/**} build",
+		"build": "pnpm run --filter {./packages/**} --filter !@emdash-cms/blocks-playground build",
 		"postbuild": "node scripts/relink-bins-if-needed.mjs",
 		"format": "oxfmt --ignore-path .gitignore && prettier --write .",
 		"format:check": "oxfmt --ignore-path .gitignore --check && prettier --check .",
