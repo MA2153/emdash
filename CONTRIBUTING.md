@@ -111,6 +111,8 @@ pnpm test:e2e    # Playwright
 
 `pnpm test:e2e` runs the fixture against the built packages in `dist/` and only builds what is missing, so run `pnpm build` after changing package source.
 
+The `emdash` integration, smoke, and host suites (`vitest.integration.config.ts`, `vitest.smoke.config.ts`, and `vitest.hosts.config.ts` in `packages/core`) build the workspace packages they need before every run. To test against the current `dist/` output instead, for example right after `pnpm build`, set `EMDASH_TEST_SKIP_BUILD=1`. Nothing checks that this output matches the source.
+
 Tests use real in-memory SQLite -- no mocking. Each test gets a fresh database. Typecheck and lint must pass.
 
 ### Visual regression tests

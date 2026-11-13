@@ -1,15 +1,6 @@
-import { execFile } from "node:child_process";
-import { resolve } from "node:path";
-import { promisify } from "node:util";
+import { buildWorkspace } from "./build-workspace.js";
 
-const execAsync = promisify(execFile);
-const WORKSPACE_ROOT = resolve(import.meta.dirname, "../../../..");
-
+/** Test servers resolve their dependencies through `demos/simple/node_modules`. */
 export default async function setupIntegrationBuild(): Promise<void> {
-	console.log("[integration] Running pnpm build...");
-	await execAsync("pnpm", ["build"], {
-		cwd: WORKSPACE_ROOT,
-		timeout: 120_000,
-	});
-	console.log("[integration] Build complete.");
+	await buildWorkspace("integration", ["emdash-demo^..."]);
 }

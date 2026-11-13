@@ -59,13 +59,6 @@ const COOKIE_VALUE_PATTERN = /^([^;]+)/;
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function ensureBuilt(): Promise<void> {
-	if (existsSync(CLI_BINARY)) return;
-	console.log("[pw] Built artifacts missing — running pnpm build...");
-	await execAsync("pnpm", ["build"], { cwd: ROOT, timeout: 120_000 });
-	console.log("[pw] Build complete.");
-}
-
 /**
  * Ensure all e2e fixture dependencies are built.
  * Building only `emdash...` leaves out the fixture's built dependencies such
@@ -73,11 +66,10 @@ async function ensureBuilt(): Promise<void> {
  * Source-only packages such as @emdash-cms/plugin-color have no dist to check.
  */
 async function ensureFixtureDepsBuilt(): Promise<void> {
-	if (TARGET.depsMarkers.every((marker) => existsSync(marker))) return;
+	if ([CLI_BINARY, ...TARGET.depsMarkers].every((marker) => existsSync(marker))) return;
 	console.log("[pw] Building e2e fixture dependencies...");
 	await execAsync("pnpm", ["run", "--filter", TARGET.buildFilter, "build"], {
 		cwd: ROOT,
-		timeout: 180_000,
 	});
 	console.log("[pw] Fixture deps built.");
 }
@@ -321,7 +313,6 @@ async function warmUpAdmin(baseUrl: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export default async function globalSetup(): Promise<void> {
-	await ensureBuilt();
 	await ensureFixtureDepsBuilt();
 
 	// 0. Start mock marketplace server

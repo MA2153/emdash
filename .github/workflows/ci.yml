@@ -389,7 +389,7 @@ jobs:
           check-latest: true
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The suite's global setup builds every package first.
+      # The suite's global setup builds the packages it needs first.
       - run: pnpm --filter emdash exec vitest run --config vitest.hosts.config.ts
 
   test-browser:
