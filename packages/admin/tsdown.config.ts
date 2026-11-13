@@ -72,7 +72,7 @@ export default defineConfig({
 		"src/slugify.ts",
 	],
 	format: ["esm"],
-	dts: true,
+	dts: { tsgo: true },
 	clean: true,
 	platform: "browser",
 	plugins: [linguiMacroPlugin(), localeManifestPlugin()],

@@ -160,7 +160,9 @@ export default defineConfig({
 		// `[param]` filenames are hostile to tsdown's glob-based `entry`).
 	],
 	format: "esm",
-	dts: true,
+	// tsgo only emits declarations for this package's sources. With emitJs off,
+	// bundled JavaScript (registry-verification) keeps its own .d.ts files.
+	dts: { tsgo: true, tsconfig: "tsconfig.build.json", emitJs: false },
 	hooks: { "build:done": buildUiTypes },
 	clean: true,
 	// pnpm applies the image-size patch only inside this workspace, so bundle
