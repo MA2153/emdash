@@ -402,7 +402,7 @@
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "^6.0.0",
+    "vite": "catalog:",
     "vitest": "catalog:",
     "zod-openapi": "^5.4.6"
   },
