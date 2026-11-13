@@ -53,6 +53,10 @@ overrides:
   "@flue/runtime@2.0.3>hono": "4.12.27"
   # 2.2.27 causes pathological selector performance in jsdom UI tests.
   nwsapi: "2.2.25"
+  # Keep the jetstream/firehose clients on the patched partysocket. Without
+  # these, dedupe moves them to the unpatched version the agents package pins.
+  "@atcute/firehose>partysocket": "1.1.18"
+  "@atcute/jetstream>partysocket": "1.1.18"
 patchedDependencies:
   "@sigstore/core@4.0.1": patches/@sigstore__core@4.0.1.patch
   image-size@2.0.2: patches/image-size@2.0.2.patch
