@@ -160,7 +160,7 @@ export default defineConfig({
 		// `[param]` filenames are hostile to tsdown's glob-based `entry`).
 	],
 	format: "esm",
-	dts: true,
+	dts: { newContext: true },
 	hooks: { "build:done": buildUiTypes },
 	clean: true,
 	// pnpm applies the image-size patch only inside this workspace, so bundle
