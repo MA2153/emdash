@@ -28,6 +28,7 @@ import { waitForDeferredTasks } from "../../src/deferred-tasks.js";
 import { resetRegisteredCollectionsCacheForTests } from "../../src/schema/collection-slugs-cache.js";
 import { SchemaRegistry } from "../../src/schema/registry.js";
 import { resetTaxonomyDefsCacheForTests } from "../../src/taxonomies/index.js";
+import { dumpSqliteDatabase } from "./sqlite-template.js";
 
 /**
  * Clear the isolate-wide, schema-derived caches that live on globalThis and
@@ -110,13 +111,47 @@ export function createStalledDatabase(): { db: Kysely<DatabaseSchema>; abort(): 
 	return { db, abort: () => driver.abort() };
 }
 
+let migratedTemplate: Promise<string> | undefined;
+
 /**
- * Setup a test database with migrations run
+ * A script that recreates a freshly migrated database, built by running the
+ * real migrations once per module instance (once per test file).
+ */
+function getMigratedTemplate(): Promise<string> {
+	migratedTemplate ??= buildMigratedTemplate().catch((error: unknown) => {
+		migratedTemplate = undefined;
+		throw error;
+	});
+	return migratedTemplate;
+}
+
+async function buildMigratedTemplate(): Promise<string> {
+	const db = new Kysely<DatabaseSchema>({
+		dialect: new SqliteDialect({ database: openNodeSqliteDatabase(":memory:") }),
+	});
+	try {
+		await runMigrations(db);
+		return await dumpSqliteDatabase(db);
+	} finally {
+		await db.destroy();
+	}
+}
+
+/**
+ * Setup a test database with migrations run.
+ *
+ * Restores a dump of a migrated database rather than running the migrations,
+ * which is an order of magnitude faster. Tests of migration behavior should use
+ * `createTestDatabase()` and `runMigrations()` directly.
  */
 export async function setupTestDatabase(): Promise<Kysely<DatabaseSchema>> {
-	const db = createTestDatabase();
-	await runMigrations(db);
-	return db;
+	const template = await getMigratedTemplate();
+	resetSchemaCachesForTests();
+	const sqlite = openNodeSqliteDatabase(":memory:");
+	sqlite.exec(template);
+	return new Kysely<DatabaseSchema>({
+		dialect: new SqliteDialect({ database: sqlite }),
+	});
 }
 
 /**
