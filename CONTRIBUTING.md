@@ -19,8 +19,8 @@ This guide covers setup, policy, and the rules around opening a PR. For code pat
 
 ## Prerequisites
 
-- **Node.js** 22+
-- **pnpm** 10+ (`corepack enable` if you don't have it)
+- **Node.js** 22.16+
+- **pnpm** 11 (`corepack enable` installs the version pinned in `packageManager`)
 - **Git**
 
 ## Setup
@@ -124,6 +124,18 @@ EMDASH_VISUAL=1 pnpm test:e2e visual-regression
 Baselines are platform-specific. **CI (Linux) is the source of truth** -- committed baselines are `*-chromium-linux.png`. Locally generated macOS/Windows baselines (`*-darwin.png`, `*-win32.png`) are gitignored; never commit them, they won't match CI.
 
 When a PR changes how a screen renders, the `Visual Regression` check goes red and a bot posts a sticky comment with the diff images. A maintainer reviews the diffs and, if the change is intended, comments `/accept-baselines`. The `Visual Regression — Apply` job then commits the regenerated Linux baselines to the PR branch. Baselines are never updated automatically on push -- a maintainer must accept each change.
+
+### Checks on a machine with limited memory
+
+Type-aware lint uses the most memory of the checks. On a 4-core machine with 16 GB of RAM, `pnpm lint` peaked at about 9 GB, and `pnpm lint:quick`, which runs oxlint without type information, peaked at about 3 GB. If your machine has less memory, run `pnpm lint:quick` while you work. CI runs `pnpm lint` on every pull request.
+
+`pnpm build`, `pnpm typecheck`, `pnpm lint`, and the `emdash` test suite each use roughly 2 GB or more. Run them one at a time rather than in parallel.
+
+The full `emdash` test suite takes several minutes. While you work, run the tests for the area you changed by passing a directory or file to Vitest:
+
+```bash
+pnpm --filter emdash exec vitest run tests/unit/database
+```
 
 ### Building your own site in the monorepo
 
