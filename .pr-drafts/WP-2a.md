@@ -2,12 +2,11 @@
 
 `pnpm build` fails on Node.js 26 at the default V8 heap (about 2.1 GB on a 16 GB machine) with `Reached heap limit` in core's tsdown step. Contributors currently need `NODE_OPTIONS=--max-old-space-size=4096` to build the repository.
 
-Two things push core's declaration build over the limit:
+The main cause is that `packages/core/src/astro/routes/PluginRegistry.tsx` imports `AdminApp` from the `@emdash-cms/admin` barrel. Core's declaration program then loads the barrel's whole type graph, including `@cloudflare/kumo` and 3,092 `@phosphor-icons/react` declaration files.
 
-1. `packages/core/src/astro/routes/PluginRegistry.tsx` imports `AdminApp` from the `@emdash-cms/admin` barrel. That makes the declaration program load the barrel's whole type graph, including `@cloudflare/kumo` and 3,092 `@phosphor-icons/react` declaration files. This PR adds an `@emdash-cms/admin/internal/app` entry that exports only `AdminApp`, `AdminAppProps` and `AdminBranding`, and switches `PluginRegistry.tsx` to it. The new entry's declaration chunk references Lingui, TanStack Query, React and `@emdash-cms/blocks`, but not Kumo or Phosphor. The entry sits under `internal/` alongside the other core-only subpaths, so it doesn't add public API.
-2. Even with (1), the `build:done` hook (`buildUiTypes`) then ran out of memory. `rolldown-plugin-dts` keeps the TypeScript programs from the main build in a module-level context that it reuses across builds in the same process, so the hook's second declaration build ran on top of the first one's retained heap. Setting `dts: { newContext: true }` in core's tsdown config releases that context at `buildEnd`.
+This PR adds an `@emdash-cms/admin/internal/app` entry that exports only `AdminApp`, `AdminAppProps` and `AdminBranding`, and switches `PluginRegistry.tsx` to it. The new entry's declaration chunk references Lingui, TanStack Query, React and `@emdash-cms/blocks`, but not Kumo or Phosphor. The entry sits under `internal/` alongside the other core-only subpaths, so it doesn't add public API.
 
-Neither change is enough on its own. Both counterfactuals were measured and both run out of memory (see below).
+With this change, core's build passes at the default heap, but with little margin. In the root build, where other packages compile in parallel, it passed 4 of 5 runs, and the failure was in core's `buildUiTypes` hook. A follow-up PR (`claude/perf-dts-new-context`) releases the main declaration build's TypeScript context before that hook runs, and closes the remaining gap.
 
 At runtime, the Vite alias for `@emdash-cms/admin` uses prefix matching, so the new subpath resolves to `src/internal/app.ts` in in-repo dev and to `dist/internal/app.js` everywhere else. The production client bundle of `demos/simple` still contains a single copy of the admin app module.
 
@@ -53,14 +52,12 @@ There are no unit tests for this change: it changes build memory and an import p
 
 Not applicable (no UI change). Measured on 4 vCPU, 15.7 GiB RAM, Node 26.13.1. Peak = combined RSS of the process tree.
 
-| Run | Before | After |
+| Run | `main` | This PR |
 | --- | --- | --- |
-| Root `pnpm build`, default heap (no `NODE_OPTIONS`) | OOM in core | pass, 92–95 s, 2.64 GB peak |
-| core `pnpm build`, default heap (~2,144 MB) | OOM (28 s, 2.62 GB) | pass (22.7 s, 2.49 GB) |
-| core `pnpm build`, 1,800 MB heap | not run (OOMs at the default heap) | pass (26.2 s, 2.20 GB) |
-| core `pnpm build`, 1,500 MB heap | | OOM |
-| Only the narrow entry, default heap | | OOM in `buildUiTypes` |
-| Only `newContext: true`, default heap | | OOM in the main build |
+| core `pnpm build`, default heap (2,144 MB) | out of memory | passes (3 of 3), about 21 s, 2.65 GB peak |
+| core `pnpm build`, 4,096 MB heap | passes, 3.30 GB peak | passes, 2.70 GB peak |
+| Lowest heap tried at which core's build passes | 4,096 MB | 2,000 MB (1,800 MB fails in `buildUiTypes`) |
+| Root `pnpm build`, default heap | out of memory in core | passes 4 of 5 runs, about 65 s, 2.8 GB peak |
 | Files in a program rooted at `PluginRegistry.tsx` (`tsgo --listFilesOnly`) | 5,119 (3,092 Phosphor, 61 Kumo) | 634 (0 Phosphor, 0 Kumo) |
 
 The admin still works:

@@ -10,7 +10,8 @@ All measurements come from one 4 vCPU, 15 GB RAM machine on Node 26.13.1 and pnp
 
 | # | Branch | Commit | Changeset | Draft | One-line purpose |
 | - | ------ | ------ | --------- | ----- | ---------------- |
-| WP-2 | `claude/perf-admin-app-entry` | `bcb8a42` | patch: `emdash`, `@emdash-cms/admin` | `WP-2.md` | `pnpm build` passes at Node 26's default heap again |
+| WP-2a | `claude/perf-admin-internal-app-entry` | `52bdca0` | patch: `emdash`, `@emdash-cms/admin` | `WP-2a.md` | Narrow admin entry; the default-heap build passes, with little margin |
+| WP-2b | `claude/perf-dts-new-context` | `b84b705` | none | `WP-2b.md` | `dts.newContext`; with WP-2a, the default-heap build passes reliably |
 | WP-6-pre | `claude/types-handle-content-update-return` | `0b853fb` | none | `WP-6-pre.md` | Explicit return type, so tsc and tsgo publish the same type |
 | WP-6 | `claude/perf-dts-tsgo` | `6c0cfb6` | none (needs WP-6-pre first) | `WP-6.md` | Generate core and admin `.d.ts` with tsgo, about 2.5× faster at half the memory |
 | WP-1 | `claude/perf-dev-watch-no-dts` | `7869234` | none | `WP-1.md` | `dev` watch mode skips declarations; a rebuild drops from 19 s to 0.8 s |
@@ -29,9 +30,9 @@ Each branch ran the repo's pre-commit checks: `pnpm format`, root `pnpm build`, 
 
 There are three themes.
 
-1. **Build memory and speed of the published packages:** WP-2, WP-6-pre, WP-6 and WP-1.
-   - WP-2 fixes the hard failure: on `main`, `pnpm build` aborts with `Reached heap limit` on Node 26 unless `NODE_OPTIONS=--max-old-space-size=4096` is set.
-   - WP-6 fixes the same failure in a different way, and also makes declaration builds much faster. The two are independent, and both are worth landing.
+1. **Build memory and speed of the published packages:** WP-2a, WP-2b, WP-6-pre, WP-6 and WP-1.
+   - WP-2a and WP-2b fix the hard failure: on `main`, `pnpm build` aborts with `Reached heap limit` on Node 26 unless `NODE_OPTIONS=--max-old-space-size=4096` is set. They are independent changes and were split from one branch (`claude/perf-admin-app-entry`, `bcb8a42`, superseded). WP-2a does most of the work; WP-2b adds the margin.
+   - WP-6 fixes the same failure in a different way, and also makes declaration builds much faster. It is independent of WP-2a and WP-2b, and all three are worth landing.
    - WP-6 depends on WP-6-pre. Without it, tsgo publishes a weaker type for `EmDashRuntime.handleContentUpdate`.
    - WP-1 only affects the `dev` watch loop.
    - All four edit the `dts:` and `hooks:` lines in `packages/core/tsdown.config.ts` (see [Conflicts](#conflicts)).
@@ -40,17 +41,17 @@ There are three themes.
    - WP-5b and WP-5c each stack on WP-5a, and are independent of each other.
    - WP-6 also touches the lockfile and `pnpm-workspace.yaml` overrides.
 
-WP-9 documents the state after everything else lands. In particular, it assumes WP-2 has landed, so it has no `NODE_OPTIONS` workaround.
+WP-9 documents the state after everything else lands. In particular, it assumes WP-2a and WP-2b have landed, so it has no `NODE_OPTIONS` workaround.
 
 ### Suggested merge order
 
-1. WP-2, so the default-heap build works for everyone.
+1. WP-2a, then WP-2b, so the default-heap build works for everyone.
 2. WP-6-pre.
 3. WP-4, WP-8, WP-7 and WP-12, in any order.
 4. WP-5a, then WP-5b and WP-5c. Regenerate the lockfile for whichever of the two lands second.
-5. WP-1. Resolve its `tsdown.config.ts` conflict with WP-2.
-6. WP-6, rebased onto everything above. Resolve conflicts with WP-2, WP-1 and WP-5a.
-7. WP-9, last. If WP-2 hasn't landed by then, WP-9 needs the `NODE_OPTIONS` workaround added back.
+5. WP-1. Resolve its `tsdown.config.ts` conflict with WP-2b.
+6. WP-6, rebased onto everything above. Resolve conflicts with WP-2b, WP-1 and WP-5a.
+7. WP-9, last. If WP-2a and WP-2b haven't landed by then, WP-9 needs the `NODE_OPTIONS` workaround added back.
 
 ### Conflicts
 
@@ -59,28 +60,36 @@ I merged every branch into `origin/main`, one after another, in the order above.
 | Branch merged | Conflicts with | Files | Resolution |
 | ------------- | -------------- | ----- | ---------- |
 | WP-5c | WP-5b, since both are stacked on WP-5a | `pnpm-lock.yaml` | Rebase onto the merged WP-5b and run `pnpm install` to regenerate the lockfile. |
-| WP-1 | WP-2 | `packages/core/tsdown.config.ts` | Keep both: `dts: { newContext: true }` from WP-2, and WP-1's `hooks: { "build:done": ({ options }) => (options.dts ? buildUiTypes() : undefined) }`. Check that `tsdown --watch --no-dts` still switches declarations off when `dts` is an object. |
-| WP-6 | WP-2, WP-1, WP-5a | `packages/core/tsdown.config.ts`, `pnpm-workspace.yaml`, `pnpm-lock.yaml` | **Config:** use `dts: { tsgo: true, tsconfig: "tsconfig.build.json", emitJs: false }`, keep WP-1's gated hook, and test again whether WP-2's `newContext: true` is still needed. With tsgo, the main build no longer holds TypeScript programs in memory, so it might not be. **Overrides:** keep WP-5a's two `partysocket` lines and WP-6's `rolldown-plugin-dts: 0.22.2` pin, then regenerate the lockfile with `pnpm install`. |
+| WP-1 | WP-2b | `packages/core/tsdown.config.ts` | Keep both: `dts: { newContext: true }` from WP-2b, and WP-1's `hooks: { "build:done": ({ options }) => (options.dts ? buildUiTypes() : undefined) }`. Check that `tsdown --watch --no-dts` still switches declarations off when `dts` is an object. |
+| WP-6 | WP-2b, WP-1, WP-5a | `packages/core/tsdown.config.ts`, `pnpm-workspace.yaml`, `pnpm-lock.yaml` | **Config:** use `dts: { tsgo: true, tsconfig: "tsconfig.build.json", emitJs: false }`, keep WP-1's gated hook, and test again whether WP-2b's `newContext: true` is still needed. With tsgo, the main build no longer holds TypeScript programs in memory, so it might not be. **Overrides:** keep WP-5a's two `partysocket` lines and WP-6's `rolldown-plugin-dts: 0.22.2` pin, then regenerate the lockfile with `pnpm install`. |
 
 WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other sections, so all three merge without textual conflicts. Each touches different parts of `.github/workflows/ci.yml` (WP-4 and WP-7) and `package.json`, and those merged cleanly too.
 
 ## Per-branch notes
 
-### WP-2: narrow admin entry and default-heap build (`claude/perf-admin-app-entry`)
+### WP-2a: narrow admin entry (`claude/perf-admin-internal-app-entry`)
 
 - **Problem:** core's `PluginRegistry.tsx` imported `AdminApp` from the `@emdash-cms/admin` barrel. That pulled the whole admin type graph, including 3,092 Phosphor icon declarations, into core's declaration build.
 - **Change:**
   - New entry `packages/admin/src/internal/app.ts`, published as `@emdash-cms/admin/internal/app`. It sits under `internal/` so it doesn't add public API, and exports only `AdminApp`, `AdminAppProps` and `AdminBranding`.
   - `PluginRegistry.tsx` imports from the new entry.
-  - `dts: { newContext: true }` in core's tsdown config. Without it, `rolldown-plugin-dts` keeps the main build's TypeScript programs in memory, and the `buildUiTypes` hook then runs out of memory.
-  - Each change fails without the other. The original audit missed the second one.
 - **Effect:**
   - Files loaded from `PluginRegistry.tsx` drop from 5,119 to 634, with no Phosphor or Kumo.
-  - Root build at the default heap: out of memory before, passes after in 92–95 s at 2.64 GB.
-  - Core alone: passes at a 1,800 MB heap, still fails at 1,500 MB.
-- **Verified:** the admin loads in `demos/simple` in both the dev server and a production build, with no console errors and a single copy of the admin app in the client bundle.
+  - Core's build at the default heap: out of memory before, passes after (3 of 3). Lowest heap tried that passes: 4,096 MB before, 2,000 MB after (1,800 MB fails in `buildUiTypes`). Peak at a 4 GB heap: 3.30 GB before, 2.70 GB after.
+  - Root build at the default heap: passed 4 of 5 runs, about 65 s, 2.8 GB. The one failure was in `buildUiTypes`.
+- **Verified:** the admin loads in `demos/simple` in both the dev server and a production build, with no console errors and a single copy of the admin app in the client bundle. This was checked on the superseded WP-2 branch, and the code in this branch is identical to that part of it.
 - **Versioning:** core depends on admin as `workspace:*`, and both are in the same changesets `fixed` group, so the versions can't drift apart.
 - **Note:** `attw` in admin's `check` script crashes on `main` too, with `Cannot read properties of undefined (reading 'filename')`. This branch didn't cause it.
+
+### WP-2b: release the dts context (`claude/perf-dts-new-context`)
+
+- **Problem:** `rolldown-plugin-dts` keeps the main build's TypeScript programs in a module-level context, so core's `buildUiTypes` hook ran its declaration build on top of that retained heap.
+- **Change:** `dts: { newContext: true }` in core's tsdown config, a one-line change with no changeset.
+- **Effect:**
+  - Alone: core's build still runs out of memory at the default heap. Lowest heap tried that passes drops from 4,096 MB to 2,600 MB, and the peak at a 4 GB heap from 3.30 GB to 2.82 GB.
+  - With WP-2a: core's build passes at 1,800 MB, peaking at 2.55 GB at a 4 GB heap. The root build at the default heap passed 3 of 3 runs, about 66 s, 2.64–2.77 GB.
+- **Checks:** the root build ran at a 4 GB heap, because this change alone can't pass at the default heap (neither can `main`).
+- **May become unnecessary after WP-6:** with tsgo, the main build might no longer keep TypeScript programs in memory. Splitting it out makes it easy to drop.
 
 ### WP-6-pre: explicit `handleContentUpdate` return type (`claude/types-handle-content-update-return`)
 
@@ -204,7 +213,7 @@ WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other
   - `pnpm lint` peaks at about 9 GB and `lint:quick` at about 3 GB, measured again on this branch; the audit's 11.2 GB didn't reproduce.
   - Run the heavy checks one at a time.
   - Run scoped Vitest commands while working.
-- **Verified:** the default-heap build passes on WP-2's branch.
+- **Verified:** the default-heap build passes on the superseded WP-2 branch, which had both WP-2a and WP-2b.
 - **Left out:** `tsgo --checkers 1`, because typecheck only peaks at about 2 GB.
 
 ## Closed without a branch
@@ -218,7 +227,7 @@ WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other
 
 ## Corrections to the original audit found during implementation
 
-- **WP-2:** the narrow entry alone isn't enough; `newContext: true` is also needed.
+- **WP-2:** the narrow entry alone is enough for core's build at the default heap, but only just: core's build passes at 2,000 MB and fails at 1,800 MB, and the root build passed 4 of 5 runs. `newContext: true` closes the gap. The first implementation recorded the narrow entry alone as out of memory.
 - **WP-3:** the `rootDir` caveat is wrong; tsgo with `noEmit` reports `rootDir` violations in neither run.
 - **WP-8:** the target is 93 bins in 39 workspace projects, not just the root bin.
 - **WP-9:** type-aware lint peaks at about 9 GB, not 11.2 GB.
@@ -228,7 +237,7 @@ WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other
 ## Tips for an agent picking this up
 
 - **Memory:** on a 16 GB machine, don't run two type-aware lints, or a lint and a build, at once.
-- **Heap:** until WP-2 or WP-6 is on the branch you're testing, build with `NODE_OPTIONS=--max-old-space-size=4096`.
+- **Heap:** until WP-2a and WP-2b, or WP-6, are on the branch you're testing, build with `NODE_OPTIONS=--max-old-space-size=4096`.
 - **Lockfile conflicts:** regenerate with `pnpm install` rather than resolving by hand.
 - **Labeler:** the `test` script leaves untracked files under `apps/labeler/src/admin/locales/`; don't commit them.
 - **`CI=true`:** setting it locally makes pnpm 11 fail with `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`.
