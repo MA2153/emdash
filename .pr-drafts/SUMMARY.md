@@ -10,7 +10,7 @@ All measurements come from one 4 vCPU, 15 GB RAM machine on Node 26.13.1 and pnp
 
 | # | Branch | Commit | Changeset | Draft | One-line purpose |
 | - | ------ | ------ | --------- | ----- | ---------------- |
-| WP-2a | `claude/perf-admin-internal-app-entry` | `52bdca0` | patch: `emdash`, `@emdash-cms/admin` | `WP-2a.md` | Narrow admin entry; the default-heap build passes, with little margin |
+| WP-2a | `claude/perf-admin-internal-app-entry` | `2cd7dd9` | none | `WP-2a.md` | Narrow admin entry; the default-heap build passes, with little margin |
 | WP-2b | `claude/perf-dts-new-context` | `b84b705` | none | `WP-2b.md` | `dts.newContext`; with WP-2a, the default-heap build passes reliably |
 | WP-6-pre | `claude/types-handle-content-update-return` | `0b853fb` | none | `WP-6-pre.md` | Explicit return type, so tsc and tsgo publish the same type |
 | WP-6 | `claude/perf-dts-tsgo` | `6c0cfb6` | none (needs WP-6-pre first) | `WP-6.md` | Generate core and admin `.d.ts` with tsgo, about 2.5× faster at half the memory |
@@ -78,7 +78,7 @@ WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other
   - Core's build at the default heap: out of memory before, passes after (3 of 3). Lowest heap tried that passes: 4,096 MB before, 2,000 MB after (1,800 MB fails in `buildUiTypes`). Peak at a 4 GB heap: 3.30 GB before, 2.70 GB after.
   - Root build at the default heap: passed 4 of 5 runs, about 65 s, 2.8 GB. The one failure was in `buildUiTypes`.
 - **Verified:** the admin loads in `demos/simple` in both the dev server and a production build, with no console errors and a single copy of the admin app in the client bundle. This was checked on the superseded WP-2 branch, and the code in this branch is identical to that part of it.
-- **Versioning:** core depends on admin as `workspace:*`, and both are in the same changesets `fixed` group, so the versions can't drift apart.
+- **No changeset:** the entry is core-only and changes no behavior or public API, and the README exempts tooling changes. The first commit had one; `2cd7dd9` removes it. Core depends on admin as `workspace:*`, and both are in the same changesets `fixed` group, so the import and the export ship together in the next release.
 - **Note:** `attw` in admin's `check` script crashes on `main` too, with `Cannot read properties of undefined (reading 'filename')`. This branch didn't cause it.
 
 ### WP-2b: release the dts context (`claude/perf-dts-new-context`)
@@ -88,6 +88,7 @@ WP-1 and WP-7 add separate paragraphs to `CONTRIBUTING.md`, and WP-9 edits other
 - **Effect:**
   - Alone: core's build still runs out of memory at the default heap. Lowest heap tried that passes drops from 4,096 MB to 2,600 MB, and the peak at a 4 GB heap from 3.30 GB to 2.82 GB.
   - With WP-2a: core's build passes at 1,800 MB, peaking at 2.55 GB at a 4 GB heap. The root build at the default heap passed 3 of 3 runs, about 66 s, 2.64–2.77 GB.
+- **Watch mode with declarations on:** no cost. Rebuilds took 15.7–17.6 s, against 17.0–18.0 s on `main`; the released context wasn't making rebuilds incremental.
 - **Checks:** the root build ran at a 4 GB heap, because this change alone can't pass at the default heap (neither can `main`).
 - **May become unnecessary after WP-6:** with tsgo, the main build might no longer keep TypeScript programs in memory. Splitting it out makes it easy to drop.
 

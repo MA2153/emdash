@@ -38,9 +38,11 @@ Closes #
 - [x] `pnpm format` has been run
 - [ ] I have added/updated tests for my changes (if applicable)
 - [ ] User-visible strings in the admin UI are [wrapped for translation](https://github.com/emdash-cms/emdash/blob/main/CONTRIBUTING.md#internationalization-i18n) (if applicable). Do not include `messages.po` changes except in translation PRs — a workflow extracts catalogs on merge to `main`.
-- [x] I have added and reviewed the user-facing [changeset](https://github.com/emdash-cms/emdash/blob/main/.changeset/README.md) (if this PR changes a published package)
+- [ ] I have added and reviewed the user-facing [changeset](https://github.com/emdash-cms/emdash/blob/main/.changeset/README.md) (if this PR changes a published package)
 - [ ] New features link to their merged design PR: https://github.com/emdash-cms/emdash/pull/...
 - [ ] I have included screenshots below if this PR changes the UI
+
+No changeset: the new entry is core-only and changes no behavior or public API for anyone running the packages. Core and admin are in the same changesets `fixed` group, so core's new import and admin's new export ship together in the next release.
 
 There are no unit tests for this change: it changes build memory and an import path, not runtime behavior. The checks below (build at fixed heap limits, the admin loading in dev and production) are the verification. There are no UI strings, and the admin UI does not change.
 

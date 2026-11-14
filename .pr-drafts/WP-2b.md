@@ -59,4 +59,13 @@ Core `pnpm build`:
 | Narrow admin entry alone | passes | 2,000 MB | 2.70 GB |
 | Narrow admin entry + this PR | passes | 1,800 MB | 2.55 GB |
 
+Core `tsdown --watch` with declarations on, 4,096 MB heap, rebuilding after a one-line edit to `src/utils/slugify.ts`. The time runs until the process tree is idle, so it includes `buildUiTypes`:
+
+| Variant | First build | Rebuild |
+| --- | --- | --- |
+| `main` | 20.1 s | 17.0–18.0 s |
+| This PR | 22.9 s | 15.7–17.6 s |
+
+The context this PR releases wasn't making watch rebuilds faster, so dropping it costs nothing there. (One first build with this PR took 41.6 s; a rerun took 22.9 s.)
+
 Root `pnpm build` at the default heap: the narrow admin entry alone passed 4 of 5 runs, and the one failure ran out of memory in `buildUiTypes`. With both changes it passed 3 of 3 runs, about 66 s, 2.64–2.77 GB peak.
